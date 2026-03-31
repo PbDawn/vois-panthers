@@ -69,7 +69,7 @@ function findNextUpcomingMatch(matches) {
 
 function computePlayerStats(matches) {
   let stats = {}
-  PLAYERS.forEach(p => { stats[p] = { matchesPlayed:0, contested:0, paidContests:0, wins:0, totalInvested:0, totalWon:0, bestPoints:0, carryFwd:0, totalPointsSum:0, pointsMatchCount:0, recentForm:[] } })
+  PLAYERS.forEach(p => { stats[p] = { matchesPlayed:0, contested:0, paidContests:0, wins:0, totalInvested:0, totalWon:0, bestPoints:0, carryFwd:0, totalPointsSum:0, pointsMatchCount:0, recentForm:[], activeDeposits: 0 } })
   let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
   matches.forEach(m => {
     // CRITICAL FIX: Only process matches that are actually completed
@@ -84,7 +84,17 @@ function computePlayerStats(matches) {
       const pd = m.players[p]
       if (!pd || !pd.joined) return
       const s = stats[p]
-      s.matchesPlayed++
+      // Logic for UPCOMING or ONGOING matches
+      if (!matchIsComplete) {
+        if (m.contest === 'yes' && pd.paid) {
+          s.activeDeposits += m.fee; // Amount deposited for future match
+        }
+        return; // Skip main stats (Played/Won/Rank) for this match
+      }
+
+      // Logic for COMPLETED matches only
+      s.matchesPlayed++;
+      
       if (m.contest === 'yes') {
         s.contested++
         if (pd.paid) {
@@ -336,6 +346,16 @@ function PlayerStats({ matches }) {
                 <div className="p-stat-row"><span className="p-stat-label">Total Invested</span><span className="p-stat-val red">₹{s.totalInvested}</span></div>
                 <div className="p-stat-row"><span className="p-stat-label">Total Winnings</span><span className="p-stat-val green">₹{s.totalWon.toFixed(2)}</span></div>
                 <div className="p-stat-row"><span className="p-stat-label">Profit / Loss</span><span className={`p-stat-val ${profit>=0?'green':'red'}`}>{profit>=0?'+':''}₹{profit.toFixed(2)}</span></div>
+                {/* NEW ENTRY: Show deposit for matches yet to be completed */}
+                {s.activeDeposits > 0 && (
+                  <div className="p-stat-row" style={{borderBottom: '1px solid rgba(52, 152, 219, 0.3)', paddingBottom: '8px', marginBottom: '8px'}}>
+                    <span className="p-stat-label" style={{color: '#3498db', fontWeight: 'bold'}}>💰 Active Deposit</span>
+                    <div style={{textAlign: 'right'}}>
+                      <span className="p-stat-val" style={{color: '#3498db'}}>₹{s.activeDeposits}</span>
+                      <div style={{fontSize: '9px', color: 'var(--text2)'}}>Match pending/ongoing</div>
+                    </div>
+                  </div>
+                )}
                 {s.carryFwd > 0 && <div className="p-stat-row"><span className="p-stat-label">Carry Forward</span><span className="p-stat-val"><span className="cf-tag">₹{s.carryFwd.toFixed(2)} pending</span></span></div>}
               </div>
             </div>
