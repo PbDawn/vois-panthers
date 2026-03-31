@@ -229,20 +229,21 @@ function MatchLog({ matches }) {
         setLiveMatch(null);
         return;
       }
-      const result = JSON.parse(text);
+     const result = JSON.parse(text);
       const leagueGroup = result.typeMatches?.find(group => group.matchType === "League");
       
-      // You defined this as iplSeries
+      // 1. We define it as iplSeries here
       const iplSeries = leagueGroup?.seriesMatches?.find(s => 
         s.seriesAdWrapper?.seriesName.toLowerCase().includes("indian premier league")
       );
 
-      // FIX: Changed 'ipl' to 'iplSeries' so it matches the variable above
+      // 2. CRITICAL FIX: Change 'ipl' to 'iplSeries' to match the variable above
       if (iplSeries && iplSeries.seriesAdWrapper.matches.length > 0) {
         const match = iplSeries.seriesAdWrapper.matches[0];
         const info = match.matchInfo;
         const score = match.matchScore;
         
+        // Default to "---" if score hasn't loaded yet
         let liveScoreText = "---";
         
         if (score) {
@@ -254,6 +255,8 @@ function MatchLog({ matches }) {
             const runs = scoreObj.inngs1.runs;
             const wickets = scoreObj.inngs1.wickets || 0;
             const overs = scoreObj.inngs1.overs || 0;
+            
+            // Format: GT: 12-0 (1.4)
             liveScoreText = `${battingTeam}: ${runs}-${wickets} (${overs})`;
           }
         }
@@ -292,7 +295,7 @@ function MatchLog({ matches }) {
           className={`btn-sm ${showLiveScore ? 'btn-danger' : 'btn-success'}`}
           style={{ padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
         >
-          {showLiveScore ? '🛑 Hide Live Score' : '📡 Show IPL Live'}
+          {showLiveScore ? '🛑 Hide Live Score' : '📡 Show  Live'}
         </button>
       </div>
 
@@ -311,7 +314,7 @@ function MatchLog({ matches }) {
               <button onClick={fetchIPLScore} style={{ marginTop: '15px', background: 'transparent', border: '1px solid #3498db', color: '#3498db', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>🔄 Refresh Now</button>
             </div>
           ) : (
-            <div style={{ color: '#8899bb' }}>No IPL match is currently Live. <br/><span style={{color: '#f5a623'}}>Stay Tuned for updates!</span></div>
+            <div style={{ color: '#8899bb' }}>No  match is currently Live. <br/><span style={{color: '#f5a623'}}>Stay Tuned for updates!</span></div>
           )}
         </div>
       )}
