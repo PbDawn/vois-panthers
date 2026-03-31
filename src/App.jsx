@@ -190,64 +190,76 @@ function MatchLog({ matches }) {
   const [showLiveScore, setShowLiveScore] = useState(false);
   const [liveMatch, setLiveMatch] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const fetchIPLScore = async () => {
-    // 1. Safety Check: If the toggle is off, don't waste API requests
+    // 1. Safety: Don't fetch if toggle is OFF
     if (!showLiveScore) return;
 
     setLoading(true);
+    setErrorMsg('');
+
     const options = {
       method: 'GET',
       headers: {
-        // REPLACE THE KEY BELOW WITH YOUR ACTUAL RAPIDAPI KEY
-        'x-rapidapi-key': '6db820e94emsh24dd09b8e658f4cp15f50ejsn4febbb8496be',
+        // paste your actual key here
+        'x-rapidapi-key': '6db820e94emsh24dd09b8e658f4cp15f50ejsn4febbb8496be', 
         'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
       }
     };
 
     try {
       const response = await fetch('https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live', options);
-      const result = await response.json();
-
-      // 2. Find the "League" group (IPL is a league)
-      const leagueGroup = result.typeMatches?.find(group => group.matchType === "League");
-
-      if (leagueGroup && leagueGroup.seriesMatches) {
-        // 3. Search for the "Indian Premier League" series
-        const iplSeries = leagueGroup.seriesMatches.find(s => 
-          s.seriesAdWrapper && 
-          s.seriesAdWrapper.seriesName.toLowerCase().includes("indian premier league")
-        );
-
-        if (iplSeries && iplSeries.seriesAdWrapper.matches.length > 0) {
-          const match = iplSeries.seriesAdWrapper.matches[0];
-          const info = match.matchInfo;
-          const score = match.matchScore;
-
-          // 4. Update the UI state with dynamic data
-          setLiveMatch({
-            teams: `${info.team1.teamName} vs ${info.team2.teamName}`,
-            // Handle cases where the score isn't available yet (pre-match)
-            runs: score?.team1Score?.inngs1?.runs 
-                  ? `${score.team1Score.inngs1.runs}/${score.team1Score.inngs1.wickets || 0}` 
-                  : "Toss Pending",
-            status: info.status,
-            venue: info.venueInfo.ground
-          });
-        }
+      
+      // 2. CHECK: Did the server send a 200 OK?
+      if (!response.ok) {
+        throw new Error(`Server Error: ${response.status}`);
       }
-    } catch (error) {
-      console.error("Cricbuzz API Error:", error);
+
+      // 3. CHECK: Is the response body empty? (Prevents JSON SyntaxError)
+      const text = await response.text();
+      if (!text || text.trim().length === 0) {
+        setLiveMatch(null); // No live data available yet
+        return;
+      }
+
+      // 4. PARSE: Now it's safe to turn text into JSON
+      const result = JSON.parse(text);
+
+      // 5. FILTER: Look specifically for IPL matches
+      const leagueGroup = result.typeMatches?.find(group => group.matchType === "League");
+      const iplSeries = leagueGroup?.seriesMatches?.find(s => 
+        s.seriesAdWrapper?.seriesName.toLowerCase().includes("indian premier league")
+      );
+
+      if (iplSeries && iplSeries.seriesAdWrapper.matches.length > 0) {
+        const match = iplSeries.seriesAdWrapper.matches[0];
+        const info = match.matchInfo;
+        const score = match.matchScore;
+
+        setLiveMatch({
+          teams: `${info.team1.teamName} vs ${info.team2.teamName}`,
+          runs: score?.team1Score?.inngs1?.runs 
+                ? `${score.team1Score.inngs1.runs}/${score.team1Score.inngs1.wickets || 0}` 
+                : "Toss Pending",
+          status: info.status,
+          venue: info.venueInfo.ground
+        });
+      } else {
+        setLiveMatch(null); // Found leagues, but no IPL match live yet
+      }
+    } catch (err) {
+      console.error("Fetch Failed:", err.message);
+      setErrorMsg("API is temporarily unavailable or limit reached.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Trigger fetch when user clicks the toggle
   useEffect(() => {
     if (showLiveScore) {
       fetchIPLScore();
-      // Auto-refresh every 3 minutes to save your daily quota
+      // Auto-refresh every 3 mins to save your free monthly quota
       const interval = setInterval(fetchIPLScore, 180000); 
       return () => clearInterval(interval);
     }
@@ -257,7 +269,7 @@ function MatchLog({ matches }) {
     <div className="section">
       {/*<div className="sec-title">Match Log</div> */}
 
-  <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+ <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Match Log</span>
         <button 
           onClick={() => setShowLiveScore(!showLiveScore)}
@@ -268,7 +280,7 @@ function MatchLog({ matches }) {
         </button>
       </div>
 
-      {/* --- LIVE SCORE CARD --- */}
+      {/* --- DYNAMIC LIVE SCORE BOX --- */}
       {showLiveScore && (
         <div style={{ 
           marginBottom: '20px', 
@@ -276,20 +288,20 @@ function MatchLog({ matches }) {
           background: '#161f38', 
           borderRadius: '12px', 
           border: '1px solid #f5a623',
-          textAlign: 'center',
-          boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+          textAlign: 'center'
         }}>
           {loading && !liveMatch ? (
-            <div style={{ color: '#8899bb' }}>Connecting to Cricbuzz Servers...</div>
+            <div style={{ color: '#8899bb' }}>Updating live feed...</div>
+          ) : errorMsg ? (
+            <div style={{ color: '#ff4d4d', fontSize: '12px' }}>{errorMsg}</div>
           ) : liveMatch ? (
             <div>
-              <div style={{ fontSize: '18px', fontWeight: '800', marginBottom: '5px' }}>{liveMatch.teams}</div>
-              <div style={{ fontSize: '24px', color: '#2ecc71', fontWeight: 'bold', margin: '10px 0' }}>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '5px' }}>{liveMatch.teams}</div>
+              <div style={{ fontSize: '26px', color: '#2ecc71', fontWeight: 'bold', margin: '10px 0' }}>
                 {liveMatch.runs}
               </div>
-              <div style={{ fontSize: '13px', color: '#f5a623', fontWeight: '600' }}>{liveMatch.status}</div>
-              <div style={{ fontSize: '11px', color: '#8899bb', marginTop: '8px' }}>📍 {liveMatch.venue}</div>
-              
+              <div style={{ fontSize: '14px', color: '#f5a623' }}>{liveMatch.status}</div>
+              <div style={{ fontSize: '11px', color: '#8899bb', marginTop: '10px' }}>📍 {liveMatch.venue}</div>
               <button 
                 onClick={fetchIPLScore} 
                 style={{ marginTop: '15px', background: 'transparent', border: '1px solid #3498db', color: '#3498db', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
@@ -298,7 +310,10 @@ function MatchLog({ matches }) {
               </button>
             </div>
           ) : (
-            <div style={{ color: '#8899bb' }}>No IPL matches live right now. <br/>Please Wait for the match time!</div>
+            <div style={{ color: '#8899bb' }}>
+              No IPL match is currently Live. <br/>
+              <span style={{color: '#f5a623'}}>Stay Tuned for updates!</span>
+            </div>
           )}
         </div>
       )}
