@@ -105,7 +105,18 @@ function computePlayerStats(matches) {
             if (isRank1 || isRank2) {
               s.wins++
               const won = isRank1 ? prizes[1] : prizes[2]
-              if (m.transferred) s.totalWon += won; else cf[p] += won
+              
+              // FIXED: Check individual player status in the transferred object
+              const isPlayerPaid = (m.transferred && typeof m.transferred === 'object')
+                ? m.transferred[p] === true
+                : m.transferred === true; // Fallback for old data
+            
+              if (isPlayerPaid) {
+                s.totalWon += won; 
+              } else {
+                cf[p] += won; // Correctly moves amount to Carry Forward if Pending
+              }
+              
               s.recentForm.push(isRank1 ? 'win1' : 'win2')
             } else { s.recentForm.push('loss') }
           }
@@ -187,7 +198,7 @@ function MatchLog({ matches }) {
   const totalContests = finished.filter(m => m.contest === 'yes').length
   
   // Updated to count individual transfers from the new object structure
-  const totalTransferred = finished.reduce((count, m) => {
+    const totalTransferred = finished.reduce((count, m) => {
     if (m.transferred && typeof m.transferred === 'object') {
       return count + Object.values(m.transferred).filter(v => v === true).length;
     }
@@ -340,12 +351,26 @@ function MatchLog({ matches }) {
                 })
               }
 
-              // Individual status logic for winners
+                            // Winners Name Column
+              const winnerNamesHtml = winnersInfo.map(w =>
+                <div key={w.name} style={{fontSize:11, height:22, display:'flex', alignItems:'center'}}>
+                  {w.rank===1?'🥇':'🥈'} <b>{w.name}</b>
+                </div>
+              ) || '—';
+              
+              // Payout Amount Column
+              const winnerPrizesHtml = winnersInfo.map(w =>
+                <div key={w.name} style={{fontSize:11, height:22, display:'flex', alignItems:'center', color:'var(--green)'}}>
+                  ₹{w.prize.toFixed(2)}
+                </div>
+              ) || '—';
+              
+              // Transferred Status Column
               const transferStatusHtml = winnersInfo.map(w => {
                 const isDone = (m.transferred && typeof m.transferred === 'object') 
                   ? m.transferred[w.name] === true 
                   : m.transferred === true;
-
+              
                 return (
                   <div key={w.name} style={{height:22, display:'flex', alignItems:'center', marginBottom:2}}>
                     {isDone 
@@ -354,7 +379,7 @@ function MatchLog({ matches }) {
                     }
                   </div>
                 );
-              });
+              }) || '—';
 
               return (
                 <tr key={idx}>
