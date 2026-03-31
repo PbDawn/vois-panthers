@@ -15,16 +15,34 @@ const COOLDOWN_MS    = 30000
 
 // ─── PURE LOGIC HELPERS ───────────────────────────────────────
 function calculatePrizes(m) {
-  const paidCount = PLAYERS.filter(p => m.players[p]?.joined && m.players[p]?.paid).length
-  const fee = parseFloat(m.fee) || 0
-  const matchNum = parseInt(m.matchno) || 0
-  let dist = { 1: 0, 2: 0, winnerCount: 0 }
+  const paidCount = PLAYERS.filter(p => m.players[p] && m.players[p].joined && m.players[p].paid).length;
+  const fee = parseFloat(m.fee) || 0;
+  const matchNum = parseInt(m.matchno) || 0;
+  
+  let dist = { 1: 0, 2: 0, winnerCountLimit: 0, totalPool: 0 };
+
+  // 1. Define the Prize Pool Rules
   if (matchNum >= 3) {
-    if (paidCount >= 2 && paidCount <= 5) { dist[1] = fee * paidCount; dist.winnerCount = 1 }
-    else if (paidCount === 6) { dist[1] = fee * 4; dist[2] = fee * 2; dist.winnerCount = 2 }
-    else if (paidCount === 7) { dist[1] = fee * 5; dist[2] = fee * 2; dist.winnerCount = 2 }
-  } else { dist[1] = fee * paidCount; dist.winnerCount = paidCount >= 1 ? 1 : 0 }
-  return dist
+    if (paidCount >= 2 && paidCount <= 5) {
+      dist[1] = fee * paidCount;
+      dist.winnerCountLimit = 1;
+    } else if (paidCount === 6) {
+      dist[1] = fee * 4;
+      dist[2] = fee * 2;
+      dist.winnerCountLimit = 2;
+    } else if (paidCount === 7) {
+      dist[1] = fee * 5;
+      dist[2] = fee * 2;
+      dist.winnerCountLimit = 2;
+    }
+  } else {
+    rank1Pot = fee * paidCount;
+    dist.winnerCountLimit = (paidCount >= 1) ? 1 : 0;
+  }
+
+  // 2. Critical: Sum the pots so the Pool column isn't ₹0
+  dist.totalPool = dist[1] + dist[2];
+  return dist;
 }
 
 function getMatchDateTime(m) {
@@ -342,14 +360,30 @@ function MatchLog({ matches }) {
               const matchStartTime = getMatchDateTime(m);
               const hasStarted = matchStartTime ? (new Date() > matchStartTime) : done;
               
+              // --- START UPDATED TIE-HANDLING LOGIC ---
               let winnersInfo = []
               if (done) {
-                PLAYERS.forEach(p => {
-                  const rk = m.joinedRanks?.[p]
-                  if (rk === 1) winnersInfo.push({ name:p, rank:1, prize:prizes[1] })
-                  if (rk === 2 && prizes.winnerCount === 2) winnersInfo.push({ name:p, rank:2, prize:prizes[2] })
-                })
+                // 1. Identify ALL paid players at Rank 1 and Rank 2
+                const r1Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 1 && m.players[p]?.paid);
+                const r2Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 2 && m.players[p]?.paid);
+
+                // 2. Split Rank 1 Pot among ALL tied Rank 1 players
+                if (r1Players.length > 0) {
+                  const splitPrize1 = prizes[1] / r1Players.length;
+                  r1Players.forEach(p => {
+                    winnersInfo.push({ name: p, rank: 1, prize: splitPrize1 });
+                  });
+                }
+
+                // 3. Split Rank 2 Pot among ALL tied Rank 2 players (if rules allow rank 2)
+                if (prizes.winnerCount === 2 && r2Players.length > 0) {
+                  const splitPrize2 = prizes[2] / r2Players.length;
+                  r2Players.forEach(p => {
+                    winnersInfo.push({ name: p, rank: 2, prize: splitPrize2 });
+                  });
+                }
               }
+              // --- END UPDATED TIE-HANDLING LOGIC ---
 
                             // Winners Name Column
               const winnerNamesHtml = winnersInfo.map(w =>
