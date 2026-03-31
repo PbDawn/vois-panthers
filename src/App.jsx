@@ -187,11 +187,11 @@ function MatchLog({ matches }) {
   const totalContests = finished.filter(m => m.contest === 'yes').length
   const totalTransferred = finished.filter(m => m.transferred === true || m.transferred === 'Done').length
 
-  const [showLiveScore, setShowLiveScore] = useState(false);
+ const [showLiveScore, setShowLiveScore] = useState(false);
 
   useEffect(() => {
     if (showLiveScore) {
-      // Set the config globally
+      // 1. Define the config globally
       window.criczop_widget_info = {
         "widget_id": "live-scores-ipl",
         "theme": "dark",
@@ -200,17 +200,18 @@ function MatchLog({ matches }) {
         "api_key": "free"
       };
 
-      // Trigger the widget to look for the div
-      const initWidget = () => {
+      // 2. Trigger the initialization with a small delay to let the div render
+      const timer = setTimeout(() => {
         if (window.CriczopWidget) {
-          window.CriczopWidget.init();
-        } else {
-          // If script is still loading, wait 500ms and try again
-          setTimeout(initWidget, 500);
+          try {
+            window.CriczopWidget.init();
+          } catch (err) {
+            console.error("Criczop Init Failed:", err);
+          }
         }
-      };
-      
-      initWidget();
+      }, 500);
+
+      return () => clearTimeout(timer);
     }
   }, [showLiveScore]);
 
@@ -219,7 +220,7 @@ function MatchLog({ matches }) {
     <div className="section">
       {/*<div className="sec-title">Match Log</div> */}
 
-     <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
+    <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
         <span>Match Log</span>
         <button 
           onClick={() => setShowLiveScore(!showLiveScore)}
@@ -230,10 +231,20 @@ function MatchLog({ matches }) {
       </div>
 
       {showLiveScore && (
-        <div id="criczop-widget" style={{ marginBottom: '20px', minHeight: '160px' }}>
+        <div 
+          id="criczop-widget" 
+          style={{ 
+            marginBottom: '20px', 
+            minHeight: '160px', 
+            background: '#161f38', 
+            borderRadius: '12px',
+            border: '1px solid #1e2d50'
+          }}
+        >
           <div id="crt-widget">
-             <p style={{textAlign: 'center', color: '#8899bb', padding: '20px'}}>
-                Loading IPL Match Center...
+             {/* This stays until the script successfully replaces it */}
+             <p style={{textAlign: 'center', color: '#8899bb', padding: '40px'}}>
+                Connecting to IPL Live Server...
              </p>
           </div>
         </div>
