@@ -195,11 +195,9 @@ function MatchLog({ matches }) {
   const nextUpcoming = findNextUpcomingMatch(matches);
   const finished = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—');
   
-  // Calculate Total Pool from all finished matches
   const totalPool = finished.reduce((s, m) => s + (parseFloat(m.pool) || 0), 0);
   const totalContests = finished.filter(m => m.contest === 'yes').length;
   
-  // Count individual transfers
   const totalTransferred = finished.reduce((count, m) => {
     if (m.transferred && typeof m.transferred === 'object') {
       return count + Object.values(m.transferred).filter(v => v === true).length;
@@ -331,19 +329,35 @@ function MatchLog({ matches }) {
               const matchStartTime = getMatchDateTime(m);
               const hasStarted = matchStartTime ? (new Date() > matchStartTime) : done;
               
-              // --- TIE-HANDLING & SPLIT LOGIC ---
+              // --- UPDATED PAID-ONLY TIE-HANDLING & SPLIT LOGIC ---
               let winnersInfo = [];
               if (done) {
-                const r1Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 1 && m.players?.[p]?.paid && m.players[p]?.points > 0);
-                const r2Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 2 && m.players?.[p]?.paid && m.players[p]?.points > 0);
+                // Filter only PAID players with POINTS > 0
+                const eligiblePaid = PLAYERS
+                  .filter(p => m.players?.[p]?.paid && m.players?.[p]?.points > 0)
+                  .map(p => ({ name: p, points: m.players[p].points }))
+                  .sort((a, b) => b.points - a.points);
 
-                if (r1Players.length > 0) {
-                  const split1 = prizes[1] / r1Players.length;
-                  r1Players.forEach(p => winnersInfo.push({ name: p, rank: 1, prize: split1 }));
+                // Calculate local ranks for paid players only
+                let paidRanks = {};
+                let currentRank = 1;
+                eligiblePaid.forEach((p, i) => {
+                  if (i > 0 && p.points < eligiblePaid[i - 1].points) currentRank++;
+                  paidRanks[p.name] = currentRank;
+                });
+
+                const r1Paid = eligiblePaid.filter(p => paidRanks[p.name] === 1);
+                const r2Paid = eligiblePaid.filter(p => paidRanks[p.name] === 2);
+
+                if (r1Paid.length > 0) {
+                  const split1 = prizes[1] / r1Paid.length;
+                  r1Paid.forEach(p => winnersInfo.push({ name: p.name, rank: 1, prize: split1 }));
                 }
-                if (prizes.winnerCount === 2 && r2Players.length > 0) {
-                  const split2 = prizes[2] / r2Players.length;
-                  r2Players.forEach(p => winnersInfo.push({ name: p, rank: 2, prize: split2 }));
+                
+                // Only award 2nd rank if rules allow it AND Rank 1 wasn't a tie that used all spots
+                if (prizes.winnerCount === 2 && r2Paid.length > 0) {
+                  const split2 = prizes[2] / r2Paid.length;
+                  r2Paid.forEach(p => winnersInfo.push({ name: p.name, rank: 2, prize: split2 }));
                 }
               }
 
@@ -393,16 +407,23 @@ function MatchLog({ matches }) {
                   {PLAYERS.map(p => {
                     const pd = m.players?.[p];
                     if (!pd?.joined) return <td key={p} style={{color:'var(--text2)',fontSize:13}}>—</td>;
-                    const rank = m.joinedRanks?.[p] || '—';
-                    const isWin = done && pd.paid && (rank === 1 || (rank === 2 && prizes.winnerCount === 2));
+                    
+                    const globalRank = m.joinedRanks?.[p] || '—';
+                    // Determine if this player is a winner among the paid group
+                    const winObj = winnersInfo.find(w => w.name === p);
+                    const isWin = !!winObj;
+                    const displayRank = isWin ? winObj.rank : globalRank;
                     
                     return (
                       <td key={p}>
-                        <div className={isWin ? (rank === 1 ? 'rank-1-box' : 'rank-2-box') : ''}>
+                        <div className={isWin ? (winObj.rank === 1 ? 'rank-1-box' : 'rank-2-box') : ''}>
                           <div style={{fontSize:9}}>{pd.paid ? '💰 Paid' : '❌ Unpaid'}</div>
                           <div style={{fontSize:14,fontWeight:900,color:isWin?'var(--accent)':'inherit'}}>{pd.points}</div>
-                          <div style={{fontSize:10}}>{rank !== '—' ? `#${rank}` : ''}</div>
-                          {!pd.paid && <button className="pay-now-btn" onClick={() => alert("Check WhatsApp for UPI QR code.")}>💸 Pay</button>}
+                          <div style={{fontSize:10}}>{displayRank !== '—' ? `#${displayRank}` : ''}</div>
+                          {/* FIX: Hide Pay button if match is done */}
+                          {!pd.paid && !done && (
+                            <button className="pay-now-btn" onClick={() => alert("Check WhatsApp for UPI QR code.")}>💸 Pay</button>
+                          )}
                         </div>
                       </td>
                     );
