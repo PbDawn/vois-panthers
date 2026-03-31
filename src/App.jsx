@@ -190,15 +190,17 @@ function CountdownCell({ match, isNextUpcoming }) {
   return <span style={{color:'var(--text2)'}}>—</span>
 }
 
-// ─── MATCH LOG ────────────────────────────────────────────────
+// ─── MATCH LOG COMPONENT ──────────────────────────────────────
 function MatchLog({ matches }) {
-  const nextUpcoming = findNextUpcomingMatch(matches)
-  const finished = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—')
-  const totalPool = finished.reduce((s, m) => s + (m.pool || 0), 0)
-  const totalContests = finished.filter(m => m.contest === 'yes').length
+  const nextUpcoming = findNextUpcomingMatch(matches);
+  const finished = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—');
   
-  // Updated to count individual transfers from the new object structure
-    const totalTransferred = finished.reduce((count, m) => {
+  // Calculate Total Pool from all finished matches
+  const totalPool = finished.reduce((s, m) => s + (parseFloat(m.pool) || 0), 0);
+  const totalContests = finished.filter(m => m.contest === 'yes').length;
+  
+  // Count individual transfers
+  const totalTransferred = finished.reduce((count, m) => {
     if (m.transferred && typeof m.transferred === 'object') {
       return count + Object.values(m.transferred).filter(v => v === true).length;
     }
@@ -210,6 +212,7 @@ function MatchLog({ matches }) {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // IPL Live Score Fetching Logic
   const fetchIPLScore = async () => {
     if (!showLiveScore) return;
     setLoading(true);
@@ -224,39 +227,24 @@ function MatchLog({ matches }) {
     try {
       const response = await fetch('https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live', options);
       if (!response.ok) throw new Error(`Server Error: ${response.status}`);
-      const text = await response.text();
-      if (!text || text.trim().length === 0) {
-        setLiveMatch(null);
-        return;
-      }
-     const result = JSON.parse(text);
+      const result = await response.json();
       const leagueGroup = result.typeMatches?.find(group => group.matchType === "League");
-      
-      // 1. We define it as iplSeries here
       const iplSeries = leagueGroup?.seriesMatches?.find(s => 
         s.seriesAdWrapper?.seriesName.toLowerCase().includes("indian premier league")
       );
 
-      // 2. CRITICAL FIX: Change 'ipl' to 'iplSeries' to match the variable above
-      if (iplSeries && iplSeries.seriesAdWrapper.matches.length > 0) {
+      if (iplSeries?.seriesAdWrapper?.matches?.length > 0) {
         const match = iplSeries.seriesAdWrapper.matches[0];
         const info = match.matchInfo;
         const score = match.matchScore;
-        
-        // Default to "---" if score hasn't loaded yet
         let liveScoreText = "---";
         
-                if (score) {
+        if (score) {
           const battingTeamId = score.battingTeamId;
           const battingTeam = battingTeamId === info.team1.teamId ? info.team1.teamName : info.team2.teamName;
           const scoreObj = battingTeamId === info.team1.teamId ? score.team1Score : score.team2Score;
-          
-          if (scoreObj && scoreObj.inngs1) {
-            const runs = scoreObj.inngs1.runs;
-            const wickets = scoreObj.inngs1.wickets || 0;
-            const overs = scoreObj.inngs1.overs || 0;
-            // This will now show "GT: 15-0 (2.2)" instead of "---"
-            liveScoreText = `${battingTeam}: ${runs}-${wickets} (${overs})`;
+          if (scoreObj?.inngs1) {
+            liveScoreText = `${battingTeam}: ${scoreObj.inngs1.runs}-${scoreObj.inngs1.wickets || 0} (${scoreObj.inngs1.overs || 0})`;
           }
         }
       
@@ -270,8 +258,7 @@ function MatchLog({ matches }) {
         setLiveMatch(null);
       }
     } catch (err) {
-      console.error("Fetch Failed:", err.message);
-      setErrorMsg("API is temporarily unavailable or limit reached.");
+      setErrorMsg("API is temporarily unavailable.");
     } finally {
       setLoading(false);
     }
@@ -294,7 +281,7 @@ function MatchLog({ matches }) {
           className={`btn-sm ${showLiveScore ? 'btn-danger' : 'btn-success'}`}
           style={{ padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
         >
-          {showLiveScore ? '🛑 Hide Live Score' : '📡 Show  Live'}
+          {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live'}
         </button>
       </div>
 
@@ -313,22 +300,24 @@ function MatchLog({ matches }) {
               <button onClick={fetchIPLScore} style={{ marginTop: '15px', background: 'transparent', border: '1px solid #3498db', color: '#3498db', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>🔄 Refresh Now</button>
             </div>
           ) : (
-            <div style={{ color: '#8899bb' }}>No  match is currently Live. <br/><span style={{color: '#f5a623'}}>Stay Tuned for updates!</span></div>
+            <div style={{ color: '#8899bb' }}>No match is currently Live.</div>
           )}
         </div>
       )}
       
       <div className="totals-bar">
-        {[['Total Matches', matches.length], ['Contests Played', totalContests], ['Total Pool', `₹${totalPool}`], ['Payouts Done', totalTransferred]].map(([label, val]) => (
-          <div className="total-chip" key={label}><div className="total-chip-label">{label}</div><div className="total-chip-val">{val}</div></div>
-        ))}
+        <div className="total-chip"><div className="total-chip-label">Total Matches</div><div className="total-chip-val">{matches.length}</div></div>
+        <div className="total-chip"><div className="total-chip-label">Contests Played</div><div className="total-chip-val">{totalContests}</div></div>
+        <div className="total-chip"><div className="total-chip-label">Total Pool</div><div className="total-chip-val">₹{totalPool}</div></div>
+        <div className="total-chip"><div className="total-chip-label">Payouts Done</div><div className="total-chip-val">{totalTransferred}</div></div>
       </div>
+
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
               {['Match','Date','Teams','Team Won','Match Time','Contest','Joined','Fee(₹)','Pool(₹)','Fantasy Winner','Payout(₹)','Transferred'].map(h => <th key={h}>{h}</th>)}
-              {PLAYERS.map(p => <th key={p}><div style={{fontSize:11,whiteSpace:'nowrap',padding: '10px 5px'}}>{p}<br/><span style={{color:'var(--text2)',fontSize:9}}>J/P/Pts/Rk</span></div></th>)}
+              {PLAYERS.map(p => <th key={p}><div style={{fontSize:11, whiteSpace:'nowrap'}}>{p}<br/><span style={{color:'var(--text2)',fontSize:9}}>J/P/Pts/Rk</span></div></th>)}
               <th>MyCircle11 App</th>
             </tr>
           </thead>
@@ -336,50 +325,27 @@ function MatchLog({ matches }) {
             {matches.length === 0 ? (
               <tr><td colSpan={13 + PLAYERS.length} className="no-data">No match data available yet.</td></tr>
             ) : matches.map((m, idx) => {
-              const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
-              const prizes = calculatePrizes(m)
-              const isNext = nextUpcoming && nextUpcoming.matchno === m.matchno
+              const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—';
+              const prizes = calculatePrizes(m);
+              const isNext = nextUpcoming && nextUpcoming.matchno === m.matchno;
               const matchStartTime = getMatchDateTime(m);
               const hasStarted = matchStartTime ? (new Date() > matchStartTime) : done;
               
-              let winnersInfo = []
+              // --- TIE-HANDLING & SPLIT LOGIC ---
+              let winnersInfo = [];
               if (done) {
-                PLAYERS.forEach(p => {
-                  const rk = m.joinedRanks?.[p]
-                  if (rk === 1) winnersInfo.push({ name:p, rank:1, prize:prizes[1] })
-                  if (rk === 2 && prizes.winnerCount === 2) winnersInfo.push({ name:p, rank:2, prize:prizes[2] })
-                })
-              }
+                const r1Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 1 && m.players?.[p]?.paid);
+                const r2Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 2 && m.players?.[p]?.paid);
 
-                            // Winners Name Column
-              const winnerNamesHtml = winnersInfo.map(w =>
-                <div key={w.name} style={{fontSize:11, height:22, display:'flex', alignItems:'center'}}>
-                  {w.rank===1?'🥇':'🥈'} <b>{w.name}</b>
-                </div>
-              ) || '—';
-              
-              // Payout Amount Column
-              const winnerPrizesHtml = winnersInfo.map(w =>
-                <div key={w.name} style={{fontSize:11, height:22, display:'flex', alignItems:'center', color:'var(--green)'}}>
-                  ₹{w.prize.toFixed(2)}
-                </div>
-              ) || '—';
-              
-              // Transferred Status Column
-              const transferStatusHtml = winnersInfo.map(w => {
-                const isDone = (m.transferred && typeof m.transferred === 'object') 
-                  ? m.transferred[w.name] === true 
-                  : m.transferred === true;
-              
-                return (
-                  <div key={w.name} style={{height:22, display:'flex', alignItems:'center', marginBottom:2}}>
-                    {isDone 
-                      ? <span className="transfer-done" style={{fontSize:10}}>✅ Done</span> 
-                      : <span className="transfer-pending" style={{fontSize:10}}>⏳ Pending</span>
-                    }
-                  </div>
-                );
-              }) || '—';
+                if (r1Players.length > 0) {
+                  const split1 = prizes[1] / r1Players.length;
+                  r1Players.forEach(p => winnersInfo.push({ name: p, rank: 1, prize: split1 }));
+                }
+                if (prizes.winnerCount === 2 && r2Players.length > 0) {
+                  const split2 = prizes[2] / r2Players.length;
+                  r2Players.forEach(p => winnersInfo.push({ name: p, rank: 2, prize: split2 }));
+                }
+              }
 
               return (
                 <tr key={idx}>
@@ -391,50 +357,70 @@ function MatchLog({ matches }) {
                   <td>{m.contest === 'yes' ? <span className="won-badge">YES</span> : <span className="lost-badge">NO</span>}</td>
                   <td style={{fontSize:11}}>{m.contest === 'yes' ? `${m.joinedCount}/${PLAYERS.length}` : '—'}</td>
                   <td style={{fontSize:11}}>₹{m.fee}</td>
-                  <td style={{color:'var(--green)',fontWeight:700,fontSize:11}}>₹{m.pool}</td>
-                  <td style={{fontSize:11}}>{winnersInfo.length > 0 ? winnersInfo.map(w => <div key={w.name} style={{fontSize:11, height:22, display:'flex', alignItems:'center'}}>{w.rank===1?'🥇':'🥈'} <b>{w.name}</b></div>) : '—'}</td>
-                  <td style={{fontSize:11}}>{winnersInfo.length > 0 ? winnersInfo.map(w => <div key={w.name} style={{fontSize:11, height:22, display:'flex', alignItems:'center', color:'var(--green)'}}>₹{w.prize.toFixed(2)}</div>) : '—'}</td>
-                  <td>{m.contest === 'yes' && winnersInfo.length > 0 ? transferStatusHtml : '—'}</td>
-                  {PLAYERS.map(p => {
-                    const pd = m.players[p]
-                    if (!pd || !pd.joined) return <td key={p} style={{color:'var(--text2)',fontSize:13}}>—</td>
-                    const rawRank = m.joinedRanks?.[p] ?? '?';
-                    const rank = (done || pd.points > 0) ? rawRank : '—';
-                    const isWinner = done && pd.paid && (rank===1 || (rank===2 && prizes.winnerCount===2))
-                    if (isWinner) return (
-                      <td key={p}>
-                        <div className={rank===1?'rank-1-box':'rank-2-box'}>
-                          <div style={{fontSize:9}}>✅ Joined 💰 Paid</div>
-                          <div style={{fontSize:14,fontWeight:900,color:'var(--accent)'}}>{pd.points}</div>
-                          <div style={{fontSize:13}}>{rank===1?'🥇':'🥈'} <span style={{fontSize:10}}>#{rank}</span></div>
+                  <td style={{color:'var(--green)',fontWeight:700,fontSize:11}}>₹{m.pool || 0}</td>
+                  
+                  {/* Fantasy Winner Column */}
+                  <td style={{fontSize:11}}>
+                    {winnersInfo.length > 0 ? winnersInfo.map(w => (
+                      <div key={w.name} style={{fontSize:11, display:'flex', alignItems:'center', height:22}}>
+                        {w.rank===1?'🥇':'🥈'} <b>{w.name}</b>
+                      </div>
+                    )) : '—'}
+                  </td>
+
+                  {/* Payout Column */}
+                  <td style={{fontSize:11}}>
+                    {winnersInfo.length > 0 ? winnersInfo.map(w => (
+                      <div key={w.name} style={{fontSize:11, display:'flex', alignItems:'center', height:22, color:'var(--green)'}}>
+                        ₹{w.prize.toFixed(2)}
+                      </div>
+                    )) : '—'}
+                  </td>
+
+                  {/* Transferred Column */}
+                  <td>
+                    {m.contest === 'yes' && winnersInfo.length > 0 ? winnersInfo.map(w => {
+                      const isDone = m.transferred?.[w.name] === true;
+                      return (
+                        <div key={w.name} style={{height:22, display:'flex', alignItems:'center', marginBottom:2}}>
+                          {isDone ? <span className="transfer-done" style={{fontSize:10}}>✅ Done</span> : <span className="transfer-pending" style={{fontSize:10}}>⏳ Pending</span>}
                         </div>
-                      </td>
-                    )
+                      );
+                    }) : '—'}
+                  </td>
+
+                  {/* Player Individual Cells */}
+                  {PLAYERS.map(p => {
+                    const pd = m.players?.[p];
+                    if (!pd?.joined) return <td key={p} style={{color:'var(--text2)',fontSize:13}}>—</td>;
+                    const rank = m.joinedRanks?.[p] || '—';
+                    const isWin = done && pd.paid && (rank === 1 || (rank === 2 && prizes.winnerCount === 2));
+                    
                     return (
                       <td key={p}>
-                        <div style={{fontSize:9}}>✅ Joined</div>
-                        <div className={pd.paid?'paid-yes':'paid-no'} style={{fontSize:9}}>{pd.paid?'💰 Paid':'❌ Unpaid'}</div>
-                        <div style={{fontSize:12,fontWeight:700}}>{pd.points}</div>
-                        <div className={`rank-${rank}`} style={{fontSize:10}}>{rank !== '—' ? `#${rank}` : '—'}</div>
-                        {!pd.paid && <button className="pay-now-btn" style={{padding:'2px 4px',fontSize:8}} onClick={()=>alert(`🏏 IPL Season is On! 🏆\n\nEntry fee is still pending. Check the pinned message in WhatsApp group: \"_VOIS Dream 11\" to pay via UPI QR code.\n\nGood luck! 🔥`)}>💸 Pay Now</button>}
+                        <div className={isWin ? (rank === 1 ? 'rank-1-box' : 'rank-2-box') : ''}>
+                          <div style={{fontSize:9}}>{pd.paid ? '💰 Paid' : '❌ Unpaid'}</div>
+                          <div style={{fontSize:14,fontWeight:900,color:isWin?'var(--accent)':'inherit'}}>{pd.points}</div>
+                          <div style={{fontSize:10}}>{rank !== '—' ? `#${rank}` : ''}</div>
+                          {!pd.paid && <button className="pay-now-btn" onClick={() => alert("Check WhatsApp for UPI QR code.")}>💸 Pay</button>}
+                        </div>
                       </td>
-                    )
+                    );
                   })}
+                  
                   <td style={{textAlign:'center'}}>
                     {m.contestLink && !hasStarted ? (
-                      <a href={m.contestLink} target="_blank" rel="noreferrer" className="app-link-btn" style={{fontSize:9, padding:'5px 8px', display:'block', lineHeight:1.2}}>🏆 Click Here to join the Contest</a>
-                    ) : (
-                      <span style={{color:'var(--text2)', fontSize:10}}>{done ? '—' : 'Contest Closed'}</span>
-                    )}
+                      <a href={m.contestLink} target="_blank" rel="noreferrer" className="app-link-btn">🏆 Join Contest</a>
+                    ) : <span style={{color:'var(--text2)', fontSize:10}}>{done ? '—' : 'Closed'}</span>}
                   </td>
                 </tr>
-              )
+              );
             })}
           </tbody>
         </table>
       </div>
     </div>
-  )
+  );
 }
 
 // ─── PLAYER STATS ─────────────────────────────────────────────
