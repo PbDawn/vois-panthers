@@ -188,43 +188,118 @@ function MatchLog({ matches }) {
   const totalTransferred = finished.filter(m => m.transferred === true || m.transferred === 'Done').length
 
   const [showLiveScore, setShowLiveScore] = useState(false);
+  const [liveMatch, setLiveMatch] = useState(null);
+  const [loading, setLoading] = useState(false);
 
+  const fetchIPLScore = async () => {
+    // 1. Safety Check: If the toggle is off, don't waste API requests
+    if (!showLiveScore) return;
+
+    setLoading(true);
+    const options = {
+      method: 'GET',
+      headers: {
+        // REPLACE THE KEY BELOW WITH YOUR ACTUAL RAPIDAPI KEY
+        'x-rapidapi-key': 'YOUR_ACTUAL_RAPIDAPI_KEY_HERE',
+        'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
+      }
+    };
+
+    try {
+      const response = await fetch('https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live', options);
+      const result = await response.json();
+
+      // 2. Find the "League" group (IPL is a league)
+      const leagueGroup = result.typeMatches?.find(group => group.matchType === "League");
+
+      if (leagueGroup && leagueGroup.seriesMatches) {
+        // 3. Search for the "Indian Premier League" series
+        const iplSeries = leagueGroup.seriesMatches.find(s => 
+          s.seriesAdWrapper && 
+          s.seriesAdWrapper.seriesName.toLowerCase().includes("indian premier league")
+        );
+
+        if (iplSeries && iplSeries.seriesAdWrapper.matches.length > 0) {
+          const match = iplSeries.seriesAdWrapper.matches[0];
+          const info = match.matchInfo;
+          const score = match.matchScore;
+
+          // 4. Update the UI state with dynamic data
+          setLiveMatch({
+            teams: `${info.team1.teamName} vs ${info.team2.teamName}`,
+            // Handle cases where the score isn't available yet (pre-match)
+            runs: score?.team1Score?.inngs1?.runs 
+                  ? `${score.team1Score.inngs1.runs}/${score.team1Score.inngs1.wickets || 0}` 
+                  : "Toss Pending",
+            status: info.status,
+            venue: info.venueInfo.ground
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Cricbuzz API Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Trigger fetch when user clicks the toggle
+  useEffect(() => {
+    if (showLiveScore) {
+      fetchIPLScore();
+      // Auto-refresh every 3 minutes to save your daily quota
+      const interval = setInterval(fetchIPLScore, 180000); 
+      return () => clearInterval(interval);
+    }
+  }, [showLiveScore]);
   
   return (
     <div className="section">
       {/*<div className="sec-title">Match Log</div> */}
 
-    <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+  <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Match Log</span>
-        
-        {/* Toggle Button */}
         <button 
           onClick={() => setShowLiveScore(!showLiveScore)}
           className={`btn-sm ${showLiveScore ? 'btn-danger' : 'btn-success'}`}
-          style={{ padding: '6px 12px', cursor: 'pointer', borderRadius: '6px' }}
+          style={{ padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
         >
-          {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live Score'}
+          {showLiveScore ? '🛑 Hide Live Score' : '📡 Show IPL Live'}
         </button>
       </div>
 
-      {/* --- LIVE SCORE IFRAME SECTION --- */}
+      {/* --- LIVE SCORE CARD --- */}
       {showLiveScore && (
-        <div 
-          style={{ 
-            marginBottom: '20px', 
-            minHeight: '220px', 
-            background: '#161f38', 
-            borderRadius: '12px',
-            border: '1px solid #1e2d50',
-            overflow: 'hidden'
-          }}
-        >
-          <iframe
-            src="https://criczop.com/widget/v2/live-scores-ipl.php?theme=dark&header_color=f5a623"
-            style={{ width: '100%', height: '220px', border: 'none' }}
-            title="IPL Live Scores"
-            loading="lazy"
-          ></iframe>
+        <div style={{ 
+          marginBottom: '20px', 
+          padding: '20px', 
+          background: '#161f38', 
+          borderRadius: '12px', 
+          border: '1px solid #f5a623',
+          textAlign: 'center',
+          boxShadow: '0 4px 15px rgba(0,0,0,0.3)'
+        }}>
+          {loading && !liveMatch ? (
+            <div style={{ color: '#8899bb' }}>Connecting to Cricbuzz Servers...</div>
+          ) : liveMatch ? (
+            <div>
+              <div style={{ fontSize: '18px', fontWeight: '800', marginBottom: '5px' }}>{liveMatch.teams}</div>
+              <div style={{ fontSize: '24px', color: '#2ecc71', fontWeight: 'bold', margin: '10px 0' }}>
+                {liveMatch.runs}
+              </div>
+              <div style={{ fontSize: '13px', color: '#f5a623', fontWeight: '600' }}>{liveMatch.status}</div>
+              <div style={{ fontSize: '11px', color: '#8899bb', marginTop: '8px' }}>📍 {liveMatch.venue}</div>
+              
+              <button 
+                onClick={fetchIPLScore} 
+                style={{ marginTop: '15px', background: 'transparent', border: '1px solid #3498db', color: '#3498db', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
+              >
+                🔄 Refresh Now
+              </button>
+            </div>
+          ) : (
+            <div style={{ color: '#8899bb' }}>No IPL matches live right now. <br/>Please Wait for the match time!</div>
+          )}
         </div>
       )}
       
