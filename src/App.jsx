@@ -246,7 +246,7 @@ function MatchLog({ matches }) {
         // Default to "---" if score hasn't loaded yet
         let liveScoreText = "---";
         
-        if (score) {
+                if (score) {
           const battingTeamId = score.battingTeamId;
           const battingTeam = battingTeamId === info.team1.teamId ? info.team1.teamName : info.team2.teamName;
           const scoreObj = battingTeamId === info.team1.teamId ? score.team1Score : score.team2Score;
@@ -255,8 +255,7 @@ function MatchLog({ matches }) {
             const runs = scoreObj.inngs1.runs;
             const wickets = scoreObj.inngs1.wickets || 0;
             const overs = scoreObj.inngs1.overs || 0;
-            
-            // Format: GT: 12-0 (1.4)
+            // This will now show "GT: 15-0 (2.2)" instead of "---"
             liveScoreText = `${battingTeam}: ${runs}-${wickets} (${overs})`;
           }
         }
