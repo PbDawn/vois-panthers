@@ -249,7 +249,7 @@ function MatchLog({ matches }) {
                     )
                   })}
                   <td style={{textAlign:'center'}}>
-                    {m.contestLink ? <a href={m.contestLink} target="_blank" rel="noreferrer" className="app-link-btn" style={{fontSize:10,padding:'3px 6px'}}>🏆 App</a> : '—'}
+                    {m.contestLink ? <a href={m.contestLink} target="_blank" rel="noreferrer" className="app-link-btn" style={{fontSize:10,padding:'3px 6px'}}>🏆 Click Here to join the Contest</a> : '—'}
                   </td>
                 </tr>
               )
