@@ -7,7 +7,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 // ─── CONSTANTS ────────────────────────────────────────────────
 const PLAYERS = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
 const COLORS  = ['#f5a623','#3498db','#2ecc71','#e74c3c','#9b59b6','#1abc9c','#e67e22']
-const PLAYER_IMAGES = { Ashish:'/ashish.jpg', Kalpesh:'/kalpesh.jpg', Nilesh:'/nilesh.jpeg', Prabhat:'/prabhat.jpg', Pritam:'/pritam.jpeg', Sudhir:'/sudhir.jpg', Swapnil:'/swapnil.jpg' }
+const PLAYER_IMAGES = { Ashish:'/vois-panthers/ashish.jpg', Kalpesh:'/vois-panthers/kalpesh.jpg', Nilesh:'/vois-panthers/nilesh.jpeg', Prabhat:'/vois-panthers/prabhat.jpg', Pritam:'/vois-panthers/pritam.jpeg', Sudhir:'/vois-panthers/sudhir.jpg', Swapnil:'/vois-panthers/swapnil.jpg' }
 const JSONBIN_BASE   = 'https://api.jsonbin.io/v3/b'
 const HARDCODED_BIN_ID = '69c84b985fdde574550bf9f7'
 const DAILY_LIMIT    = 20
