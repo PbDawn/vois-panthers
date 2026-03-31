@@ -74,10 +74,7 @@ function computePlayerStats(matches) {
   matches.forEach(m => {
     // CRITICAL FIX: Only process matches that are actually completed
     const matchIsComplete = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—';
-    
-    // If the match isn't complete, skip this iteration for stats calculation
-    if (!matchIsComplete) return;
-    
+        
     const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
     const prizes = calculatePrizes(m)
     PLAYERS.forEach(p => {
