@@ -200,7 +200,7 @@ function MatchLog({ matches }) {
       method: 'GET',
       headers: {
         // REPLACE THE KEY BELOW WITH YOUR ACTUAL RAPIDAPI KEY
-        'x-rapidapi-key': 'YOUR_ACTUAL_RAPIDAPI_KEY_HERE',
+        'x-rapidapi-key': '6db820e94emsh24dd09b8e658f4cp15f50ejsn4febbb8496be',
         'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
       }
     };
