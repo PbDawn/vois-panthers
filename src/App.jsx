@@ -198,6 +198,11 @@ function MatchLog({ matches }) {
               const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
               const prizes = calculatePrizes(m)
               const isNext = nextUpcoming && nextUpcoming.matchno === m.matchno
+
+              // NEW LOGIC: Calculate if match has started specifically for this match 'm'
+              const matchStartTime = getMatchDateTime(m);
+              const hasStarted = matchStartTime ? (new Date() > matchStartTime) : done;
+              
               let winnersInfo = []
               if (done) {
                 PLAYERS.forEach(p => {
@@ -252,7 +257,14 @@ function MatchLog({ matches }) {
                     )
                   })}
                   <td style={{textAlign:'center'}}>
-                    {m.contestLink ? <a href={m.contestLink} target="_blank" rel="noreferrer" className="app-link-btn" style={{fontSize:10,padding:'3px 6px'}}>🏆 Click Here to join the Contest</a> : '—'}
+                    {/* UPDATED: Time-sensitive link visibility */}
+                    {m.contestLink && !hasStarted ? (
+                      <a href={m.contestLink} target="_blank" rel="noreferrer" className="app-link-btn" style={{fontSize:9, padding:'5px 8px', display:'block', lineHeight:1.2}}>
+                        🏆 Click Here to join the Contest
+                      </a>
+                    ) : (
+                      <span style={{color:'var(--text2)', fontSize:10}}>{done ? '—' : 'Contest Closed'}</span>
+                    )}
                   </td>
                 </tr>
               )
