@@ -187,12 +187,11 @@ function MatchLog({ matches }) {
   const totalContests = finished.filter(m => m.contest === 'yes').length
   const totalTransferred = finished.filter(m => m.transferred === true || m.transferred === 'Done').length
 
-  // 1. Create a state to control visibility
   const [showLiveScore, setShowLiveScore] = useState(false);
 
   useEffect(() => {
-    // Only load the script if the user clicks "Show Live Scores"
     if (showLiveScore) {
+      // Set the config globally
       window.criczop_widget_info = {
         "widget_id": "live-scores-ipl",
         "theme": "dark",
@@ -201,40 +200,42 @@ function MatchLog({ matches }) {
         "api_key": "free"
       };
 
-      const script = document.createElement('script');
-      script.src = 'https://criczop.com/widget/v2/criczop-widget.js';
-      script.async = true;
-      document.body.appendChild(script);
-
-      return () => {
-        if (document.body.contains(script)) {
-          document.body.removeChild(script);
+      // Trigger the widget to look for the div
+      const initWidget = () => {
+        if (window.CriczopWidget) {
+          window.CriczopWidget.init();
+        } else {
+          // If script is still loading, wait 500ms and try again
+          setTimeout(initWidget, 500);
         }
       };
+      
+      initWidget();
     }
-  }, [showLiveScore]); // This re-runs whenever showLiveScore changes
+  }, [showLiveScore]);
 
+  
   return (
     <div className="section">
       {/*<div className="sec-title">Match Log</div> */}
 
-      <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+     <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
         <span>Match Log</span>
-        
-        {/* 2. The Toggle Button */}
         <button 
           onClick={() => setShowLiveScore(!showLiveScore)}
-          className={`btn btn-sm ${showLiveScore ? 'btn-danger' : 'btn-success'}`}
-          style={{ fontSize: '12px', padding: '5px 15px' }}
+          className="btn-sm"
         >
           {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live Score'}
         </button>
       </div>
 
-      {/* 3. Conditional Rendering for the Widget */}
       {showLiveScore && (
-        <div id="criczop-widget" style={{ marginBottom: '20px', minHeight: '150px' }}>
-          <div id="crt-widget"></div>
+        <div id="criczop-widget" style={{ marginBottom: '20px', minHeight: '160px' }}>
+          <div id="crt-widget">
+             <p style={{textAlign: 'center', color: '#8899bb', padding: '20px'}}>
+                Loading IPL Match Center...
+             </p>
+          </div>
         </div>
       )}
       
