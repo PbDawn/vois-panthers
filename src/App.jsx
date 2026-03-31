@@ -232,7 +232,7 @@ function MatchLog({ matches }) {
                     if (isWinner) return (
                       <td key={p}>
                         <div className={rank===1?'rank-1-box':'rank-2-box'}>
-                          <div style={{fontSize:9}}>✅ Joined | 💰 Paid</div>
+                          <div style={{fontSize:9}}>✅ Joined 💰 Paid</div>
                           <div style={{fontSize:14,fontWeight:900,color:'var(--accent)'}}>{pd.points}</div>
                           <div style={{fontSize:13}}>{rank===1?'🥇':'🥈'} <span style={{fontSize:10}}>#{rank}</span></div>
                         </div>
