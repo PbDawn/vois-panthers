@@ -405,11 +405,34 @@ function Leaderboard({ matches }) {
               <div className="lb-rank">{rankDisplay}</div>
               <div>
                 <div className="lb-name" style={{color:p.color}}>{p.name}</div>
-                <div className="lb-stats">
+                {/* <div className="lb-stats">
                   {[['Matches',p.matchesPlayed],['Paid',p.paidContests],['Wins',p.wins],['Win%',winpct+'%'],['Invested','₹'+p.totalInvested],['Won','₹'+p.totalWon.toFixed(2)]].map(([k,v])=>(
                     <div className="lb-stat" key={k}>{k}: <span>{v}</span></div>
                   ))}
                   {p.carryFwd > 0 && <div className="lb-stat">Carry Fwd: <span className="cf-tag">₹{p.carryFwd.toFixed(2)}</span></div>}
+                </div> */}
+                <div className="lb-stats">
+                  {[
+                    ['Matches', p.matchesPlayed],
+                    ['Paid', p.paidContests],
+                    ['Wins', p.wins],
+                    ['Win%', winpct + '%'],
+                    ['Invested', '₹' + p.totalInvested],
+                    ['Won', '₹' + p.totalWon.toFixed(2)],
+                    // This adds the Active Deposit row ONLY if the amount is greater than 0
+                    ...(p.activeDeposits > 0 ? [['Active Deposit', '₹' + p.activeDeposits]] : [])
+                  ].map(([k, v]) => (
+                    <div className="lb-stat" key={k}>
+                      {k}: <span className={k === 'Active Deposit' ? 'active-amt' : ''}>{v}</span>
+                    </div>
+                  ))}
+                
+                  {/* Carry Forward logic remains untouched below */}
+                  {p.carryFwd > 0 && (
+                    <div className="lb-stat">
+                      Carry Fwd: <span className="cf-tag">₹{p.carryFwd.toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               <div>
