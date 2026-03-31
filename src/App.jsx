@@ -187,9 +187,58 @@ function MatchLog({ matches }) {
   const totalContests = finished.filter(m => m.contest === 'yes').length
   const totalTransferred = finished.filter(m => m.transferred === true || m.transferred === 'Done').length
 
+  // 1. Create a state to control visibility
+  const [showLiveScore, setShowLiveScore] = useState(false);
+
+  useEffect(() => {
+    // Only load the script if the user clicks "Show Live Scores"
+    if (showLiveScore) {
+      window.criczop_widget_info = {
+        "widget_id": "live-scores-ipl",
+        "theme": "dark",
+        "match_type": "IPL",
+        "header_color": "#f5a623",
+        "api_key": "free"
+      };
+
+      const script = document.createElement('script');
+      script.src = 'https://criczop.com/widget/v2/criczop-widget.js';
+      script.async = true;
+      document.body.appendChild(script);
+
+      return () => {
+        if (document.body.contains(script)) {
+          document.body.removeChild(script);
+        }
+      };
+    }
+  }, [showLiveScore]); // This re-runs whenever showLiveScore changes
+
   return (
     <div className="section">
-      <div className="sec-title">Match Log</div>
+      {/*<div className="sec-title">Match Log</div> */}
+
+      <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>Match Log</span>
+        
+        {/* 2. The Toggle Button */}
+        <button 
+          onClick={() => setShowLiveScore(!showLiveScore)}
+          className={`btn btn-sm ${showLiveScore ? 'btn-danger' : 'btn-success'}`}
+          style={{ fontSize: '12px', padding: '5px 15px' }}
+        >
+          {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live Score'}
+        </button>
+      </div>
+
+      {/* 3. Conditional Rendering for the Widget */}
+      {showLiveScore && (
+        <div id="criczop-widget" style={{ marginBottom: '20px', minHeight: '150px' }}>
+          <div id="crt-widget"></div>
+        </div>
+      )}
+    </div>
+      
       <div className="totals-bar">
         {[['Total Matches', matches.length], ['Contests Played', totalContests], ['Total Pool', `₹${totalPool}`], ['Payouts Done', totalTransferred]].map(([label, val]) => (
           <div className="total-chip" key={label}><div className="total-chip-label">{label}</div><div className="total-chip-val">{val}</div></div>
