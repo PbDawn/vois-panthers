@@ -72,6 +72,12 @@ function computePlayerStats(matches) {
   PLAYERS.forEach(p => { stats[p] = { matchesPlayed:0, contested:0, paidContests:0, wins:0, totalInvested:0, totalWon:0, bestPoints:0, carryFwd:0, totalPointsSum:0, pointsMatchCount:0, recentForm:[] } })
   let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
   matches.forEach(m => {
+    // CRITICAL FIX: Only process matches that are actually completed
+    const matchIsComplete = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—';
+    
+    // If the match isn't complete, skip this iteration for stats calculation
+    if (!matchIsComplete) return;
+    
     const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
     const prizes = calculatePrizes(m)
     PLAYERS.forEach(p => {
