@@ -237,7 +237,6 @@ function MatchLog({ matches }) {
           <div id="crt-widget"></div>
         </div>
       )}
-    </div>
       
       <div className="totals-bar">
         {[['Total Matches', matches.length], ['Contests Played', totalContests], ['Total Pool', `₹${totalPool}`], ['Payouts Done', totalTransferred]].map(([label, val]) => (
