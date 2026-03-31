@@ -231,42 +231,40 @@ function MatchLog({ matches }) {
       }
       const result = JSON.parse(text);
       const leagueGroup = result.typeMatches?.find(group => group.matchType === "League");
+      
+      // You defined this as iplSeries
       const iplSeries = leagueGroup?.seriesMatches?.find(s => 
         s.seriesAdWrapper?.seriesName.toLowerCase().includes("indian premier league")
       );
-          if (ipl && ipl.seriesAdWrapper.matches.length > 0) {
-      const match = ipl.seriesAdWrapper.matches[0];
-      const info = match.matchInfo;
-      const score = match.matchScore;
-    
-      let liveScoreText = "Toss Pending";
-      
-      if (score) {
-        // Identify which team is currently batting
-        const battingTeamId = score.battingTeamId;
-        const battingTeam = battingTeamId === info.team1.teamId ? info.team1.teamName : info.team2.teamName;
+
+      // FIX: Changed 'ipl' to 'iplSeries' so it matches the variable above
+      if (iplSeries && iplSeries.seriesAdWrapper.matches.length > 0) {
+        const match = iplSeries.seriesAdWrapper.matches[0];
+        const info = match.matchInfo;
+        const score = match.matchScore;
         
-        // Extract runs, wickets, and overs
-        // Cricbuzz uses team1Score for the first team in their list, not necessarily the one batting
-        const scoreObj = battingTeamId === info.team1.teamId ? score.team1Score : score.team2Score;
+        let liveScoreText = "---";
         
-        if (scoreObj && scoreObj.inngs1) {
-          const runs = scoreObj.inngs1.runs;
-          const wickets = scoreObj.inngs1.wickets || 0;
-          const overs = scoreObj.inngs1.overs || 0;
+        if (score) {
+          const battingTeamId = score.battingTeamId;
+          const battingTeam = battingTeamId === info.team1.teamId ? info.team1.teamName : info.team2.teamName;
+          const scoreObj = battingTeamId === info.team1.teamId ? score.team1Score : score.team2Score;
           
-          // Format: GT: 9-0 (1)
-          liveScoreText = `${battingTeam}: ${runs}-${wickets} (${overs})`;
+          if (scoreObj && scoreObj.inngs1) {
+            const runs = scoreObj.inngs1.runs;
+            const wickets = scoreObj.inngs1.wickets || 0;
+            const overs = scoreObj.inngs1.overs || 0;
+            liveScoreText = `${battingTeam}: ${runs}-${wickets} (${overs})`;
+          }
         }
-      }
-    
-      setLiveMatch({
-        teams: `${info.team1.teamName} vs ${info.team2.teamName}`,
-        runs: liveScoreText,
-        status: info.status,
-        venue: info.venueInfo.ground
-      });
-    } else {
+      
+        setLiveMatch({
+          teams: `${info.team1.teamName} vs ${info.team2.teamName}`,
+          runs: liveScoreText,
+          status: info.status,
+          venue: info.venueInfo.ground
+        });
+      } else {
         setLiveMatch(null);
       }
     } catch (err) {
