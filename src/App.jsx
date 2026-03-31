@@ -187,7 +187,7 @@ function MatchLog({ matches }) {
           <thead>
             <tr>
               {['Match','Date','Teams','Team Won','Match Time','Contest','Joined','Fee(₹)','Pool(₹)','Fantasy Winner','Payout(₹)','Transferred'].map(h => <th key={h}>{h}</th>)}
-              {PLAYERS.map(p => <th key={p}><div style={{writingMode:'vertical-rl',transform:'rotate(180deg)',height:78,fontSize:10,whiteSpace:'nowrap'}}>{p}<br/><span style={{color:'var(--text2)',fontSize:9}}>J/P/Pts/Rk</span></div></th>)}
+              {PLAYERS.map(p => <th key={p}><div style={{fontSize:11,whiteSpace:'nowrap',padding: '10px 5px'}}>{p}<br/><span style={{color:'var(--text2)',fontSize:9}}>J/P/Pts/Rk</span></div></th>)}
               <th>MyCircle11 App</th>
             </tr>
           </thead>
