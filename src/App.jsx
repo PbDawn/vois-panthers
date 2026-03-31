@@ -185,7 +185,14 @@ function MatchLog({ matches }) {
   const finished = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—')
   const totalPool = finished.reduce((s, m) => s + (m.pool || 0), 0)
   const totalContests = finished.filter(m => m.contest === 'yes').length
-  const totalTransferred = finished.filter(m => m.transferred === true || m.transferred === 'Done').length
+  
+  // Updated to count individual transfers from the new object structure
+  const totalTransferred = finished.reduce((count, m) => {
+    if (m.transferred && typeof m.transferred === 'object') {
+      return count + Object.values(m.transferred).filter(v => v === true).length;
+    }
+    return count + (m.transferred === true ? 1 : 0);
+  }, 0);
 
   const [showLiveScore, setShowLiveScore] = useState(false);
   const [liveMatch, setLiveMatch] = useState(null);
@@ -193,50 +200,33 @@ function MatchLog({ matches }) {
   const [errorMsg, setErrorMsg] = useState('');
 
   const fetchIPLScore = async () => {
-    // 1. Safety: Don't fetch if toggle is OFF
     if (!showLiveScore) return;
-
     setLoading(true);
     setErrorMsg('');
-
     const options = {
       method: 'GET',
       headers: {
-        // paste your actual key here
         'x-rapidapi-key': '6db820e94emsh24dd09b8e658f4cp15f50ejsn4febbb8496be', 
         'x-rapidapi-host': 'cricbuzz-cricket.p.rapidapi.com'
       }
     };
-
     try {
       const response = await fetch('https://cricbuzz-cricket.p.rapidapi.com/matches/v1/live', options);
-      
-      // 2. CHECK: Did the server send a 200 OK?
-      if (!response.ok) {
-        throw new Error(`Server Error: ${response.status}`);
-      }
-
-      // 3. CHECK: Is the response body empty? (Prevents JSON SyntaxError)
+      if (!response.ok) throw new Error(`Server Error: ${response.status}`);
       const text = await response.text();
       if (!text || text.trim().length === 0) {
-        setLiveMatch(null); // No live data available yet
+        setLiveMatch(null);
         return;
       }
-
-      // 4. PARSE: Now it's safe to turn text into JSON
       const result = JSON.parse(text);
-
-      // 5. FILTER: Look specifically for IPL matches
       const leagueGroup = result.typeMatches?.find(group => group.matchType === "League");
       const iplSeries = leagueGroup?.seriesMatches?.find(s => 
         s.seriesAdWrapper?.seriesName.toLowerCase().includes("indian premier league")
       );
-
       if (iplSeries && iplSeries.seriesAdWrapper.matches.length > 0) {
         const match = iplSeries.seriesAdWrapper.matches[0];
         const info = match.matchInfo;
         const score = match.matchScore;
-
         setLiveMatch({
           teams: `${info.team1.teamName} vs ${info.team2.teamName}`,
           runs: score?.team1Score?.inngs1?.runs 
@@ -246,7 +236,7 @@ function MatchLog({ matches }) {
           venue: info.venueInfo.ground
         });
       } else {
-        setLiveMatch(null); // Found leagues, but no IPL match live yet
+        setLiveMatch(null);
       }
     } catch (err) {
       console.error("Fetch Failed:", err.message);
@@ -259,7 +249,6 @@ function MatchLog({ matches }) {
   useEffect(() => {
     if (showLiveScore) {
       fetchIPLScore();
-      // Auto-refresh every 3 mins to save your free monthly quota
       const interval = setInterval(fetchIPLScore, 180000); 
       return () => clearInterval(interval);
     }
@@ -267,9 +256,7 @@ function MatchLog({ matches }) {
   
   return (
     <div className="section">
-      {/*<div className="sec-title">Match Log</div> */}
-
- <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Match Log</span>
         <button 
           onClick={() => setShowLiveScore(!showLiveScore)}
@@ -280,16 +267,8 @@ function MatchLog({ matches }) {
         </button>
       </div>
 
-      {/* --- DYNAMIC LIVE SCORE BOX --- */}
       {showLiveScore && (
-        <div style={{ 
-          marginBottom: '20px', 
-          padding: '20px', 
-          background: '#161f38', 
-          borderRadius: '12px', 
-          border: '1px solid #f5a623',
-          textAlign: 'center'
-        }}>
+        <div style={{ marginBottom: '20px', padding: '20px', background: '#161f38', borderRadius: '12px', border: '1px solid #f5a623', textAlign: 'center' }}>
           {loading && !liveMatch ? (
             <div style={{ color: '#8899bb' }}>Updating live feed...</div>
           ) : errorMsg ? (
@@ -297,23 +276,13 @@ function MatchLog({ matches }) {
           ) : liveMatch ? (
             <div>
               <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '5px' }}>{liveMatch.teams}</div>
-              <div style={{ fontSize: '26px', color: '#2ecc71', fontWeight: 'bold', margin: '10px 0' }}>
-                {liveMatch.runs}
-              </div>
+              <div style={{ fontSize: '26px', color: '#2ecc71', fontWeight: 'bold', margin: '10px 0' }}>{liveMatch.runs}</div>
               <div style={{ fontSize: '14px', color: '#f5a623' }}>{liveMatch.status}</div>
               <div style={{ fontSize: '11px', color: '#8899bb', marginTop: '10px' }}>📍 {liveMatch.venue}</div>
-              <button 
-                onClick={fetchIPLScore} 
-                style={{ marginTop: '15px', background: 'transparent', border: '1px solid #3498db', color: '#3498db', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}
-              >
-                🔄 Refresh Now
-              </button>
+              <button onClick={fetchIPLScore} style={{ marginTop: '15px', background: 'transparent', border: '1px solid #3498db', color: '#3498db', padding: '4px 10px', borderRadius: '4px', fontSize: '11px', cursor: 'pointer' }}>🔄 Refresh Now</button>
             </div>
           ) : (
-            <div style={{ color: '#8899bb' }}>
-              No IPL match is currently Live. <br/>
-              <span style={{color: '#f5a623'}}>Stay Tuned for updates!</span>
-            </div>
+            <div style={{ color: '#8899bb' }}>No IPL match is currently Live. <br/><span style={{color: '#f5a623'}}>Stay Tuned for updates!</span></div>
           )}
         </div>
       )}
@@ -339,8 +308,6 @@ function MatchLog({ matches }) {
               const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
               const prizes = calculatePrizes(m)
               const isNext = nextUpcoming && nextUpcoming.matchno === m.matchno
-
-              // NEW LOGIC: Calculate if match has started specifically for this match 'm'
               const matchStartTime = getMatchDateTime(m);
               const hasStarted = matchStartTime ? (new Date() > matchStartTime) : done;
               
@@ -352,6 +319,23 @@ function MatchLog({ matches }) {
                   if (rk === 2 && prizes.winnerCount === 2) winnersInfo.push({ name:p, rank:2, prize:prizes[2] })
                 })
               }
+
+              // Individual status logic for winners
+              const transferStatusHtml = winnersInfo.map(w => {
+                const isDone = (m.transferred && typeof m.transferred === 'object') 
+                  ? m.transferred[w.name] === true 
+                  : m.transferred === true;
+
+                return (
+                  <div key={w.name} style={{height:22, display:'flex', alignItems:'center', marginBottom:2}}>
+                    {isDone 
+                      ? <span className="transfer-done" style={{fontSize:10}}>✅ Done</span> 
+                      : <span className="transfer-pending" style={{fontSize:10}}>⏳ Pending</span>
+                    }
+                  </div>
+                );
+              });
+
               return (
                 <tr key={idx}>
                   <td><span className="match-no-badge">#{m.matchno}</span></td>
@@ -363,18 +347,12 @@ function MatchLog({ matches }) {
                   <td style={{fontSize:11}}>{m.contest === 'yes' ? `${m.joinedCount}/${PLAYERS.length}` : '—'}</td>
                   <td style={{fontSize:11}}>₹{m.fee}</td>
                   <td style={{color:'var(--green)',fontWeight:700,fontSize:11}}>₹{m.pool}</td>
-                  <td style={{fontSize:11}}>{winnersInfo.length > 0 ? winnersInfo.map(w => <div key={w.name} style={{fontSize:11}}>{w.rank===1?'🥇':'🥈'} <b>{w.name}</b></div>) : '—'}</td>
-                  <td style={{fontSize:11}}>{winnersInfo.length > 0 ? winnersInfo.map(w => <div key={w.name} style={{fontSize:11,color:'var(--green)'}}>₹{w.prize.toFixed(2)}</div>) : '—'}</td>
-                  <td>
-                    {m.contest === 'yes' && winnersInfo.length > 0
-                      ? m.transferred ? <span className="transfer-done">✅ Done</span> : <span className="transfer-pending">⏳ Pending</span>
-                      : '—'}
-                  </td>
+                  <td style={{fontSize:11}}>{winnersInfo.length > 0 ? winnersInfo.map(w => <div key={w.name} style={{fontSize:11, height:22, display:'flex', alignItems:'center'}}>{w.rank===1?'🥇':'🥈'} <b>{w.name}</b></div>) : '—'}</td>
+                  <td style={{fontSize:11}}>{winnersInfo.length > 0 ? winnersInfo.map(w => <div key={w.name} style={{fontSize:11, height:22, display:'flex', alignItems:'center', color:'var(--green)'}}>₹{w.prize.toFixed(2)}</div>) : '—'}</td>
+                  <td>{m.contest === 'yes' && winnersInfo.length > 0 ? transferStatusHtml : '—'}</td>
                   {PLAYERS.map(p => {
                     const pd = m.players[p]
                     if (!pd || !pd.joined) return <td key={p} style={{color:'var(--text2)',fontSize:13}}>—</td>
-                    /* const rank = m.joinedRanks?.[p] ?? '?' */
-                    // NEW LOGIC: Only calculate rank if the match is over or points exist
                     const rawRank = m.joinedRanks?.[p] ?? '?';
                     const rank = (done || pd.points > 0) ? rawRank : '—';
                     const isWinner = done && pd.paid && (rank===1 || (rank===2 && prizes.winnerCount===2))
@@ -393,16 +371,13 @@ function MatchLog({ matches }) {
                         <div className={pd.paid?'paid-yes':'paid-no'} style={{fontSize:9}}>{pd.paid?'💰 Paid':'❌ Unpaid'}</div>
                         <div style={{fontSize:12,fontWeight:700}}>{pd.points}</div>
                         <div className={`rank-${rank}`} style={{fontSize:10}}>{rank !== '—' ? `#${rank}` : '—'}</div>
-                        {!pd.paid && <button className="pay-now-btn" style={{padding:'2px 4px',fontSize:8}} onClick={()=>alert(`🏏 IPL Season is On! 🏆\n\nEntry fee is still pending. Check the pinned message in WhatsApp group: "_VOIS Dream 11" to pay via UPI QR code.\n\nGood luck! 🔥`)}>💸 Pay Now</button>}
+                        {!pd.paid && <button className="pay-now-btn" style={{padding:'2px 4px',fontSize:8}} onClick={()=>alert(`🏏 IPL Season is On! 🏆\n\nEntry fee is still pending. Check the pinned message in WhatsApp group: \"_VOIS Dream 11\" to pay via UPI QR code.\n\nGood luck! 🔥`)}>💸 Pay Now</button>}
                       </td>
                     )
                   })}
                   <td style={{textAlign:'center'}}>
-                    {/* UPDATED: Time-sensitive link visibility */}
                     {m.contestLink && !hasStarted ? (
-                      <a href={m.contestLink} target="_blank" rel="noreferrer" className="app-link-btn" style={{fontSize:9, padding:'5px 8px', display:'block', lineHeight:1.2}}>
-                        🏆 Click Here to join the Contest
-                      </a>
+                      <a href={m.contestLink} target="_blank" rel="noreferrer" className="app-link-btn" style={{fontSize:9, padding:'5px 8px', display:'block', lineHeight:1.2}}>🏆 Click Here to join the Contest</a>
                     ) : (
                       <span style={{color:'var(--text2)', fontSize:10}}>{done ? '—' : 'Contest Closed'}</span>
                     )}
