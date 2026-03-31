@@ -276,3 +276,14 @@ tr:hover td { background: rgba(245,166,35,0.04); }
   color: #f5a623;
   font-weight: 700;
 }
+.btn-success {
+  background: rgba(46, 204, 113, 0.2);
+  border: 1px solid #2ecc71;
+  color: #2ecc71;
+}
+
+.btn-danger {
+  background: rgba(231, 76, 60, 0.2);
+  border: 1px solid #e74c3c;
+  color: #e74c3c;
+}
