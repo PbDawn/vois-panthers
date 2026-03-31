@@ -334,8 +334,8 @@ function MatchLog({ matches }) {
               // --- TIE-HANDLING & SPLIT LOGIC ---
               let winnersInfo = [];
               if (done) {
-                const r1Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 1 && m.players?.[p]?.paid);
-                const r2Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 2 && m.players?.[p]?.paid);
+                const r1Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 1 && m.players?.[p]?.paid && m.players[p]?.points > 0);
+                const r2Players = PLAYERS.filter(p => m.joinedRanks?.[p] === 2 && m.players?.[p]?.paid && m.players[p]?.points > 0);
 
                 if (r1Players.length > 0) {
                   const split1 = prizes[1] / r1Players.length;
