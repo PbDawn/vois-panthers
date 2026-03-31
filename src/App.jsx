@@ -68,64 +68,106 @@ function findNextUpcomingMatch(matches) {
 }
 
 function computePlayerStats(matches) {
-  let stats = {}
-  PLAYERS.forEach(p => { stats[p] = { matchesPlayed:0, contested:0, paidContests:0, wins:0, totalInvested:0, totalWon:0, bestPoints:0, carryFwd:0, totalPointsSum:0, pointsMatchCount:0, recentForm:[], activeDeposits: 0 } })
-  let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
+  let stats = {};
+  PLAYERS.forEach(p => { 
+    stats[p] = { 
+      matchesPlayed: 0, contested: 0, paidContests: 0, wins: 0, 
+      totalInvested: 0, totalWon: 0, bestPoints: 0, carryFwd: 0, 
+      totalPointsSum: 0, pointsMatchCount: 0, recentForm: [], activeDeposits: 0 
+    };
+  });
+  
+  let cf = {}; PLAYERS.forEach(p => { cf[p] = 0; });
+
   matches.forEach(m => {
-    // CRITICAL FIX: Only process matches that are actually completed
     const matchIsComplete = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—';
-        
-    const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
-    const prizes = calculatePrizes(m)
+    const prizes = calculatePrizes(m);
+
+    // --- LOGIC FOR PAID-ONLY RANKING (Crucial for Stats Sync) ---
+    const eligiblePaid = PLAYERS
+      .filter(p => m.players?.[p]?.paid && m.players?.[p]?.points > 0)
+      .map(p => ({ name: p, points: m.players[p].points }))
+      .sort((a, b) => b.points - a.points);
+
+    let paidRanks = {};
+    let currentR = 1;
+    eligiblePaid.forEach((p, i) => {
+      if (i > 0 && p.points < eligiblePaid[i - 1].points) currentR++;
+      paidRanks[p.name] = currentR;
+    });
+
+    const r1Count = eligiblePaid.filter(p => paidRanks[p.name] === 1).length;
+    const r2Count = eligiblePaid.filter(p => paidRanks[p.name] === 2).length;
+
     PLAYERS.forEach(p => {
-      const pd = m.players[p]
-      if (!pd || !pd.joined) return
-      const s = stats[p]
+      const pd = m.players[p];
+      if (!pd || !pd.joined) return;
+      const s = stats[p];
+
       // Logic for UPCOMING or ONGOING matches
       if (!matchIsComplete) {
         if (m.contest === 'yes' && pd.paid) {
-          s.activeDeposits += m.fee; // Amount deposited for future match
+          s.activeDeposits += m.fee;
         }
-        return; // Skip main stats (Played/Won/Rank) for this match
+        return; 
       }
 
       // Logic for COMPLETED matches only
       s.matchesPlayed++;
       
       if (m.contest === 'yes') {
-        s.contested++
+        s.contested++;
         if (pd.paid) {
-          s.paidContests++
-          if (cf[p] <= 0) s.totalInvested += m.fee; else cf[p] -= m.fee
-          if (pd.points > 0) { s.totalPointsSum += pd.points; s.pointsMatchCount++ }
-          if (pd.points > s.bestPoints) s.bestPoints = pd.points
-          if (done) {
-            const rank = m.joinedRanks ? m.joinedRanks[p] : null
-            const isRank1 = rank === 1, isRank2 = rank === 2 && prizes.winnerCount === 2
-            if (isRank1 || isRank2) {
-              s.wins++
-              const won = isRank1 ? prizes[1] : prizes[2]
-              
-              // FIXED: Check individual player status in the transferred object
-              const isPlayerPaid = (m.transferred && typeof m.transferred === 'object')
-                ? m.transferred[p] === true
-                : m.transferred === true; // Fallback for old data
-            
-              if (isPlayerPaid) {
-                s.totalWon += won; 
-              } else {
-                cf[p] += won; // Correctly moves amount to Carry Forward if Pending
-              }
-              
-              s.recentForm.push(isRank1 ? 'win1' : 'win2')
-            } else { s.recentForm.push('loss') }
+          s.paidContests++;
+          
+          // Investment calculation (adjusted for Carry Forward)
+          if (cf[p] <= 0) s.totalInvested += m.fee; else cf[p] -= m.fee;
+
+          if (pd.points > 0) {
+            s.totalPointsSum += pd.points;
+            s.pointsMatchCount++;
+            if (pd.points > s.bestPoints) s.bestPoints = pd.points;
           }
-        } else { if (done) s.recentForm.push('skip') }
+
+          // Winner Determination based on Paid-Only list
+          const pRank = paidRanks[p];
+          const isR1Win = (pRank === 1);
+          const isR2Win = (pRank === 2 && prizes.winnerCountLimit === 2);
+
+          if (isR1Win || isR2Win) {
+            s.wins++;
+            // Calculate individual share of the rank's prize pot
+            const prizeShare = isR1Win ? (prizes[1] / r1Count) : (prizes[2] / r2Count);
+            
+            // Check individual transfer status
+            const isPlayerTransferred = (m.transferred && typeof m.transferred === 'object')
+              ? m.transferred[p] === true
+              : m.transferred === true;
+          
+            if (isPlayerTransferred) {
+              s.totalWon += prizeShare; 
+            } else {
+              cf[p] += prizeShare; // Stays in Pending/Carry Forward
+            }
+            s.recentForm.push(isR1Win ? 'win1' : 'win2');
+          } else { 
+            s.recentForm.push('loss'); 
+          }
+        } else { 
+          // Joined but did not pay
+          s.recentForm.push('skip'); 
+        }
       }
-    })
-  })
-  PLAYERS.forEach(p => { stats[p].carryFwd = cf[p] > 0 ? cf[p] : 0; stats[p].recentForm = stats[p].recentForm.slice(-5) })
-  return stats
+    });
+  });
+
+  PLAYERS.forEach(p => { 
+    stats[p].carryFwd = cf[p] > 0 ? cf[p] : 0; 
+    stats[p].recentForm = stats[p].recentForm.slice(-5);
+    stats[p].totalWon = parseFloat(stats[p].totalWon.toFixed(2));
+  });
+
+  return stats;
 }
 
 function computeHoFBadges(stats) {
