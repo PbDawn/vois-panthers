@@ -227,7 +227,10 @@ function MatchLog({ matches }) {
                   {PLAYERS.map(p => {
                     const pd = m.players[p]
                     if (!pd || !pd.joined) return <td key={p} style={{color:'var(--text2)',fontSize:13}}>—</td>
-                    const rank = m.joinedRanks?.[p] ?? '?'
+                    /* const rank = m.joinedRanks?.[p] ?? '?' */
+                    // NEW LOGIC: Only calculate rank if the match is over or points exist
+                    const rawRank = m.joinedRanks?.[p] ?? '?';
+                    const rank = (done || pd.points > 0) ? rawRank : '—';
                     const isWinner = done && pd.paid && (rank===1 || (rank===2 && prizes.winnerCount===2))
                     if (isWinner) return (
                       <td key={p}>
@@ -243,7 +246,7 @@ function MatchLog({ matches }) {
                         <div style={{fontSize:9}}>✅ Joined</div>
                         <div className={pd.paid?'paid-yes':'paid-no'} style={{fontSize:9}}>{pd.paid?'💰 Paid':'❌ Unpaid'}</div>
                         <div style={{fontSize:12,fontWeight:700}}>{pd.points}</div>
-                        <div className={`rank-${rank}`} style={{fontSize:10}}>#{rank}</div>
+                        <div className={`rank-${rank}`} style={{fontSize:10}}>{rank !== '—' ? `#${rank}` : '—'}</div>
                         {!pd.paid && <button className="pay-now-btn" style={{padding:'2px 4px',fontSize:8}} onClick={()=>alert(`🏏 IPL Season is On! 🏆\n\nEntry fee is still pending. Check the pinned message in WhatsApp group: "_VOIS Dream 11" to pay via UPI QR code.\n\nGood luck! 🔥`)}>💸 Pay Now</button>}
                       </td>
                     )
