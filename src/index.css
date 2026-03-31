@@ -272,3 +272,7 @@ tr:hover td { background: rgba(245,166,35,0.04); }
   .lb-rank { font-size: 26px; }
   .lb-name { font-size: 17px; }
 }
+.active-amt {
+  color: #f5a623;
+  font-weight: 700;
+}
