@@ -187,66 +187,44 @@ function MatchLog({ matches }) {
   const totalContests = finished.filter(m => m.contest === 'yes').length
   const totalTransferred = finished.filter(m => m.transferred === true || m.transferred === 'Done').length
 
- const [showLiveScore, setShowLiveScore] = useState(false);
-
-  useEffect(() => {
-    if (showLiveScore) {
-      // 1. Define the config globally
-      window.criczop_widget_info = {
-        "widget_id": "live-scores-ipl",
-        "theme": "dark",
-        "match_type": "IPL",
-        "header_color": "#f5a623",
-        "api_key": "free"
-      };
-
-      // 2. Trigger the initialization with a small delay to let the div render
-      const timer = setTimeout(() => {
-        if (window.CriczopWidget) {
-          try {
-            window.CriczopWidget.init();
-          } catch (err) {
-            console.error("Criczop Init Failed:", err);
-          }
-        }
-      }, 500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [showLiveScore]);
+  const [showLiveScore, setShowLiveScore] = useState(false);
 
   
   return (
     <div className="section">
       {/*<div className="sec-title">Match Log</div> */}
 
-    <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
+    <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Match Log</span>
+        
+        {/* Toggle Button */}
         <button 
           onClick={() => setShowLiveScore(!showLiveScore)}
-          className="btn-sm"
+          className={`btn-sm ${showLiveScore ? 'btn-danger' : 'btn-success'}`}
+          style={{ padding: '6px 12px', cursor: 'pointer', borderRadius: '6px' }}
         >
           {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live Score'}
         </button>
       </div>
 
+      {/* --- LIVE SCORE IFRAME SECTION --- */}
       {showLiveScore && (
         <div 
-          id="criczop-widget" 
           style={{ 
             marginBottom: '20px', 
-            minHeight: '160px', 
+            minHeight: '220px', 
             background: '#161f38', 
             borderRadius: '12px',
-            border: '1px solid #1e2d50'
+            border: '1px solid #1e2d50',
+            overflow: 'hidden'
           }}
         >
-          <div id="crt-widget">
-             {/* This stays until the script successfully replaces it */}
-             <p style={{textAlign: 'center', color: '#8899bb', padding: '40px'}}>
-                Connecting to IPL Live Server...
-             </p>
-          </div>
+          <iframe
+            src="https://criczop.com/widget/v2/live-scores-ipl.php?theme=dark&header_color=f5a623"
+            style={{ width: '100%', height: '220px', border: 'none' }}
+            title="IPL Live Scores"
+            loading="lazy"
+          ></iframe>
         </div>
       )}
       
