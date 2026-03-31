@@ -155,8 +155,8 @@ tr:hover td { background: rgba(245,166,35,0.04); }
 .cf-tag { background: rgba(245,166,35,0.1); color: var(--accent); border-radius: 6px; padding: 1px 7px; font-size: 11px; border: 1px solid rgba(245,166,35,0.3); }
 
 /* RANK BOXES */
-.rank-1-box { border: 1px solid var(--accent); background: rgba(245,166,35,0.12); border-radius: 8px; padding: 6px 2px; box-shadow: 0 0 10px rgba(245,166,35,0.25); display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.rank-2-box { border: 1px solid #bdc3c7; background: rgba(189,195,199,0.1); border-radius: 8px; padding: 6px 2px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.rank-1-box { border: 1px solid var(--accent); background: rgba(245,166,35,0.12); border-radius: 8px; padding: 8px 4px; min-width: 85px; box-shadow: 0 0 10px rgba(245,166,35,0.25); display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.rank-2-box { border: 1px solid #bdc3c7; background: rgba(189,195,199,0.1); border-radius: 8px; padding: 8px 4px; min-width: 85px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
 
 /* APP LINK */
 .app-link-btn { display: inline-block; margin-top: 6px; background: rgba(245,166,35,0.1); color: var(--accent); border: 1px solid rgba(245,166,35,0.4); border-radius: 4px; padding: 3px 8px; font-size: 10px; font-weight: 700; text-decoration: none; letter-spacing: 1px; text-transform: uppercase; transition: all 0.2s; }
