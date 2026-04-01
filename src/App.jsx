@@ -1033,8 +1033,23 @@ export default function App() {
       if (newVersion !== lastVersionRef.current) {
         lastVersionRef.current = newVersion
         setMatches(newMatches)
-        const updatedAt = data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString('en-IN') : new Date().toLocaleTimeString('en-IN')
-        setLiveState({ dot:'', label:'🟢 LIVE', info:`Updated: ${updatedAt} · Click Refresh for latest scores` })
+        /* const updatedAt = data.updatedAt ? new Date(data.updatedAt).toLocaleTimeString('en-IN') : new Date().toLocaleTimeString('en-IN') */
+
+        const options = { 
+          day: '2-digit', 
+          month: 'short', 
+          year: 'numeric', 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          second: '2-digit', 
+          hour12: true 
+        };
+        
+        const updatedAt = data.updatedAt 
+          ? new Date(data.updatedAt).toLocaleString('en-IN', options).replace(/,/g, '')
+          : new Date().toLocaleString('en-IN', options).replace(/,/g, '');
+        
+        setLiveState({ dot:'', label:'🟢 LIVE', info:`Last Updated: ${updatedAt} · Click Refresh for latest scores` })
       } else {
         setLiveState({ dot:'', label:'🟢 LIVE', info:`No changes · Last check: ${new Date().toLocaleTimeString('en-IN')}` })
       }
