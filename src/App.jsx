@@ -832,7 +832,7 @@ function OlympicPodium({ sorted }) {
 
               {/* Prize money */}
               <div className={`pd-prize ${isPos?'pd-profit-pos':'pd-profit-neg'}`}>
-                {isPos?'+ ':''}₹{profit.toFixed(2)}
+                {isPos?'+':'-'}₹{profit.toFixed(2)}
               </div>
               <div className="pd-wintag">🏏 {p.wins} win{p.wins!==1?'s':''} · {p.paidContests} paid contests</div>
 
