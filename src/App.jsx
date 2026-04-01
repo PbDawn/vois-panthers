@@ -348,7 +348,7 @@ function MatchLog({ matches }) {
           className={`btn-sm ${showLiveScore ? 'btn-danger' : 'btn-success'}`}
           style={{ padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
         >
-          {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live'}
+          {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live Score'}
         </button>
       </div>
 
