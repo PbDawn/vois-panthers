@@ -230,7 +230,7 @@ function computeHoFBadges(stats) {
     if (maxWinPct > 0 && winPct === maxWinPct && s.paidContests >= 2)  badges[p].push({ icon:'🛡️', label:'Iron Consistent',cls:'badge-ironman' })
     if (maxContests > 0 && s.paidContests === maxContests)              badges[p].push({ icon:'🐉', label:'Dragon Grinder', cls:'badge-dragon' })
     if (maxProfit > 0 && profit === maxProfit)                          badges[p].push({ icon:'🔥', label:'Phoenix Profit', cls:'badge-phoenix' })
-    if (profit >= (maxContests * 50))                                                    badges[p].push({ icon:'💵', label:'Profitable Investor', cls:'badge-scholar' })
+    if (profit >= 0)                                                    badges[p].push({ icon:'💵', label:'Profitable Investor', cls:'badge-scholar' })
   })
   return badges
 }
