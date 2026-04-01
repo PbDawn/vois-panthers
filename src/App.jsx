@@ -230,7 +230,7 @@ function computeHoFBadges(stats) {
     if (maxWinPct > 0 && winPct === maxWinPct && s.paidContests >= 2)  badges[p].push({ icon:'🛡️', label:'Iron Consistent',cls:'badge-ironman' })
     if (maxContests > 0 && s.paidContests === maxContests)              badges[p].push({ icon:'🐉', label:'Dragon Grinder', cls:'badge-dragon' })
     if (maxProfit > 0 && profit === maxProfit)                          badges[p].push({ icon:'🔥', label:'Phoenix Profit', cls:'badge-phoenix' })
-    if (s.wins >= 3)                                                    badges[p].push({ icon:'📜', label:'Hat-Trick Hero', cls:'badge-scholar' })
+    if (profit >= (maxContests * 50))                                                    badges[p].push({ icon:'💵', label:'Profitable Investor', cls:'badge-scholar' })
   })
   return badges
 }
@@ -587,7 +587,7 @@ function PlayerStats({ matches }) {
           ['🛡️','Iron Consistent','Highest Win % among paid contests (minimum 2 paid entries).'],
           ['🐉','Dragon Grinder','Most paid contests this season. Never backs down from a fight.'],
           ['🔥','Phoenix Profit','Leads in total profit (Winnings minus Investment).'],
-          ['📜','Hat-Trick Hero','Has won 3 or more contests this season.'],
+          ['💵','Profitable Investor','Has Green Portfolio this season with winning amount exceeding the investment amount.'],
         ].map(([icon, title, desc]) => (
           <div className="badge-note-row" key={title}>
             <div className="badge-note-icon">{icon}</div>
@@ -832,7 +832,7 @@ function OlympicPodium({ sorted }) {
 
               {/* Prize money */}
               <div className={`pd-prize ${isPos?'pd-profit-pos':'pd-profit-neg'}`}>
-                {isPos?'+':''}₹{profit.toFixed(2)}
+                {isPos?'+ ':''}₹{profit.toFixed(2)}
               </div>
               <div className="pd-wintag">🏏 {p.wins} win{p.wins!==1?'s':''} · {p.paidContests} paid contests</div>
 
