@@ -276,12 +276,39 @@ function MatchLog({ matches }) {
   const totalPool = finished.reduce((s, m) => s + (calculatePrizes(m).totalPool || 0), 0)
   const totalContests = finished.filter(m => m.contest === 'yes').length
 
-  const totalTransferred = finished.reduce((count, m) => {
+  /* const totalTransferred = finished.reduce((count, m) => {
     if (m.transferred && typeof m.transferred === 'object') {
       return count + Object.values(m.transferred).filter(v => v === true).length
     }
     return count + (m.transferred === true ? 1 : 0)
-  }, 0)
+  }, 0) */ 
+
+  const totalTransferred = finished.reduce((count, m) => {
+  const prizes = calculatePrizes(m);
+  const eligiblePaid = PLAYERS
+    .filter(p => m.players?.[p]?.paid && m.players?.[p]?.points > 0)
+    .map(p => ({ name: p, points: m.players[p].points }))
+    .sort((a, b) => b.points - a.points);
+
+  let paidRanks = {};
+  let currentRank = 1;
+  eligiblePaid.forEach((p, i) => {
+    if (i > 0 && p.points < eligiblePaid[i - 1].points) currentRank++;
+    paidRanks[p.name] = currentRank;
+  });
+
+  // Count only if the player is a Rank 1 or Rank 2 winner AND marked true
+  const winnersCounted = eligiblePaid.filter(p => {
+    const r = paidRanks[p.name];
+    const isWinner = r === 1 || (r === 2 && prizes.winnerCountLimit === 2);
+    const isDone = (m.transferred && typeof m.transferred === 'object')
+      ? m.transferred[p.name] === true
+      : m.transferred === true;
+    return isWinner && isDone;
+  }).length;
+
+  return count + winnersCounted;
+}, 0);
 
   const [showLiveScore, setShowLiveScore] = useState(false)
   const [liveMatch, setLiveMatch] = useState(null)
