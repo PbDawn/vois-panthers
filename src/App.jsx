@@ -19,7 +19,7 @@ const ROWS_PER_PAGE  = 7
 // ─── PURE LOGIC ‐----------
 function generateBreakingNews(matches, stats) {
   const completed = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—');
-  if (completed.length === 0) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING FIRST MATCH RESULTS..."];
+  if (completed.length === 0) return ["WELCOME TO VOIS PANTHERS FANTASY IPL 2026: MARKET OPEN. AWAITING NEXT MATCH RESULTS..."];
 
   const lastM = completed[completed.length - 1];
   const headlines = [];
@@ -43,15 +43,18 @@ function generateBreakingNews(matches, stats) {
       }
 
       // 3. Recent Performance vs Average (Lowered threshold to > 1.1x for more news)
+      /*
       if (pd.points > 0) {
         const avg = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
         if (pd.points > avg * 1.1) {
           headlines.push(`🔥 BULL RUN: ${p.toUpperCase()} SCORED ${pd.points}, BEATING THEIR SEASON AVERAGE OF ${avg.toFixed(1)}!`);
         }
-      }
+      } */
 
       // 4. Profit/Loss Milestones
       if (profit > 500) headlines.push(`💰 WHALE ALERT: ${p.toUpperCase()} CROSSES ₹500 IN SEASON PROFITS!`);
+      if (profit > 1000) headlines.push(`💰 WHALE ALERT: ${p.toUpperCase()} CROSSES ₹500 IN SEASON PROFITS!`);
+      if (profit > 1500) headlines.push(`💰 WHALE ALERT: ${p.toUpperCase()} CROSSES ₹500 IN SEASON PROFITS!`);
       if (profit < -200) headlines.push(`📉 MARKET CRASH: ${p.toUpperCase()} PORTFOLIO DOWN BY ₹${Math.abs(profit).toFixed(0)}.`);
 
       // 5. Streak Detection
