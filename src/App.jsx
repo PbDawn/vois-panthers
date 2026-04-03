@@ -975,6 +975,44 @@ function Leaderboard({ matches }) {
 
 // ─── GRAPHS ───────────────────────────────────────────────────
 
+function MarketSentimentChart({ matches }) {
+  const completedMatches = useMemo(() => 
+    matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
+  [matches]);
+
+  const marketData = useMemo(() => {
+    const labels = completedMatches.map(m => `M${m.matchno}`);
+    const datasets = PLAYERS.map((p, i) => {
+      let price = 100; // Listing Price
+      const history = completedMatches.map(m => {
+        const pts = m.players[p]?.points || 0;
+        // Weighted Moving Average: 70% current performance, 30% previous price
+        price = (pts * 0.7) + (price * 0.3);
+        return parseFloat(price.toFixed(2));
+      });
+      return {
+        label: `${p} Index`,
+        data: history,
+        borderColor: COLORS[i],
+        backgroundColor: COLORS[i] + '15',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2
+      };
+    });
+    return { labels, datasets };
+  }, [completedMatches]);
+
+  return (
+    <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #f5a623' }}>
+      <div className="chart-title">📊 PLAYER MARKET VALUE (SENTIMENT INDEX)</div>
+      <div className="chart-wrap" style={{ height: 350 }}>
+        <Line data={marketData} options={chartOpts('₹')} />
+      </div>
+    </div>
+  );
+}
+
 function MarketVolatility({ matches }) {
   const completedMatches = useMemo(() => 
     matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
@@ -1084,6 +1122,7 @@ function Graphs({ matches }) {
     <div className="section">
       <div className="sec-title">Graphs &amp; Analytics</div>
       <div className="graph-grid">
+        <MarketSentimentChart matches={matches} />
         <div className="chart-card" style={{gridColumn:'1/-1'}}><div className="chart-title">📈 Cumulative Profit/Loss per Player (Season)</div><div className="chart-wrap"><Line data={{labels,datasets:pnlDatasets}} options={chartOpts('₹')} /></div></div>
         <div className="chart-card"><div className="chart-title">💰 Investment vs Winnings (Total)</div><div className="chart-wrap"><Bar data={invWinData} options={chartOpts('₹')} /></div></div>
         <div className="chart-card"><div className="chart-title">🏅 Wins Count by Player</div><div className="chart-wrap"><Doughnut data={winsData} options={doughnutOpts} /></div></div>
@@ -1112,13 +1151,28 @@ function MarketTicker({ matches }) {
   
   const tickerItems = PLAYERS.map((p, i) => {
     const s = stats[p];
-    const change = (s.totalWon - s.totalInvested);
-    const isUp = change >= 0;
+    const profit = s.totalWon - s.totalInvested;
+    const isUp = profit >= 0;
+    
+    // Calculate % Change (using total invested as base)
+    const percentage = s.totalInvested > 0 
+      ? ((profit / s.totalInvested) * 100).toFixed(1) 
+      : '0.0';
+
+    // ATH / ATL Logic based on match history
+    const matchPoints = matches.map(m => m.players[p]?.points || 0).filter(pts => pts > 0);
+    const ath = matchPoints.length > 0 ? Math.max(...matchPoints) : 0;
+    const atl = matchPoints.length > 0 ? Math.min(...matchPoints) : 0;
+
     return (
       <div className="ticker-stock-item" key={p}>
         <span style={{ color: COLORS[i], marginRight: 8 }}>{p.toUpperCase()}</span>
         <span className={isUp ? 'stock-up' : 'stock-down'}>
-          {isUp ? '▲' : '▼'} ₹{Math.abs(change).toFixed(0)}
+          {isUp ? '▲' : '▼'} ₹{Math.abs(profit).toFixed(0)} ({percentage}%)
+        </span>
+        <span style={{ color: '#8899bb', fontSize: '10px', marginLeft: '10px' }}>
+          ATH: <span style={{color: '#2ecc71'}}>{ath}</span> | 
+          ATL: <span style={{color: '#e74c3c'}}>{atl}</span>
         </span>
       </div>
     );
@@ -1127,7 +1181,7 @@ function MarketTicker({ matches }) {
   return (
     <div className="market-ticker-wrap">
       <div className="market-ticker-inner">
-        {tickerItems} {tickerItems} {/* Doubled for seamless loop */}
+        {tickerItems} {tickerItems}
       </div>
     </div>
   );
