@@ -1279,6 +1279,48 @@ function MarketTicker({ matches }) {
   );
 }
 
+function MarketSentimentTicker({ matches }) {
+  const completedMatches = useMemo(() => 
+    matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
+  [matches]);
+
+  const tickerItems = useMemo(() => {
+    return PLAYERS.map((p, i) => {
+      let price = 100;
+      let prevPrice = 100;
+      
+      completedMatches.forEach((m, idx) => {
+        const pts = m.players[p]?.points || 0;
+        if (idx === completedMatches.length - 1) prevPrice = price;
+        price = (pts * 0.7) + (price * 0.3);
+      });
+
+      const currentVal = price;
+      const change = currentVal - prevPrice;
+      const isUp = change >= 0;
+      const changePercent = prevPrice > 0 ? ((change / prevPrice) * 100).toFixed(1) : '0.0';
+
+      return (
+        <div className="sentiment-item" key={p}>
+          <span style={{ color: COLORS[i] }}>{p} INDEX:</span>
+          <span className="index-price">₹{currentVal.toFixed(0)}</span>
+          <span className={isUp ? 'stock-up' : 'stock-down'} style={{ marginLeft: 6 }}>
+            {isUp ? '▲' : '▼'}{Math.abs(change).toFixed(0)} ({isUp ? '+' : ''}{changePercent}%)
+          </span>
+        </div>
+      );
+    });
+  }, [completedMatches]);
+
+  return (
+    <div className="sentiment-ticker-wrap">
+      <div className="sentiment-ticker-inner">
+        {tickerItems} {tickerItems}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [matches, setMatches]         = useState([])
   const [loading, setLoading]         = useState(false)
@@ -1401,6 +1443,7 @@ export default function App() {
       </div>
 
       <MarketTicker matches={matches} />
+      <MarketSentimentTicker matches={matches} />
 
       {/* HEADER */}
       <header>
