@@ -998,6 +998,43 @@ function Leaderboard({ matches }) {
 
 // ─── GRAPHS ───────────────────────────────────────────────────
 
+function MarketSentimentChart({ matches }) {
+  const completedMatches = useMemo(() => 
+    matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
+  [matches]);
+
+  const marketData = useMemo(() => {
+    const labels = completedMatches.map(m => `M${m.matchno}`);
+    const datasets = PLAYERS.map((p, i) => {
+      let price = 100; // Listing Price
+      const history = completedMatches.map(m => {
+        const pts = m.players[p]?.points || 0;
+        // Weighted Moving Average: 70% current performance, 30% previous price
+        price = (pts * 0.7) + (price * 0.3);
+        return parseFloat(price.toFixed(2));
+      });
+      return {
+        label: `${p} Index`,
+        data: history,
+        borderColor: COLORS[i],
+        backgroundColor: COLORS[i] + '15',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2
+      };
+    });
+    return { labels, datasets };
+  }, [completedMatches]);
+
+  return (
+    <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #f5a623' }}>
+      <div className="chart-title">📊 PLAYER MARKET VALUE (SENTIMENT INDEX)</div>
+      <div className="chart-wrap" style={{ height: 350 }}>
+        <Line data={marketData} options={chartOpts('₹')} />
+      </div>
+    </div>
+  );
+}
 
 function MarketCandleChart({ matches }) {
   const completedMatches = useMemo(() => 
