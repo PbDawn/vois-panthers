@@ -1013,47 +1013,50 @@ function MarketSentimentChart({ matches }) {
   );
 }
 
-function MarketVolatility({ matches }) {
+function MarketVolatilityChart({ matches }) {
   const completedMatches = useMemo(() => 
     matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
   [matches]);
 
-  const marketData = useMemo(() => {
+  const chartData = useMemo(() => {
     const labels = completedMatches.map(m => `M${m.matchno}`);
     const datasets = PLAYERS.map((p, i) => {
-      let currentPrice = 100; // Base Launch Price
-      const priceHistory = completedMatches.map((m) => {
+      let price = 100; // Starting "IPO" Price
+      const data = completedMatches.map(m => {
         const pts = m.players[p]?.points || 0;
-        const paid = m.players[p]?.paid;
-        // Weighted Moving Average for "Price"
-        currentPrice = (pts * 0.7) + (currentPrice * 0.3);
-        return paid ? parseFloat(currentPrice.toFixed(2)) : null;
+        const joined = m.players[p]?.joined;
+        // Price Discovery Logic: (Points * Momentum) + Base
+        if (joined) price = (price * 0.4) + (pts * 0.6) + 10; 
+        return parseFloat(price.toFixed(2));
       });
 
       return {
         label: `${p} Index`,
-        data: priceHistory,
+        data: data,
         borderColor: COLORS[i],
-        backgroundColor: COLORS[i] + '15',
+        backgroundColor: COLORS[i] + '10',
         fill: true,
         tension: 0.4,
-        pointRadius: 2,
-        borderWidth: 2
+        borderWidth: 2,
+        pointRadius: 0 // Smooth line like a trading terminal
       };
     });
     return { labels, datasets };
   }, [completedMatches]);
 
   return (
-    <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #f5a623' }}>
-      <div className="chart-title">📈 MARKET VOLATILITY & MOMENTUM (PLAYER INDICES)</div>
+    <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #2ecc71' }}>
+      <div className="chart-title">📊 PLAYER EQUITY MARKET (VOLATILITY INDEX)</div>
       <div className="chart-wrap" style={{ height: 350 }}>
-        <Line data={marketData} options={chartOpts('₹')} />
+        {completedMatches.length > 0 ? (
+          <Line data={chartData} options={chartOpts('₹')} />
+        ) : (
+          <div className="no-data">Market Closed: Waiting for Match Completion</div>
+        )}
       </div>
     </div>
   );
 }
-
 function Graphs({ matches }) {
   const stats = useMemo(() => computePlayerStats(matches), [matches])
 
@@ -1154,25 +1157,22 @@ function MarketTicker({ matches }) {
     const profit = s.totalWon - s.totalInvested;
     const isUp = profit >= 0;
     
-    // Calculate % Change (using total invested as base)
-    const percentage = s.totalInvested > 0 
+    // Calculate % Change based on investment
+    const percentChange = s.totalInvested > 0 
       ? ((profit / s.totalInvested) * 100).toFixed(1) 
       : '0.0';
-
-    // ATH / ATL Logic based on match history
-    const matchPoints = matches.map(m => m.players[p]?.points || 0).filter(pts => pts > 0);
-    const ath = matchPoints.length > 0 ? Math.max(...matchPoints) : 0;
-    const atl = matchPoints.length > 0 ? Math.min(...matchPoints) : 0;
+      
+    // ATH logic: Best Winnings - Avg Investment (simulated from current best)
+    const ath = s.bestPoints > 0 ? (s.totalWon).toFixed(0) : '0';
 
     return (
       <div className="ticker-stock-item" key={p}>
-        <span style={{ color: COLORS[i], marginRight: 8 }}>{p.toUpperCase()}</span>
-        <span className={isUp ? 'stock-up' : 'stock-down'}>
-          {isUp ? '▲' : '▼'} ₹{Math.abs(profit).toFixed(0)} ({percentage}%)
+        <span style={{ color: COLORS[i], marginRight: 8, fontSize: '14px' }}>{p.toUpperCase()}</span>
+        <span className={isUp ? 'stock-up' : 'stock-down'} style={{ fontWeight: 800 }}>
+          {isUp ? '▲' : '▼'} ₹{Math.abs(profit).toFixed(0)} ({isUp ? '+' : ''}{percentChange}%)
         </span>
-        <span style={{ color: '#8899bb', fontSize: '10px', marginLeft: '10px' }}>
-          ATH: <span style={{color: '#2ecc71'}}>{ath}</span> | 
-          ATL: <span style={{color: '#e74c3c'}}>{atl}</span>
+        <span style={{ color: '#8899bb', fontSize: '10px', marginLeft: 8 }}>
+          ATH: ₹{ath} | P/L: {isUp ? 'BULL' : 'BEAR'}
         </span>
       </div>
     );
@@ -1186,7 +1186,6 @@ function MarketTicker({ matches }) {
     </div>
   );
 }
-
 export default function App() {
   const [matches, setMatches]         = useState([])
   const [loading, setLoading]         = useState(false)
