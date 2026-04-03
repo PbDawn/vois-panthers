@@ -1442,7 +1442,7 @@ export default function App() {
         </div>
       </div>
 
-      <MarketTicker matches={matches} />
+        {/* <MarketTicker matches={matches} /> */}
       <MarketSentimentTicker matches={matches} />
 
       {/* HEADER */}
