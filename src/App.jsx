@@ -120,7 +120,9 @@ function computePlayerStats(matches) {
       hasHatTrick: false,   // Feature 4: hat-trick flag
       ath: 0,
       atl: 0,
-      pnlHistory: [] // To store PnL after every match
+      pnlHistory: [], // To store PnL after every match
+      indexAth: 100, // Starting IPO price as initial high
+      indexAtl: 100, // Starting IPO price as initial low
     }
   })
   let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
@@ -145,6 +147,16 @@ function computePlayerStats(matches) {
       const pd = m.players[p]
       if (!pd || !pd.joined) return
       const s = stats[p]
+      const pts = m.players[p]?.points || 0;
+  
+      // Calculate the same Index Price used in your chart
+      // (70% current performance, 30% previous price)
+      let prevIndex = s.currentIndex || 100; 
+      s.currentIndex = (pts * 0.7) + (prevIndex * 0.3);
+    
+      // Update Index ATH/ATL
+      if (s.currentIndex > s.indexAth) s.indexAth = s.currentIndex;
+      if (s.currentIndex < s.indexAtl) s.indexAtl = s.currentIndex;
 
       const currentPnL = s.totalWon - s.totalInvested;
       
@@ -1280,37 +1292,35 @@ function MarketTicker({ matches }) {
 }
 
 function MarketSentimentTicker({ matches }) {
+  const stats = useMemo(() => computePlayerStats(matches), [matches]);
   const completedMatches = useMemo(() => 
     matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
   [matches]);
 
-  const tickerItems = useMemo(() => {
-    return PLAYERS.map((p, i) => {
-      let price = 100;
-      let prevPrice = 100;
-      
-      completedMatches.forEach((m, idx) => {
-        const pts = m.players[p]?.points || 0;
-        if (idx === completedMatches.length - 1) prevPrice = price;
-        price = (pts * 0.7) + (price * 0.3);
-      });
+  const tickerItems = PLAYERS.map((p, i) => {
+    const s = stats[p];
+    const currentVal = s.currentIndex || 100;
+    const prevIndex = s.lastMatchIndex || 100; // Calculated in computePlayerStats
+    
+    const change = currentVal - prevIndex;
+    const isUp = change >= 0;
+    const changePercent = prevIndex > 0 ? ((change / prevIndex) * 100).toFixed(1) : '0.0';
 
-      const currentVal = price;
-      const change = currentVal - prevPrice;
-      const isUp = change >= 0;
-      const changePercent = prevPrice > 0 ? ((change / prevPrice) * 100).toFixed(1) : '0.0';
-
-      return (
-        <div className="sentiment-item" key={p}>
-          <span style={{ color: COLORS[i] }}>{p} INDEX:</span>
-          <span className="index-price">₹{currentVal.toFixed(0)}</span>
-          <span className={isUp ? 'stock-up' : 'stock-down'} style={{ marginLeft: 6 }}>
-            {isUp ? '▲' : '▼'}{Math.abs(change).toFixed(0)} ({isUp ? '+' : ''}{changePercent}%)
-          </span>
-        </div>
-      );
-    });
-  }, [completedMatches]);
+    return (
+      <div className="sentiment-item" key={p}>
+        <span style={{ color: COLORS[i] }}>{p} INDEX:</span>
+        <span className="index-price">₹{currentVal.toFixed(0)}</span>
+        <span className={isUp ? 'stock-up' : 'stock-down'} style={{ marginLeft: 6 }}>
+          {isUp ? '▲' : '▼'}{Math.abs(change).toFixed(0)} ({isUp ? '+' : ''}{changePercent}%)
+        </span>
+        {/* NEW: Index ATH and ATL Display */}
+        <span style={{ color: '#8899bb', fontSize: '10px', marginLeft: 10 }}>
+          <span style={{color:'#FFD700'}}>Peak: ₹{s.indexAth.toFixed(0)}</span> | 
+          <span style={{color:'#666'}}> Floor: ₹{s.indexAtl.toFixed(0)}</span>
+        </span>
+      </div>
+    );
+  });
 
   return (
     <div className="sentiment-ticker-wrap">
