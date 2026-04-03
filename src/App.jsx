@@ -974,6 +974,48 @@ function Leaderboard({ matches }) {
 }
 
 // ─── GRAPHS ───────────────────────────────────────────────────
+
+function MarketVolatility({ matches }) {
+  const completedMatches = useMemo(() => 
+    matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
+  [matches]);
+
+  const marketData = useMemo(() => {
+    const labels = completedMatches.map(m => `M${m.matchno}`);
+    const datasets = PLAYERS.map((p, i) => {
+      let currentPrice = 100; // Base Launch Price
+      const priceHistory = completedMatches.map((m) => {
+        const pts = m.players[p]?.points || 0;
+        const paid = m.players[p]?.paid;
+        // Weighted Moving Average for "Price"
+        currentPrice = (pts * 0.7) + (currentPrice * 0.3);
+        return paid ? parseFloat(currentPrice.toFixed(2)) : null;
+      });
+
+      return {
+        label: `${p} Index`,
+        data: priceHistory,
+        borderColor: COLORS[i],
+        backgroundColor: COLORS[i] + '15',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2,
+        borderWidth: 2
+      };
+    });
+    return { labels, datasets };
+  }, [completedMatches]);
+
+  return (
+    <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #f5a623' }}>
+      <div className="chart-title">📈 MARKET VOLATILITY & MOMENTUM (PLAYER INDICES)</div>
+      <div className="chart-wrap" style={{ height: 350 }}>
+        <Line data={marketData} options={chartOpts('₹')} />
+      </div>
+    </div>
+  );
+}
+
 function Graphs({ matches }) {
   const stats = useMemo(() => computePlayerStats(matches), [matches])
 
@@ -1065,6 +1107,32 @@ function Graphs({ matches }) {
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
+function MarketTicker({ matches }) {
+  const stats = useMemo(() => computePlayerStats(matches), [matches]);
+  
+  const tickerItems = PLAYERS.map((p, i) => {
+    const s = stats[p];
+    const change = (s.totalWon - s.totalInvested);
+    const isUp = change >= 0;
+    return (
+      <div className="ticker-stock-item" key={p}>
+        <span style={{ color: COLORS[i], marginRight: 8 }}>{p.toUpperCase()}</span>
+        <span className={isUp ? 'stock-up' : 'stock-down'}>
+          {isUp ? '▲' : '▼'} ₹{Math.abs(change).toFixed(0)}
+        </span>
+      </div>
+    );
+  });
+
+  return (
+    <div className="market-ticker-wrap">
+      <div className="market-ticker-inner">
+        {tickerItems} {tickerItems} {/* Doubled for seamless loop */}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [matches, setMatches]         = useState([])
   const [loading, setLoading]         = useState(false)
@@ -1185,6 +1253,8 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      <MarketTicker matches={matches} />
 
       {/* HEADER */}
       <header>
