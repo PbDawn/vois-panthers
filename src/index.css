@@ -349,3 +349,15 @@ tr:hover td { background: rgba(245,166,35,0.04); }
   color: #8899bb;
 }
 .index-price { color: #f5a623; font-weight: 800; margin-left: 5px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(5, 8, 15, 0.9); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 20px; backdrop-filter: blur(8px); }
+.h2h-content { background: var(--card); border: 2px solid var(--accent); border-radius: 24px; width: 100%; max-width: 450px; padding: 30px; box-shadow: 0 0 50px rgba(245, 166, 35, 0.2); }
+.h2h-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+.h2h-player { text-align: center; flex: 1; }
+.h2h-img { width: 90px; height: 90px; border-radius: 50%; border: 3px solid; object-fit: cover; margin-bottom: 12px; box-shadow: 0 0 15px rgba(0,0,0,0.5); }
+.h2h-vs { font-family: 'Bebas Neue'; font-size: 48px; color: var(--accent); opacity: 0.3; font-style: italic; }
+.h2h-row { display: flex; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.h2h-label { font-size: 10px; color: var(--text2); text-transform: uppercase; letter-spacing: 2px; flex: 1; text-align: center; align-self: center; }
+.h2h-val { font-family: 'Orbitron'; font-size: 16px; width: 90px; text-align: center; color: var(--text2); }
+.h2h-val.win { color: var(--green); font-weight: 900; text-shadow: 0 0 8px rgba(46,204,113,0.4); }
+.h2h-close { width: 100%; margin-top: 25px; padding: 14px; background: rgba(231, 76, 60, 0.1); border: 1px solid var(--red); color: var(--red); border-radius: 12px; cursor: pointer; font-family: 'Rajdhani'; font-weight: 700; letter-spacing: 2px; transition: 0.3s; }
+.h2h-close:hover { background: var(--red); color: white; }
