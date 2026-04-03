@@ -327,3 +327,25 @@ tr:hover td { background: rgba(245,166,35,0.04); }
 }
 .stock-up { color: #2ecc71; }
 .stock-down { color: #e74c3c; }
+/* Sentiment Index Ticker Styling */
+.sentiment-ticker-wrap {
+  background: linear-gradient(90deg, #05080f 0%, #161f38 50%, #05080f 100%);
+  border-bottom: 1px solid #f5a62344;
+  padding: 5px 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.sentiment-ticker-inner {
+  display: inline-block;
+  animation: tickerScroll 35s linear infinite; /* Slightly slower than PnL Ticker */
+}
+.sentiment-item {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 45px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+  font-size: 12px;
+  color: #8899bb;
+}
+.index-price { color: #f5a623; font-weight: 800; margin-left: 5px; }
