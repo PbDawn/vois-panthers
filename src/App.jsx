@@ -16,10 +16,9 @@ const DAILY_LIMIT    = 20
 const COOLDOWN_MS    = 30000
 const ROWS_PER_PAGE  = 7
 
-// ─── PURE LOGIC HELPERS ───────────────────────────────────────
-
+// ─── PURE LOGIC ‐----------
 function generateBreakingNews(matches, stats) {
-  const completed = matches.filter(m => m.teamwon && m.teamwon !== '—');
+  const completed = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—');
   if (completed.length === 0) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING FIRST MATCH RESULTS..."];
 
   const lastM = completed[completed.length - 1];
@@ -28,43 +27,43 @@ function generateBreakingNews(matches, stats) {
   PLAYERS.forEach(p => {
     const s = stats[p];
     const pd = lastM.players[p];
-
+    const profit = s.totalWon - s.totalInvested; // Calculate early for all checks
     const done = lastM.teamwon && lastM.teamwon !== '—';
 
     if (pd?.joined && pd?.paid && done) {
-     // 1. "Higher than Last Time" (Personal Best Streak)
-    // We check if current points > previous points in their history
-    const pHistory = s.pnlHistory; // Using your existing PnL history as a proxy for match count
-    if (pd.points > s.bestPoints * 0.9 && pd.points < s.bestPoints) {
-    headlines.push(`🎯 NEAR PERFECTION: ${p.toUpperCase()} FALLS JUST SHY OF THEIR ALL-TIME HIGH WITH ${pd.points} pts!`);
-    }
-
-    if (profit > 0 && profit === Math.max(...PLAYERS.map(player => stats[player].totalWon - stats[player].totalInvested))) {
-    headlines.push(`👑 NEW MARKET LEADER: ${p.toUpperCase()} IS CURRENTLY THE MOST PROFITABLE PLAYER IN THE LEAGUE!`);
-    }
-
-    // Headline 1: Recent Performance vs Average
-    if (pd?.joined && pd?.points > 0) {
-      const avg = s.totalPointsSum / s.pointsMatchCount;
-      if (pd.points > avg * 1.5) {
-        headlines.push(`🔥 INSANE FORM: ${p.toUpperCase()} SCORED ${pd.points} IN MATCH #${lastM.matchno}, SMASHING THEIR SEASON AVERAGE!`);
+      // 1. "Higher than Last Time" check
+      if (pd.points > s.bestPoints * 0.9 && pd.points < s.bestPoints) {
+        headlines.push(`🎯 NEAR PERFECTION: ${p.toUpperCase()} FALLS JUST SHY OF THEIR ALL-TIME HIGH WITH ${pd.points} pts!`);
       }
+
+      // 2. New Market Leader check (Uses the profit variable calculated above)
+      const maxProfit = Math.max(...PLAYERS.map(player => stats[player].totalWon - stats[player].totalInvested));
+      if (profit > 0 && profit === maxProfit) {
+        headlines.push(`👑 NEW MARKET LEADER: ${p.toUpperCase()} IS CURRENTLY THE MOST PROFITABLE PLAYER IN THE LEAGUE!`);
+      }
+
+      // 3. Recent Performance vs Average (Lowered threshold to > 1.1x for more news)
+      if (pd.points > 0) {
+        const avg = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
+        if (pd.points > avg * 1.1) {
+          headlines.push(`🔥 BULL RUN: ${p.toUpperCase()} SCORED ${pd.points}, BEATING THEIR SEASON AVERAGE OF ${avg.toFixed(1)}!`);
+        }
+      }
+
+      // 4. Profit/Loss Milestones
+      if (profit > 500) headlines.push(`💰 WHALE ALERT: ${p.toUpperCase()} CROSSES ₹500 IN SEASON PROFITS!`);
+      if (profit < -200) headlines.push(`📉 MARKET CRASH: ${p.toUpperCase()} PORTFOLIO DOWN BY ₹${Math.abs(profit).toFixed(0)}.`);
+
+      // 5. Streak Detection
+      if (s.hasHatTrick) headlines.push(`🎩 HISTORY MADE: ${p.toUpperCase()} SECURES A LEGENDARY HAT-TRICK OF WINS!`);
+
+      // 6. Efficiency (ROI)
+      const roi = s.totalInvested > 0 ? ((s.totalWon - s.totalInvested) / s.totalInvested * 100) : 0;
+      if (roi > 100) headlines.push(`📈 ROCKET ROI: ${p.toUpperCase()} IS RETURNING ${roi.toFixed(0)}% PROFIT PER MATCH!`);
     }
+  }); // End of PLAYERS.forEach
 
-    // Headline 2: Profit/Loss Milestones
-    const profit = s.totalWon - s.totalInvested;
-    if (profit > 500) headlines.push(`💰 WHALE ALERT: ${p.toUpperCase()} CROSSES ₹500 IN SEASON PROFITS!`);
-    if (profit < -200) headlines.push(`📉 MARKET CRASH: ${p.toUpperCase()} PORTFOLIO DOWN BY ₹${Math.abs(profit).toFixed(0)}.`);
-
-    // Headline 3: Streak Detection
-    if (s.hasHatTrick) headlines.push(`🎩 HISTORY MADE: ${p.toUpperCase()} SECURES A LEGENDARY HAT-TRICK OF WINS!`);
-
-    // Headline 4: Efficiency (ROI)
-    const roi = s.totalInvested > 0 ? ((s.totalWon - s.totalInvested) / s.totalInvested * 100) : 0;
-    if (roi > 100) headlines.push(`📈 ROCKET ROI: ${p.toUpperCase()} IS RETURNING ${roi.toFixed(0)}% PROFIT PER MATCH!`);
-  });
-
-  // Headline 5: General League News
+  // 7. General League News (Outside the loop so it only shows once)
   const totalPool = completed.reduce((acc, m) => acc + (calculatePrizes(m).totalPool || 0), 0);
   headlines.push(`🏆 SEASON UPDATE: TOTAL LEAGUE PRIZE POOL CROSSES ₹${totalPool.toFixed(0)}!`);
 
