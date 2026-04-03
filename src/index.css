@@ -395,7 +395,7 @@ tr:hover td { background: rgba(245,166,35,0.04); }
 .breaking-scroll { flex: 1; overflow: hidden; white-space: nowrap; }
 .breaking-track {
   display: inline-block;
-  animation: newsScroll 150s linear infinite;
+  animation: newsScroll 120s linear infinite;
 }
 .headline-item {
   color: #fff;
