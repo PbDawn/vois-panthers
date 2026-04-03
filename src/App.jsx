@@ -16,7 +16,30 @@ const DAILY_LIMIT    = 20
 const COOLDOWN_MS    = 30000
 const ROWS_PER_PAGE  = 7
 
-// ─── PURE LOGIC HELPERS here───────────────────────────────────────
+// ─── PURE LOGIC HELPERS ───────────────────────────────────────
+function computeH2H(matches, p1, p2) {
+  let stats = { commonMatches: 0, p1Wins: 0, p2Wins: 0, p1Points: 0, p2Points: 0, p1Invested: 0, p2Invested: 0, p1Won: 0, p2Won: 0 };
+  matches.forEach(m => {
+    const pd1 = m.players[p1], pd2 = m.players[p2];
+    const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—';
+    if (pd1?.joined && pd1?.paid && pd2?.joined && pd2?.paid && m.contest === 'yes') {
+      stats.commonMatches++;
+      stats.p1Invested += m.fee; stats.p2Invested += m.fee;
+      if (done) {
+        stats.p1Points += pd1.points || 0; stats.p2Points += pd2.points || 0;
+        const prizes = calculatePrizes(m);
+        const ranks = prizes._paidRanks || {};
+        if (ranks[p1] === 1) stats.p1Won += prizes[1];
+        else if (ranks[p1] === 2 && prizes.winnerCountLimit === 2) stats.p1Won += prizes[2];
+        if (ranks[p2] === 1) stats.p2Won += prizes[1];
+        else if (ranks[p2] === 2 && prizes.winnerCountLimit === 2) stats.p2Won += prizes[2];
+        if (pd1.points > pd2.points) stats.p1Wins++;
+        else if (pd2.points > pd1.points) stats.p2Wins++;
+      }
+    }
+  });
+  return stats;
+}
 
 function calculatePrizes(m) {
   const paidCount = PLAYERS.filter(p => m.players[p]?.joined && m.players[p]?.paid).length
@@ -637,8 +660,48 @@ const paginationStyle = {
   }
 }
 
+
 // ─── PLAYER STATS ─────────────────────────────────────────────
-function PlayerStats({ matches }) {
+function H2HModal({ p1, p2, matches, onClose }) {
+  const data = useMemo(() => computeH2H(matches, p1, p2), [p1, p2, matches]);
+  const getROI = (won, inv) => inv > 0 ? ((won - inv) / inv * 100).toFixed(1) : '0';
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="h2h-content" onClick={e => e.stopPropagation()}>
+        <div className="h2h-header">
+          <div className="h2h-player">
+            <img src={PLAYER_IMAGES[p1]} alt={p1} className="h2h-img" style={{borderColor: COLORS[PLAYERS.indexOf(p1)]}} />
+            <h3 style={{fontFamily:'Bebas Neue', letterSpacing:2}}>{p1}</h3>
+          </div>
+          <div className="h2h-vs">VS</div>
+          <div className="h2h-player">
+            <img src={PLAYER_IMAGES[p2]} alt={p2} className="h2h-img" style={{borderColor: COLORS[PLAYERS.indexOf(p2)]}} />
+            <h3 style={{fontFamily:'Bebas Neue', letterSpacing:2}}>{p2}</h3>
+          </div>
+        </div>
+        <div className="h2h-body">
+          <div className="h2h-stat-title" style={{textAlign:'center', color:'var(--accent)', fontSize:12, marginBottom:15}}>COMMON CONTESTS: {data.commonMatches}</div>
+          {[
+            ['Direct Wins', data.p1Wins, data.p2Wins],
+            ['Avg Points', (data.p1Points/data.commonMatches || 0).toFixed(1), (data.p2Points/data.commonMatches || 0).toFixed(1)],
+            ['Total Won', `₹${data.p1Won.toFixed(0)}`, `₹${data.p2Won.toFixed(0)}`],
+            ['ROI %', `${getROI(data.p1Won, data.p1Invested)}%`, `${getROI(data.p2Won, data.p2Invested)}%`]
+          ].map(([label, v1, v2]) => (
+            <div className="h2h-row" key={label}>
+              <div className={`h2h-val ${parseFloat(v1) > parseFloat(v2) ? 'win' : ''}`}>{v1}</div>
+              <div className="h2h-label">{label}</div>
+              <div className={`h2h-val ${parseFloat(v2) > parseFloat(v1) ? 'win' : ''}`}>{v2}</div>
+            </div>
+          ))}
+        </div>
+        <button className="h2h-close" onClick={onClose}>CLOSE RIVALRY</button>
+      </div>
+    </div>
+  );
+}
+
+
+function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
   const stats = useMemo(() => computePlayerStats(matches), [matches])
   const hofBadges = useMemo(() => computeHoFBadges(stats), [stats])
   return (
@@ -656,7 +719,27 @@ function PlayerStats({ matches }) {
           return (
             <div className="p-card" key={p}>
               <div className="p-card-header">
-                <div className="p-avatar" style={avatarStyle}>{p[0]}</div>
+                {/*<div className="p-avatar" style={avatarStyle}>{p[0]}</div>*/}
+                <div 
+                  className="p-avatar" 
+                  style={{
+                    ...avatarStyle, 
+                    cursor: 'pointer',
+                    // Optional: Add a glow if the player is currently selected
+                    boxShadow: h2hPlayers.p1 === p || h2hPlayers.p2 === p ? '0 0 15px ' + COLORS[i] : 'none',
+                    transform: h2hPlayers.p1 === p || h2hPlayers.p2 === p ? 'scale(1.1)' : 'scale(1)'
+                  }} 
+                  onClick={() => {
+                    // Logic: If P1 isn't picked, set P1. If P1 is picked, set P2 (unless it's the same person).
+                    if (!h2hPlayers.p1) {
+                      setH2hPlayers({ ...h2hPlayers, p1: p });
+                    } else if (h2hPlayers.p1 !== p) {
+                      setH2hPlayers({ ...h2hPlayers, p2: p });
+                    }
+                  }}
+                >
+                  {p[0]}
+                </div>
                 <div style={{flex:1}}>
                   <div className="p-name">{p}</div>
                   <div className="p-winpct">Win Rate: <span>{winpct}%</span> ({s.wins}/{s.paidContests} paid)</div>
@@ -1323,6 +1406,7 @@ function MarketSentimentTicker({ matches }) {
 
 export default function App() {
   const [matches, setMatches]         = useState([])
+  const [h2hPlayers, setH2hPlayers] = useState({ p1: null, p2: null })
   const [loading, setLoading]         = useState(false)
   const [activeSection, setActiveSection] = useState('matchlog')
   const [liveState, setLiveState]     = useState({ dot:'', label:'CONNECTING...', info:'Connecting to cloud...' })
@@ -1482,11 +1566,19 @@ export default function App() {
 
       {/* SECTIONS — use CSS display:none instead of unmounting for speed */}
       <div style={activeSection==='matchlog'    ? {} : {display:'none'}}><MatchLog    matches={matches} /></div>
-      <div style={activeSection==='playerstats' ? {} : {display:'none'}}><PlayerStats matches={matches} /></div>
+      <div style={activeSection==='playerstats' ? {} : {display:'none'}}><PlayerStats matches={matches} h2hPlayers={h2hPlayers} setH2hPlayers={setH2hPlayers} /></div>
       <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} /></div>
       <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
 
       <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
+      {h2hPlayers.p1 && h2hPlayers.p2 && (
+        <H2HModal 
+          p1={h2hPlayers.p1} 
+          p2={h2hPlayers.p2} 
+          matches={matches} 
+          onClose={() => setH2hPlayers({ p1: null, p2: null })} 
+        />
+      )}
       </div>
     </>
   )
