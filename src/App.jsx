@@ -1007,14 +1007,29 @@ function MarketSentimentChart({ matches }) {
     const labels = completedMatches.map(m => `M${m.matchno}`);
     const datasets = PLAYERS.map((p, i) => {
       let price = 100; // Listing Price
-      const history = completedMatches.map(m => {
+      let prevPrice = 100;
+      
+      const history = completedMatches.map((m, idx) => {
         const pts = m.players[p]?.points || 0;
+        // Save current price as previous before updating
+        if (idx === completedMatches.length - 1) prevPrice = price;
+        
         // Weighted Moving Average: 70% current performance, 30% previous price
         price = (pts * 0.7) + (price * 0.3);
         return parseFloat(price.toFixed(2));
       });
+
+      // Calculate Day Change for the Label
+      const currentVal = price;
+      const change = currentVal - prevPrice;
+      const isUp = change >= 0;
+      const changePercent = prevPrice > 0 ? ((change / prevPrice) * 100).toFixed(1) : '0.0';
+      
+      // Dynamic Label: Name | Price | Change %
+      const dynamicLabel = `${p}: ₹${currentVal.toFixed(0)} ${isUp ? '▲' : '▼'}${Math.abs(change).toFixed(0)} (${isUp ? '+' : ''}${changePercent}%)`;
+
       return {
-        label: `${p} Index`,
+        label: dynamicLabel,
         data: history,
         borderColor: COLORS[i],
         backgroundColor: COLORS[i] + '15',
@@ -1030,12 +1045,30 @@ function MarketSentimentChart({ matches }) {
     <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #f5a623' }}>
       <div className="chart-title">📊 PLAYER MARKET VALUE (SENTIMENT INDEX)</div>
       <div className="chart-wrap" style={{ height: 350 }}>
-        <Line data={marketData} options={chartOpts('₹')} />
+        <Line 
+          data={marketData} 
+          options={{
+            ...chartOpts('₹'),
+            plugins: {
+              ...chartOpts('₹').plugins,
+              legend: {
+                labels: {
+                  color: '#8899bb',
+                  font: { family: 'Rajdhani', size: 11, weight: '700' },
+                  padding: 15,
+                  usePointStyle: true // Makes the legend look cleaner
+                }
+              }
+            }
+          }} 
+        />
+      </div>
+      <div style={{ padding: '8px', fontSize: '10px', color: '#8899bb', textAlign: 'center', borderTop: '1px solid #1e2d50' }}>
+        💡 Legend shows: <b>Name: Current Value | Day Change | % Change</b>
       </div>
     </div>
   );
 }
-
 function MarketCandleChart({ matches }) {
   const completedMatches = useMemo(() => 
     matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
