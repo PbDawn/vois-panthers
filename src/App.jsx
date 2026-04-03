@@ -19,60 +19,64 @@ const ROWS_PER_PAGE  = 7
 // ─── PURE LOGIC ‐----------
 function generateBreakingNews(matches, stats) {
   const completed = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—');
-  if (completed.length === 0) return ["WELCOME TO VOIS PANTHERS FANTASY IPL 2026: MARKET OPEN. AWAITING NEXT MATCH RESULTS..."];
+  if (completed.length === 0) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING FIRST MATCH RESULTS..."];
 
   const lastM = completed[completed.length - 1];
-  const headlines = [];
+  const prevMatches = completed.slice(0, -1);
+  const prevStats = computePlayerStats(prevMatches); // To check if leadership changed
+  
+  let headlines = [];
 
+  // --- A. Market Leader & Podium News ---
+  const currentProfits = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested }));
+  const sortedProfits = [...currentProfits].sort((a, b) => b.profit - a.profit);
+  const currentLeader = sortedProfits[0];
+
+  const prevProfits = PLAYERS.map(p => ({ name: p, profit: prevStats[p].totalWon - prevStats[p].totalInvested }));
+  const prevLeader = [...prevProfits].sort((a, b) => b.profit - a.profit)[0];
+
+  if (currentLeader.name !== prevLeader.name && currentLeader.profit > 0) {
+    headlines.push(`🚨 MARKET SHAKEUP: ${currentLeader.name.toUpperCase()} OVERTAKES ${prevLeader.name.toUpperCase()} TO BECOME THE NEW SEASON PROFIT LEADER!`);
+  } else if (currentLeader.profit > 0) {
+    headlines.push(`👑 UNSTOPPABLE: ${currentLeader.name.toUpperCase()} MAINTAINS THE TOP SPOT WITH A NET PROFIT OF ₹${currentLeader.profit.toFixed(0)}!`);
+  }
+
+  // --- B. Individual Player News ---
   PLAYERS.forEach(p => {
     const s = stats[p];
     const pd = lastM.players[p];
     const profit = s.totalWon - s.totalInvested;
-    const done = lastM.teamwon && lastM.teamwon.trim() !== '' && lastM.teamwon !== '—';
 
-    // --- 1. PERFORMANCE NEWS (Active every match they play) ---
-    if (pd?.joined && pd?.paid && done) {
-      const avg = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
-      
+    // Milestone News
+    if (profit >= 1000) headlines.push(`💰 LEGENDARY STATUS: ${p.toUpperCase()} CROSSES THE ₹1000 PROFIT MILESTONE!`);
+    else if (profit >= 500) headlines.push(`💎 BLUE CHIP PLAYER: ${p.toUpperCase()} SURPASSES ₹500 IN NET EARNINGS!`);
+    else if (profit <= -300) headlines.push(`📉 BEAR MARKET: ${p.toUpperCase()} IS DOWN ₹${Math.abs(profit).toFixed(0)} THIS SEASON. TIME TO PIVOT?`);
+
+    // Match Performance News
+    if (pd?.joined && pd?.paid && pd.points > 0) {
+      const avg = s.pointsMatchCount > 1 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
       if (pd.points > avg) {
-        // Triggered even if they are just 1 point above average
-        headlines.push(`📈 BULL RUN: ${p.toUpperCase()} IS TRENDING UPWARD AFTER SCORING ${pd.points} (AVG: ${avg.toFixed(1)})!`);
-      } else if (pd.points > 0) {
-        headlines.push(`📊 STEADY HAND: ${p.toUpperCase()} CONTRIBUTES ${pd.points} POINTS TO THE SEASON TALLY.`);
+        headlines.push(`📈 BULL RUN: ${p.toUpperCase()} BEATS THEIR AVERAGE BY SCORING ${pd.points} pts IN THE LAST MATCH!`);
       }
-
-      if (pd.points === s.bestPoints && s.bestPoints > 0) {
-        headlines.push(`⭐ PEAK PERFORMANCE: ${p.toUpperCase()} EQUALS THEIR SEASON BEST SCORE OF ${pd.points}!`);
-      }
-    }
-
-    // --- 2. FINANCIAL NEWS (Active based on season totals) ---
-    if (s.paidContests > 0) {
-      const winPct = (s.wins / s.paidContests * 100).toFixed(1);
-      if (winPct > 40) {
-        headlines.push(`🎯 PRECISE TRADER: ${p.toUpperCase()} MAINTAINS A HIGH-EFFICIENCY WIN RATE OF ${winPct}%!`);
-      }
-      
-      if (profit > 0) {
-        headlines.push(`💎 GREEN FOLDER: ${p.toUpperCase()} IS CURRENTLY TRADING AT A ₹${profit.toFixed(0)} NET PROFIT.`);
-      }
-    }
-
-    // --- 3. STREAK & MILESTONE NEWS ---
-    if (s.recentForm.filter(f => f === 'loss').length >= 3) {
-      headlines.push(`⌛ DUE FOR A WIN: ${p.toUpperCase()} IS SEARCHING FOR A BREAKTHROUGH AFTER A TOUGH SPELL.`);
     }
     
-    if (s.hasHatTrick) {
-      headlines.push(`🎩 HAT-TRICK HERO: ${p.toUpperCase()} REMAINS ONE OF THE FEW TO SECURE 3 CONSECUTIVE WINS!`);
-    }
+    // Efficiency News
+    const roi = s.totalInvested > 0 ? ((s.totalWon - s.totalInvested) / s.totalInvested * 100) : 0;
+    if (roi > 50) headlines.push(`🚀 HIGH YIELD: ${p.toUpperCase()} IS DELIVERING A MASSIVE ${roi.toFixed(0)}% ROI TO THEIR PORTFOLIO!`);
   });
 
-  // 7. General League News (Outside the loop so it only shows once)
-  const totalPool = completed.reduce((acc, m) => acc + (calculatePrizes(m).totalPool || 0), 0);
-  headlines.push(`🏆 SEASON UPDATE: TOTAL LEAGUE PRIZE POOL CROSSES ₹${totalPool.toFixed(0)}!`);
+  // --- C. Randomization (The Shuffle) ---
+  // We use the Fisher-Yates shuffle algorithm to ensure randomness
+  for (let i = headlines.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [headlines[i], headlines[j]] = [headlines[j], headlines[i]];
+  }
 
-  return headlines.length > 0 ? headlines : ["MARKET STABLE: ALL PLAYERS MAINTAINING CURRENT POSITIONS."];
+  // --- D. Global News (Always at the end or beginning) ---
+  const totalPool = completed.reduce((acc, m) => acc + (calculatePrizes(m).totalPool || 0), 0);
+  headlines.unshift(`🏆 LEAGUE UPDATE: TOTAL SEASON PRIZE POOL REACHES ₹${totalPool.toFixed(0)}!`);
+
+  return headlines;
 }
 
 function computeH2H(matches, p1, p2) {
