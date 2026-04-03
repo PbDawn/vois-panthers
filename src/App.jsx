@@ -1174,7 +1174,7 @@ function Graphs({ matches }) {
     <div className="section">
       <div className="sec-title">Graphs &amp; Analytics</div>
       <div className="graph-grid">
-        <MarketSentimentChart matches={matches} />
+        <MarketCandleChart matches={matches} />
         <div className="chart-card" style={{gridColumn:'1/-1'}}><div className="chart-title">📈 Cumulative Profit/Loss per Player (Season)</div><div className="chart-wrap"><Line data={{labels,datasets:pnlDatasets}} options={chartOpts('₹')} /></div></div>
         <div className="chart-card"><div className="chart-title">💰 Investment vs Winnings (Total)</div><div className="chart-wrap"><Bar data={invWinData} options={chartOpts('₹')} /></div></div>
         <div className="chart-card"><div className="chart-title">🏅 Wins Count by Player</div><div className="chart-wrap"><Doughnut data={winsData} options={doughnutOpts} /></div></div>
