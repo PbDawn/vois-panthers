@@ -898,10 +898,10 @@ function OlympicPodium({ sorted }) {
       <div className="pd-chips">
         {top3.map((p, i) => {
           const profit  = p.totalWon - p.totalInvested
-          const mc      = [RANK_COLORS[1],RANK_COLORS[2],RANK_COLORS[3]][i]
+          const mc      = [RANK_COLORS[2],RANK_COLORS[1],RANK_COLORS[3]][i]
           return (
             <div className="pd-chip" key={p.name} style={{borderColor: mc+'44'}}>
-              <div className="pd-chip-lbl" style={{color:mc}}>{['🥇 Gold','🥈 Silver','🥉 Bronze'][i]}</div>
+              <div className="pd-chip-lbl" style={{color:mc}}>{['🥈 Silver','🥇 Gold','🥉 Bronze'][i]}</div>
               <div className="pd-chip-name" style={{color:mc}}>{p.name}</div>
               <div className="pd-chip-sub">P/L: {profit>=0?'+':''}₹{profit.toFixed(2)}</div>
               <div className="pd-chip-sub">{p.wins}W · {p.paidContests} paid</div>
