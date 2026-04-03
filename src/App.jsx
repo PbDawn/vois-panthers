@@ -27,44 +27,46 @@ function generateBreakingNews(matches, stats) {
   PLAYERS.forEach(p => {
     const s = stats[p];
     const pd = lastM.players[p];
-    const profit = s.totalWon - s.totalInvested; // Calculate early for all checks
-    const done = lastM.teamwon && lastM.teamwon !== '—';
+    const profit = s.totalWon - s.totalInvested;
+    const done = lastM.teamwon && lastM.teamwon.trim() !== '' && lastM.teamwon !== '—';
 
+    // --- 1. PERFORMANCE NEWS (Active every match they play) ---
     if (pd?.joined && pd?.paid && done) {
-      // 1. "Higher than Last Time" check
-      if (pd.points > s.bestPoints * 0.9 && pd.points < s.bestPoints) {
-        headlines.push(`🎯 NEAR PERFECTION: ${p.toUpperCase()} FALLS JUST SHY OF THEIR ALL-TIME HIGH WITH ${pd.points} pts!`);
+      const avg = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
+      
+      if (pd.points > avg) {
+        // Triggered even if they are just 1 point above average
+        headlines.push(`📈 BULL RUN: ${p.toUpperCase()} IS TRENDING UPWARD AFTER SCORING ${pd.points} (AVG: ${avg.toFixed(1)})!`);
+      } else if (pd.points > 0) {
+        headlines.push(`📊 STEADY HAND: ${p.toUpperCase()} CONTRIBUTES ${pd.points} POINTS TO THE SEASON TALLY.`);
       }
 
-      // 2. New Market Leader check (Uses the profit variable calculated above)
-      const maxProfit = Math.max(...PLAYERS.map(player => stats[player].totalWon - stats[player].totalInvested));
-      if (profit > 0 && profit === maxProfit) {
-        headlines.push(`👑 NEW MARKET LEADER: ${p.toUpperCase()} IS CURRENTLY THE MOST PROFITABLE PLAYER IN THE LEAGUE!`);
+      if (pd.points === s.bestPoints && s.bestPoints > 0) {
+        headlines.push(`⭐ PEAK PERFORMANCE: ${p.toUpperCase()} EQUALS THEIR SEASON BEST SCORE OF ${pd.points}!`);
       }
-
-      // 3. Recent Performance vs Average (Lowered threshold to > 1.1x for more news)
-      /*
-      if (pd.points > 0) {
-        const avg = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
-        if (pd.points > avg * 1.1) {
-          headlines.push(`🔥 BULL RUN: ${p.toUpperCase()} SCORED ${pd.points}, BEATING THEIR SEASON AVERAGE OF ${avg.toFixed(1)}!`);
-        }
-      } */
-
-      // 4. Profit/Loss Milestones
-      if (profit > 500) headlines.push(`💰 WHALE ALERT: ${p.toUpperCase()} CROSSES ₹500 IN SEASON PROFITS!`);
-      if (profit > 1000) headlines.push(`💰 WHALE ALERT: ${p.toUpperCase()} CROSSES ₹500 IN SEASON PROFITS!`);
-      if (profit > 1500) headlines.push(`💰 WHALE ALERT: ${p.toUpperCase()} CROSSES ₹500 IN SEASON PROFITS!`);
-      if (profit < -200) headlines.push(`📉 MARKET CRASH: ${p.toUpperCase()} PORTFOLIO DOWN BY ₹${Math.abs(profit).toFixed(0)}.`);
-
-      // 5. Streak Detection
-      if (s.hasHatTrick) headlines.push(`🎩 HISTORY MADE: ${p.toUpperCase()} SECURES A LEGENDARY HAT-TRICK OF WINS!`);
-
-      // 6. Efficiency (ROI)
-      const roi = s.totalInvested > 0 ? ((s.totalWon - s.totalInvested) / s.totalInvested * 100) : 0;
-      if (roi > 100) headlines.push(`📈 ROCKET ROI: ${p.toUpperCase()} IS RETURNING ${roi.toFixed(0)}% PROFIT PER MATCH!`);
     }
-  }); // End of PLAYERS.forEach
+
+    // --- 2. FINANCIAL NEWS (Active based on season totals) ---
+    if (s.paidContests > 0) {
+      const winPct = (s.wins / s.paidContests * 100).toFixed(1);
+      if (winPct > 40) {
+        headlines.push(`🎯 PRECISE TRADER: ${p.toUpperCase()} MAINTAINS A HIGH-EFFICIENCY WIN RATE OF ${winPct}%!`);
+      }
+      
+      if (profit > 0) {
+        headlines.push(`💎 GREEN FOLDER: ${p.toUpperCase()} IS CURRENTLY TRADING AT A ₹${profit.toFixed(0)} NET PROFIT.`);
+      }
+    }
+
+    // --- 3. STREAK & MILESTONE NEWS ---
+    if (s.recentForm.filter(f => f === 'loss').length >= 3) {
+      headlines.push(`⌛ DUE FOR A WIN: ${p.toUpperCase()} IS SEARCHING FOR A BREAKTHROUGH AFTER A TOUGH SPELL.`);
+    }
+    
+    if (s.hasHatTrick) {
+      headlines.push(`🎩 HAT-TRICK HERO: ${p.toUpperCase()} REMAINS ONE OF THE FEW TO SECURE 3 CONSECUTIVE WINS!`);
+    }
+  });
 
   // 7. General League News (Outside the loop so it only shows once)
   const totalPool = completed.reduce((acc, m) => acc + (calculatePrizes(m).totalPool || 0), 0);
