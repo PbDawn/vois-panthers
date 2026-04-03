@@ -16,7 +16,7 @@ const DAILY_LIMIT    = 20
 const COOLDOWN_MS    = 30000
 const ROWS_PER_PAGE  = 7
 
-// ─── PURE LOGIC HELPERS ───────────────────────────────────────
+// ─── PURE LOGIC HELPERS here───────────────────────────────────────
 
 function calculatePrizes(m) {
   const paidCount = PLAYERS.filter(p => m.players[p]?.joined && m.players[p]?.paid).length
