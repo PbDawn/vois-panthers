@@ -17,6 +17,60 @@ const COOLDOWN_MS    = 30000
 const ROWS_PER_PAGE  = 7
 
 // ─── PURE LOGIC HELPERS ───────────────────────────────────────
+
+function generateBreakingNews(matches, stats) {
+  const completed = matches.filter(m => m.teamwon && m.teamwon !== '—');
+  if (completed.length === 0) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING FIRST MATCH RESULTS..."];
+
+  const lastM = completed[completed.length - 1];
+  const headlines = [];
+
+  PLAYERS.forEach(p => {
+    const s = stats[p];
+    const pd = lastM.players[p];
+
+    const done = lastM.teamwon && lastM.teamwon !== '—';
+
+    if (pd?.joined && pd?.paid && done) {
+     // 1. "Higher than Last Time" (Personal Best Streak)
+    // We check if current points > previous points in their history
+    const pHistory = s.pnlHistory; // Using your existing PnL history as a proxy for match count
+    if (pd.points > s.bestPoints * 0.9 && pd.points < s.bestPoints) {
+    headlines.push(`🎯 NEAR PERFECTION: ${p.toUpperCase()} FALLS JUST SHY OF THEIR ALL-TIME HIGH WITH ${pd.points} pts!`);
+    }
+
+    if (profit > 0 && profit === Math.max(...PLAYERS.map(player => stats[player].totalWon - stats[player].totalInvested))) {
+    headlines.push(`👑 NEW MARKET LEADER: ${p.toUpperCase()} IS CURRENTLY THE MOST PROFITABLE PLAYER IN THE LEAGUE!`);
+    }
+
+    // Headline 1: Recent Performance vs Average
+    if (pd?.joined && pd?.points > 0) {
+      const avg = s.totalPointsSum / s.pointsMatchCount;
+      if (pd.points > avg * 1.5) {
+        headlines.push(`🔥 INSANE FORM: ${p.toUpperCase()} SCORED ${pd.points} IN MATCH #${lastM.matchno}, SMASHING THEIR SEASON AVERAGE!`);
+      }
+    }
+
+    // Headline 2: Profit/Loss Milestones
+    const profit = s.totalWon - s.totalInvested;
+    if (profit > 500) headlines.push(`💰 WHALE ALERT: ${p.toUpperCase()} CROSSES ₹500 IN SEASON PROFITS!`);
+    if (profit < -200) headlines.push(`📉 MARKET CRASH: ${p.toUpperCase()} PORTFOLIO DOWN BY ₹${Math.abs(profit).toFixed(0)}.`);
+
+    // Headline 3: Streak Detection
+    if (s.hasHatTrick) headlines.push(`🎩 HISTORY MADE: ${p.toUpperCase()} SECURES A LEGENDARY HAT-TRICK OF WINS!`);
+
+    // Headline 4: Efficiency (ROI)
+    const roi = s.totalInvested > 0 ? ((s.totalWon - s.totalInvested) / s.totalInvested * 100) : 0;
+    if (roi > 100) headlines.push(`📈 ROCKET ROI: ${p.toUpperCase()} IS RETURNING ${roi.toFixed(0)}% PROFIT PER MATCH!`);
+  });
+
+  // Headline 5: General League News
+  const totalPool = completed.reduce((acc, m) => acc + (calculatePrizes(m).totalPool || 0), 0);
+  headlines.push(`🏆 SEASON UPDATE: TOTAL LEAGUE PRIZE POOL CROSSES ₹${totalPool.toFixed(0)}!`);
+
+  return headlines.length > 0 ? headlines : ["MARKET STABLE: ALL PLAYERS MAINTAINING CURRENT POSITIONS."];
+}
+
 function computeH2H(matches, p1, p2) {
   let stats = { commonMatches: 0, p1Wins: 0, p2Wins: 0, p1Points: 0, p2Points: 0, p1Invested: 0, p2Invested: 0, p1Won: 0, p2Won: 0 };
   matches.forEach(m => {
@@ -1340,6 +1394,33 @@ function Graphs({ matches }) {
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
+
+function BreakingNewsTicker({ matches }) {
+  const stats = useMemo(() => computePlayerStats(matches), [matches]);
+  const headlines = useMemo(() => generateBreakingNews(matches, stats), [matches, stats]);
+
+  return (
+    <div className="breaking-news-wrap">
+      <div className="breaking-label">BREAKING NEWS</div>
+      <div className="breaking-scroll">
+        <div className="breaking-track">
+          {headlines.map((h, i) => (
+            <span key={i} className="headline-item">
+              <span className="news-bullet">●</span> {h}
+            </span>
+          ))}
+          {/* Duplicate for seamless loop */}
+          {headlines.map((h, i) => (
+            <span key={`dup-${i}`} className="headline-item">
+              <span className="news-bullet">●</span> {h}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MarketTicker({ matches }) {
   const stats = useMemo(() => computePlayerStats(matches), [matches]);
   
@@ -1554,6 +1635,7 @@ export default function App() {
 
         {/* <MarketTicker matches={matches} /> */}
       <MarketSentimentTicker matches={matches} />
+      <BreakingNewsTicker matches={matches} />
 
       {/* HEADER */}
       <header>
