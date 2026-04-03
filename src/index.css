@@ -395,7 +395,7 @@ tr:hover td { background: rgba(245,166,35,0.04); }
 .breaking-scroll { flex: 1; overflow: hidden; white-space: nowrap; }
 .breaking-track {
   display: inline-block;
-  animation: newsScroll 60s linear infinite;
+  animation: newsScroll 150s linear infinite;
 }
 .headline-item {
   color: #fff;
@@ -410,4 +410,8 @@ tr:hover td { background: rgba(245,166,35,0.04); }
 @keyframes newsScroll {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
+}
+.breaking-news-wrap:hover .breaking-track {
+  animation-play-state: paused;
+  cursor: help;
 }
