@@ -707,6 +707,23 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
   return (
     <div className="section">
       <div className="sec-title">Player Stats</div>
+
+      <div style={{
+          background: 'rgba(245, 166, 35, 0.1)', 
+          border: '1px dashed var(--accent)', 
+          padding: '10px', 
+          borderRadius: '8px', 
+          marginBottom: '15px', 
+          fontSize: '13px', 
+          color: 'var(--accent)',
+          textAlign: 'center'
+        }}>
+          {h2hPlayers.p1 
+            ? <span>⚔️ <b>{h2hPlayers.p1}</b> selected. Now click another player to start the <b>Versus Battle</b>!</span>
+            : <span>💡 <b>Pro Tip:</b> Click any player's photo to compare them Head-to-Head with another!</span>
+          }
+      </div>
+      
       <div className="player-cards">
         {PLAYERS.map((p, i) => {
           const s = stats[p], profit = s.totalWon - s.totalInvested
@@ -722,24 +739,33 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
                 {/*<div className="p-avatar" style={avatarStyle}>{p[0]}</div>*/}
                 <div 
                   className="p-avatar" 
+                  title={!h2hPlayers.p1 ? "Click to select Player 1 for Comparison" : `Click to compare ${h2hPlayers.p1} with ${p}`}
                   style={{
                     ...avatarStyle, 
                     cursor: 'pointer',
-                    // Optional: Add a glow if the player is currently selected
-                    boxShadow: h2hPlayers.p1 === p || h2hPlayers.p2 === p ? '0 0 15px ' + COLORS[i] : 'none',
-                    transform: h2hPlayers.p1 === p || h2hPlayers.p2 === p ? 'scale(1.1)' : 'scale(1)'
+                    position: 'relative',
+                    // Glow effect for selected players
+                    borderWidth: (h2hPlayers.p1 === p || h2hPlayers.p2 === p) ? '4px' : '2px',
+                    boxShadow: (h2hPlayers.p1 === p || h2hPlayers.p2 === p) ? `0 0 20px ${COLORS[i]}` : 'none',
+                    transform: (h2hPlayers.p1 === p || h2hPlayers.p2 === p) ? 'scale(1.15)' : 'scale(1)',
+                    transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)'
                   }} 
                   onClick={() => {
-                    // Logic: If P1 isn't picked, set P1. If P1 is picked, set P2 (unless it's the same person).
                     if (!h2hPlayers.p1) {
                       setH2hPlayers({ ...h2hPlayers, p1: p });
-                    } else if (h2hPlayers.p1 !== p) {
+                    } else if (h2hPlayers.p1 === p) {
+                      // De-select if clicking the same person
+                      setH2hPlayers({ ...h2hPlayers, p1: null });
+                    } else {
                       setH2hPlayers({ ...h2hPlayers, p2: p });
                     }
                   }}
                 >
                   {p[0]}
+                  {/* Small "Selected" Badge */}
+                  {h2hPlayers.p1 === p && <div style={{position:'absolute', bottom:-5, right:-5, background:'var(--accent)', color:'#000', borderRadius:'50%', width:18, height:18, fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, border:'2px solid var(--card)'}}>1</div>}
                 </div>
+                
                 <div style={{flex:1}}>
                   <div className="p-name">{p}</div>
                   <div className="p-winpct">Win Rate: <span>{winpct}%</span> ({s.wins}/{s.paidContests} paid)</div>
