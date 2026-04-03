@@ -118,6 +118,9 @@ function computePlayerStats(matches) {
       activeDeposits: 0,
       paidWinStreak: [],    // track consecutive paid match wins for hat-trick
       hasHatTrick: false,   // Feature 4: hat-trick flag
+      ath: 0,
+      atl: 0,
+      pnlHistory: [] // To store PnL after every match
     }
   })
   let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
@@ -139,6 +142,19 @@ function computePlayerStats(matches) {
     })
 
     PLAYERS.forEach(p => {
+      const s = stats[p];
+      const currentPnL = s.totalWon - s.totalInvested;
+      
+      // Save this snapshot to history
+      s.pnlHistory.push(currentPnL);
+
+      // Check if this is the highest they've ever been (ATH)
+      if (currentPnL > s.ath) s.ath = currentPnL;
+
+      // Check if this is the lowest they've ever been (ATL)
+      if (currentPnL < s.atl) s.atl = currentPnL;
+
+      
       const pd = m.players[p]
       if (!pd || !pd.joined) return
       const s = stats[p]
@@ -1013,50 +1029,46 @@ function MarketSentimentChart({ matches }) {
   );
 }
 
-function MarketVolatilityChart({ matches }) {
-  const completedMatches = useMemo(() => 
-    matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
-  [matches]);
+function MarketCandleChart({ matches }) {
+  const completedMatches = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—');
 
-  const chartData = useMemo(() => {
-    const labels = completedMatches.map(m => `M${m.matchno}`);
-    const datasets = PLAYERS.map((p, i) => {
-      let price = 100; // Starting "IPO" Price
-      const data = completedMatches.map(m => {
-        const pts = m.players[p]?.points || 0;
-        const joined = m.players[p]?.joined;
-        // Price Discovery Logic: (Points * Momentum) + Base
-        if (joined) price = (price * 0.4) + (pts * 0.6) + 10; 
-        return parseFloat(price.toFixed(2));
-      });
-
+  const chartData = {
+    labels: completedMatches.map(m => `M${m.matchno}`),
+    datasets: PLAYERS.map((p, i) => {
+      let rollingPnL = 0;
       return {
-        label: `${p} Index`,
-        data: data,
-        borderColor: COLORS[i],
-        backgroundColor: COLORS[i] + '10',
-        fill: true,
-        tension: 0.4,
-        borderWidth: 2,
-        pointRadius: 0 // Smooth line like a trading terminal
+        label: p,
+        // The data calculates the CHANGE in PnL for that match
+        data: completedMatches.map(m => {
+          const pd = m.players[p];
+          let matchPnL = 0;
+          if (pd?.joined && pd?.paid && m.contest === 'yes') {
+             const prizes = calculatePrizes(m);
+             const rank = prizes._paidRanks?.[p];
+             const won = (rank === 1) ? prizes[1] : (rank === 2 && prizes.winnerCountLimit === 2) ? prizes[2] : 0;
+             matchPnL = won - m.fee;
+          }
+          return matchPnL;
+        }),
+        backgroundColor: (ctx) => ctx.raw >= 0 ? '#2ecc71cc' : '#e74c3ccc',
+        borderColor: (ctx) => ctx.raw >= 0 ? '#2ecc71' : '#e74c3c',
+        borderWidth: 1,
+        borderRadius: 4,
+        barPercentage: 0.5,
       };
-    });
-    return { labels, datasets };
-  }, [completedMatches]);
+    })
+  };
 
   return (
-    <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #2ecc71' }}>
-      <div className="chart-title">📊 PLAYER EQUITY MARKET (VOLATILITY INDEX)</div>
+    <div className="chart-card" style={{ gridColumn: '1/-1' }}>
+      <div className="chart-title">🕯️ DAILY PnL CANDLESTICKS (MATCH-BY-MATCH)</div>
       <div className="chart-wrap" style={{ height: 350 }}>
-        {completedMatches.length > 0 ? (
-          <Line data={chartData} options={chartOpts('₹')} />
-        ) : (
-          <div className="no-data">Market Closed: Waiting for Match Completion</div>
-        )}
+        <Bar data={chartData} options={chartOpts('₹')} />
       </div>
     </div>
   );
 }
+
 function Graphs({ matches }) {
   const stats = useMemo(() => computePlayerStats(matches), [matches])
 
@@ -1154,25 +1166,21 @@ function MarketTicker({ matches }) {
   
   const tickerItems = PLAYERS.map((p, i) => {
     const s = stats[p];
-    const profit = s.totalWon - s.totalInvested;
-    const isUp = profit >= 0;
-    
-    // Calculate % Change based on investment
+    const currentPnL = s.totalWon - s.totalInvested;
+    const isUp = currentPnL >= 0;
     const percentChange = s.totalInvested > 0 
-      ? ((profit / s.totalInvested) * 100).toFixed(1) 
+      ? ((currentPnL / s.totalInvested) * 100).toFixed(1) 
       : '0.0';
-      
-    // ATH logic: Best Winnings - Avg Investment (simulated from current best)
-    const ath = s.bestPoints > 0 ? (s.totalWon).toFixed(0) : '0';
 
     return (
       <div className="ticker-stock-item" key={p}>
         <span style={{ color: COLORS[i], marginRight: 8, fontSize: '14px' }}>{p.toUpperCase()}</span>
-        <span className={isUp ? 'stock-up' : 'stock-down'} style={{ fontWeight: 800 }}>
-          {isUp ? '▲' : '▼'} ₹{Math.abs(profit).toFixed(0)} ({isUp ? '+' : ''}{percentChange}%)
+        <span className={isUp ? 'stock-up' : 'stock-down'}>
+          {isUp ? '▲' : '▼'} ₹{Math.abs(currentPnL).toFixed(0)} ({percentChange}%)
         </span>
-        <span style={{ color: '#8899bb', fontSize: '10px', marginLeft: 8 }}>
-          ATH: ₹{ath} | P/L: {isUp ? 'BULL' : 'BEAR'}
+        <span style={{ color: '#8899bb', fontSize: '10px', marginLeft: 10 }}>
+          <span style={{color:'#2ecc71'}}>ATH: ₹{s.ath.toFixed(0)}</span> | 
+          <span style={{color:'#e74c3c'}}> ATL: ₹{s.atl.toFixed(0)}</span>
         </span>
       </div>
     );
