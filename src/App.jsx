@@ -184,6 +184,14 @@ function computePlayerStats(matches) {
             const isR1Win = pRank === 1
             const isR2Win = pRank === 2 && prizes.winnerCountLimit === 2
 
+            // Store current as "last" before we move to the next iteration
+            s.lastMatchPnL = s.pnlHistory.length > 0 ? s.pnlHistory[s.pnlHistory.length - 1] : 0;
+            
+            const currentPnL = s.totalWon - s.totalInvested;
+            s.pnlHistory.push(currentPnL);
+            if (currentPnL > s.ath) s.ath = currentPnL;
+            if (currentPnL < s.atl) s.atl = currentPnL;
+
             if (isR1Win || isR2Win) {
               s.wins++
               const prizeShare = isR1Win ? (prizes[1]) : (prizes[2])
@@ -1166,16 +1174,22 @@ function MarketTicker({ matches }) {
   const tickerItems = PLAYERS.map((p, i) => {
     const s = stats[p];
     const currentPnL = s.totalWon - s.totalInvested;
-    const isUp = currentPnL >= 0;
-    const percentChange = s.totalInvested > 0 
-      ? ((currentPnL / s.totalInvested) * 100).toFixed(1) 
-      : '0.0';
+    const previousPnL = s.lastMatchPnL;
+    
+    // Daily Change (Current Total PnL - Previous Total PnL)
+    const dayChange = currentPnL - previousPnL;
+    const isDayUp = dayChange >= 0;
+    
+    // % Change based on the "Previous Close" (Previous PnL)
+    // We use a base of 100 if previous was 0 to avoid division by zero
+    const denominator = Math.abs(previousPnL) || 100;
+    const dayPercent = ((dayChange / denominator) * 100).toFixed(2);
 
     return (
       <div className="ticker-stock-item" key={p}>
         <span style={{ color: COLORS[i], marginRight: 8, fontSize: '14px' }}>{p.toUpperCase()}</span>
-        <span className={isUp ? 'stock-up' : 'stock-down'}>
-          {isUp ? '▲' : '▼'} ₹{Math.abs(currentPnL).toFixed(0)} ({percentChange}%)
+        <span className={isDayUp ? 'stock-up' : 'stock-down'} style={{ fontWeight: 800 }}>
+          {isDayUp ? '▲' : '▼'} ₹{Math.abs(dayChange).toFixed(0)} ({isDayUp ? '+' : ''}{dayPercent}%)
         </span>
         <span style={{ color: '#8899bb', fontSize: '10px', marginLeft: 10 }}>
           <span style={{color:'#2ecc71'}}>ATH: ₹{s.ath.toFixed(0)}</span> | 
