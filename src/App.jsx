@@ -141,8 +141,11 @@ function computePlayerStats(matches) {
       paidRanks[player.name] = currentR
     })
 
-    PLAYERS.forEach(p => {
-      const s = stats[p];
+    PLAYERS.forEach(p => {      
+      const pd = m.players[p]
+      if (!pd || !pd.joined) return
+      const s = stats[p]
+
       const currentPnL = s.totalWon - s.totalInvested;
       
       // Save this snapshot to history
@@ -154,10 +157,6 @@ function computePlayerStats(matches) {
       // Check if this is the lowest they've ever been (ATL)
       if (currentPnL < s.atl) s.atl = currentPnL;
 
-      
-      const pd = m.players[p]
-      if (!pd || !pd.joined) return
-      const s = stats[p]
 
       if (!matchIsComplete) {
         if (m.contest === 'yes' && pd.paid) {
