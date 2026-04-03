@@ -1037,40 +1037,70 @@ function MarketSentimentChart({ matches }) {
 }
 
 function MarketCandleChart({ matches }) {
-  const completedMatches = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—');
+  const completedMatches = useMemo(() => 
+    matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
+  [matches]);
 
-  const chartData = {
-    labels: completedMatches.map(m => `M${m.matchno}`),
-    datasets: PLAYERS.map((p, i) => {
-      let rollingPnL = 0;
-      return {
-        label: p,
-        // The data calculates the CHANGE in PnL for that match
-        data: completedMatches.map(m => {
-          const pd = m.players[p];
-          let matchPnL = 0;
-          if (pd?.joined && pd?.paid && m.contest === 'yes') {
-             const prizes = calculatePrizes(m);
-             const rank = prizes._paidRanks?.[p];
-             const won = (rank === 1) ? prizes[1] : (rank === 2 && prizes.winnerCountLimit === 2) ? prizes[2] : 0;
-             matchPnL = won - m.fee;
-          }
-          return matchPnL;
-        }),
-        backgroundColor: (ctx) => ctx.raw >= 0 ? '#2ecc71cc' : '#e74c3ccc',
-        borderColor: (ctx) => ctx.raw >= 0 ? '#2ecc71' : '#e74c3c',
-        borderWidth: 1,
-        borderRadius: 4,
-        barPercentage: 0.5,
-      };
-    })
+  const chartData = useMemo(() => {
+    return {
+      labels: completedMatches.map(m => `M${m.matchno}`),
+      datasets: PLAYERS.map((p, i) => {
+        return {
+          label: p,
+          // Calculate the PnL CHANGE for just this specific match
+          data: completedMatches.map(m => {
+            const pd = m.players[p];
+            if (pd?.joined && pd?.paid && m.contest === 'yes') {
+               const prizes = calculatePrizes(m);
+               const paidRanks = prizes._paidRanks || {};
+               const pRank = paidRanks[p];
+               
+               const won = (pRank === 1) ? prizes[1] : (pRank === 2 && prizes.winnerCountLimit === 2) ? prizes[2] : 0;
+               // Match PnL = Winnings - Entry Fee
+               return parseFloat((won - m.fee).toFixed(2));
+            }
+            return 0;
+          }),
+          // Green if Profit (>0), Red if Loss (<0)
+          backgroundColor: (ctx) => (ctx.raw >= 0 ? '#2ecc71cc' : '#e74c3ccc'),
+          borderColor: (ctx) => (ctx.raw >= 0 ? '#2ecc71' : '#e74c3c'),
+          borderWidth: 1,
+          borderRadius: 2,
+          barPercentage: 0.6,
+        };
+      })
+    };
+  }, [completedMatches]);
+
+  const candleOpts = {
+    ...chartOpts('₹'),
+    plugins: {
+      ...chartOpts().plugins,
+      title: {
+        display: true,
+        text: '🕯️ DAILY PnL CANDLESTICKS',
+        color: '#f5a623',
+        font: { family: 'Bebas Neue', size: 18 }
+      }
+    },
+    scales: {
+      ...chartOpts().scales,
+      y: {
+        ...chartOpts().scales.y,
+        // Ensure the 0 line (Base) is visible to separate Red/Green
+        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+      }
+    }
   };
 
   return (
     <div className="chart-card" style={{ gridColumn: '1/-1' }}>
-      <div className="chart-title">🕯️ DAILY PnL CANDLESTICKS (MATCH-BY-MATCH)</div>
-      <div className="chart-wrap" style={{ height: 350 }}>
-        <Bar data={chartData} options={chartOpts('₹')} />
+      <div className="chart-wrap" style={{ height: 380 }}>
+        {completedMatches.length > 0 ? (
+          <Bar data={chartData} options={candleOpts} />
+        ) : (
+          <div className="no-data">Market Closed: No completed matches.</div>
+        )}
       </div>
     </div>
   );
