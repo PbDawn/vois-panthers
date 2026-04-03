@@ -301,3 +301,29 @@ tr:hover td { background: rgba(245,166,35,0.04); }
   border: 1px solid #e74c3c;
   color: #e74c3c;
 }
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.market-ticker-wrap {
+  background: #05080f;
+  border-top: 1px solid #1e2d50;
+  border-bottom: 1px solid #1e2d50;
+  padding: 8px 0;
+  overflow: hidden;
+  white-space: nowrap;
+  position: relative;
+}
+.market-ticker-inner {
+  display: inline-block;
+  animation: tickerScroll 30s linear infinite;
+}
+.ticker-stock-item {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 40px;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+}
+.stock-up { color: #2ecc71; }
+.stock-down { color: #e74c3c; }
