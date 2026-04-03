@@ -1176,21 +1176,29 @@ function MarketTicker({ matches }) {
     const currentPnL = s.totalWon - s.totalInvested;
     const previousPnL = s.lastMatchPnL;
     
-    // Daily Change (Current Total PnL - Previous Total PnL)
+    // Daily Change calculation
     const dayChange = currentPnL - previousPnL;
     const isDayUp = dayChange >= 0;
     
     // % Change based on the "Previous Close" (Previous PnL)
-    // We use a base of 100 if previous was 0 to avoid division by zero
     const denominator = Math.abs(previousPnL) || 100;
     const dayPercent = ((dayChange / denominator) * 100).toFixed(2);
 
     return (
       <div className="ticker-stock-item" key={p}>
         <span style={{ color: COLORS[i], marginRight: 8, fontSize: '14px' }}>{p.toUpperCase()}</span>
+        
+        {/* Total PnL (The base price) */}
+        <span style={{ color: '#fff', fontWeight: 700, marginRight: 5 }}>
+          ₹{currentPnL.toFixed(0)}
+        </span>
+
+        {/* Day Change and Percentage */}
         <span className={isDayUp ? 'stock-up' : 'stock-down'} style={{ fontWeight: 800 }}>
           {isDayUp ? '▲' : '▼'} ₹{Math.abs(dayChange).toFixed(0)} ({isDayUp ? '+' : ''}{dayPercent}%)
         </span>
+
+        {/* ATH & ATL preservation */}
         <span style={{ color: '#8899bb', fontSize: '10px', marginLeft: 10 }}>
           <span style={{color:'#2ecc71'}}>ATH: ₹{s.ath.toFixed(0)}</span> | 
           <span style={{color:'#e74c3c'}}> ATL: ₹{s.atl.toFixed(0)}</span>
@@ -1207,6 +1215,7 @@ function MarketTicker({ matches }) {
     </div>
   );
 }
+
 export default function App() {
   const [matches, setMatches]         = useState([])
   const [loading, setLoading]         = useState(false)
