@@ -19,64 +19,74 @@ const ROWS_PER_PAGE  = 7
 // ─── PURE LOGIC ‐----------
 function generateBreakingNews(matches, stats) {
   const completed = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—');
-  if (completed.length === 0) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING FIRST MATCH RESULTS..."];
+  if (completed.length < 1) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING RESULTS..."];
 
   const lastM = completed[completed.length - 1];
   const prevMatches = completed.slice(0, -1);
-  const prevStats = computePlayerStats(prevMatches); // To check if leadership changed
+  const prevStats = computePlayerStats(prevMatches); 
+  const prevBadges = computeHoFBadges(prevStats);
+  const currentBadges = computeHoFBadges(stats);
   
   let headlines = [];
 
-  // --- A. Market Leader & Podium News ---
-  const currentProfits = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested }));
-  const sortedProfits = [...currentProfits].sort((a, b) => b.profit - a.profit);
-  const currentLeader = sortedProfits[0];
-
-  const prevProfits = PLAYERS.map(p => ({ name: p, profit: prevStats[p].totalWon - prevStats[p].totalInvested }));
-  const prevLeader = [...prevProfits].sort((a, b) => b.profit - a.profit)[0];
-
-  if (currentLeader.name !== prevLeader.name && currentLeader.profit > 0) {
-    headlines.push(`🚨 MARKET SHAKEUP: ${currentLeader.name.toUpperCase()} OVERTAKES ${prevLeader.name.toUpperCase()} TO BECOME THE NEW SEASON PROFIT LEADER!`);
-  } else if (currentLeader.profit > 0) {
-    headlines.push(`👑 UNSTOPPABLE: ${currentLeader.name.toUpperCase()} MAINTAINS THE TOP SPOT WITH A NET PROFIT OF ₹${currentLeader.profit.toFixed(0)}!`);
+  // 1. Leaderboard Overtake
+  const currentSorted = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested })).sort((a, b) => b.profit - a.profit);
+  const prevSorted = PLAYERS.map(p => ({ name: p, profit: prevStats[p].totalWon - prevStats[p].totalInvested })).sort((a, b) => b.profit - a.profit);
+  
+  if (currentSorted[0].name !== prevSorted[0].name) {
+    headlines.push(`🏆 NEW LEADER: ${currentSorted[0].name.toUpperCase()} has overtaken ${prevSorted[0].name.toUpperCase()} to claim the #1 spot in the standings!`);
   }
 
-  // --- B. Individual Player News ---
   PLAYERS.forEach(p => {
     const s = stats[p];
+    const ps = prevStats[p];
     const pd = lastM.players[p];
-    const profit = s.totalWon - s.totalInvested;
+    
+    // 2. Win/Loss Streak Logic
+    if (pd?.joined && pd?.paid) {
+      const prizes = calculatePrizes(lastM);
+      const isWinner = prizes._paidRanks?.[p] <= prizes.winnerCountLimit;
 
-    // Milestone News
-    if (profit >= 1000) headlines.push(`💰 LEGENDARY STATUS: ${p.toUpperCase()} CROSSES THE ₹1000 PROFIT MILESTONE!`);
-    else if (profit >= 500) headlines.push(`💎 BLUE CHIP PLAYER: ${p.toUpperCase()} SURPASSES ₹500 IN NET EARNINGS!`);
-    else if (profit <= -300) headlines.push(`📉 BEAR MARKET: ${p.toUpperCase()} IS DOWN ₹${Math.abs(profit).toFixed(0)} THIS SEASON. TIME TO PIVOT?`);
+      if (isWinner) {
+        // Check for streaks
+        const streak = s.paidWinStreak; // From your updated computePlayerStats
+        const currentStreakCount = streak.slice().reverse().findIndex(val => val === false);
+        const winCount = currentStreakCount === -1 ? streak.length : currentStreakCount;
 
-    // Match Performance News
-    if (pd?.joined && pd?.paid && pd.points > 0) {
-      const avg = s.pointsMatchCount > 1 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
-      if (pd.points > avg) {
-        headlines.push(`📈 BULL RUN: ${p.toUpperCase()} BEATS THEIR AVERAGE BY SCORING ${pd.points} pts IN THE LAST MATCH!`);
+        if (winCount === 2) headlines.push(`🔥 BACK-TO-BACK: ${p.toUpperCase()} secures their second consecutive win!`);
+        if (winCount === 3) headlines.push(`🎩 HAT-TRICK! ${p.toUpperCase()} is on fire with 3 wins in a row!`);
+        
+        // Check if they broke a losing streak
+        const prevForm = ps.recentForm.slice(-3);
+        if (prevForm.length >= 3 && prevForm.every(f => f === 'loss')) {
+          headlines.push(`🌅 STREAK BROKEN: ${p.toUpperCase()} finally tastes victory after a difficult 3-match losing slump!`);
+        }
       }
     }
-    
-    // Efficiency News
-    const roi = s.totalInvested > 0 ? ((s.totalWon - s.totalInvested) / s.totalInvested * 100) : 0;
-    if (roi > 50) headlines.push(`🚀 HIGH YIELD: ${p.toUpperCase()} IS DELIVERING A MASSIVE ${roi.toFixed(0)}% ROI TO THEIR PORTFOLIO!`);
+
+    // 3. Hall of Fame Badge Changes
+    const pB = prevBadges[p].map(b => b.label);
+    const cB = currentBadges[p].map(b => b.label);
+    cB.forEach(label => {
+      if (!pB.includes(label)) {
+        headlines.push(`🎖️ NEW RECOGNITION: ${p.toUpperCase()} has just earned the "${label.toUpperCase()}" Hall of Fame badge!`);
+      }
+    });
+
+    // 4. Stock Market ATH / ATL (Based on Sentiment Index)
+    // Note: This requires computePlayerStats to track indexATH/indexATL
+    if (s.currentIndex > s.indexATH && ps.indexATH > 0) {
+      headlines.push(`📈 MARKET PEAK: ${p.toUpperCase()}'s stock index just hit an ALL-TIME HIGH of ₹${s.currentIndex.toFixed(0)}!`);
+    } else if (s.currentIndex < s.indexATL && ps.indexATL > 0) {
+      headlines.push(`📉 MARKET CRASH: ${p.toUpperCase()}'s stock index has dropped to an ALL-TIME LOW.`);
+    }
   });
 
-  // --- C. Randomization (The Shuffle) ---
-  // We use the Fisher-Yates shuffle algorithm to ensure randomness
-  for (let i = headlines.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [headlines[i], headlines[j]] = [headlines[j], headlines[i]];
-  }
-
-  // --- D. Global News (Always at the end or beginning) ---
+  // Global Pool Update
   const totalPool = completed.reduce((acc, m) => acc + (calculatePrizes(m).totalPool || 0), 0);
-  headlines.unshift(`🏆 LEAGUE UPDATE: TOTAL SEASON PRIZE POOL REACHES ₹${totalPool.toFixed(0)}!`);
+  headlines.unshift(`💰 SEASON UPDATE: Total Prize Pool has surged to ₹${totalPool.toFixed(0)}!`);
 
-  return headlines;
+  return headlines.length > 0 ? headlines : ["MARKET STABLE: No major changes in the last match."];
 }
 
 function computeH2H(matches, p1, p2) {
@@ -228,6 +238,7 @@ function computePlayerStats(matches) {
       hasHatTrick: false,   // Feature 4: hat-trick flag
       ath: 0,
       atl: 0,
+      indexATH: 0, indexATL: 9999, currentIndex: 100,
       pnlHistory: [] // To store PnL after every match
     }
   })
@@ -253,6 +264,15 @@ function computePlayerStats(matches) {
       const pd = m.players[p]
       if (!pd || !pd.joined) return
       const s = stats[p]
+
+      const pts = m.players[p]?.points || 0;
+      
+      // Calculate Sentiment Index (0.7 current points + 0.3 previous price)
+      s.currentIndex = (pts * 0.7) + (s.currentIndex * 0.3);
+      
+      // Update Index ATH/ATL
+      if (s.currentIndex > s.indexATH) s.indexATH = s.currentIndex;
+      if (s.currentIndex < s.indexATL) s.indexATL = s.currentIndex;
 
       const currentPnL = s.totalWon - s.totalInvested;
       
@@ -1346,7 +1366,7 @@ function Graphs({ matches }) {
 
   const pnlDatasets = useMemo(() => PLAYERS.map((p, i) => {
     let cum = 0
-    const data = matches.map(m => {
+    const data = completedMatches.map(m => {
       const pd = m.players[p]; if (!pd || !pd.joined) return cum
       const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
       if (m.contest === 'yes') {
@@ -1527,6 +1547,10 @@ function MarketSentimentTicker({ matches }) {
           <span className="index-price">₹{currentVal.toFixed(0)}</span>
           <span className={isUp ? 'stock-up' : 'stock-down'} style={{ marginLeft: 6 }}>
             {isUp ? '▲' : '▼'}{Math.abs(change).toFixed(0)} ({isUp ? '+' : ''}{changePercent}%)
+          </span>
+          {/* ADDED ATH/ATL HERE */}
+          <span style={{fontSize: '9px', color: '#8899bb', marginLeft: '8px', opacity: 0.7}}>
+            H: {stats[p].indexATH.toFixed(0)} | L: {stats[p].indexATL.toFixed(0)}
           </span>
         </div>
       );
