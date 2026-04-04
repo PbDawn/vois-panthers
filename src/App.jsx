@@ -444,10 +444,11 @@ function MatchLog({ matches }) {
     return { totalTransferred: done, totalPending: pending }
   }, [finished])
 
+  /*
   const [showLiveScore, setShowLiveScore] = useState(false)
   const [liveMatch, setLiveMatch] = useState(null)
   const [liveLoading, setLiveLoading] = useState(false)
-  const [errorMsg, setErrorMsg] = useState('')
+  const [errorMsg, setErrorMsg] = useState('') */
 
   // Feature 1: Pagination — always start on page that has the latest match
   const totalPages = Math.ceil(matches.length / ROWS_PER_PAGE)
@@ -464,6 +465,7 @@ function MatchLog({ matches }) {
     return matches.slice(start, start + ROWS_PER_PAGE)
   }, [matches, currentPage])
 
+  /*
   const fetchIPLScore = async () => {
     if (!showLiveScore) return
     setLiveLoading(true)
@@ -505,27 +507,28 @@ function MatchLog({ matches }) {
     } finally {
       setLiveLoading(false)
     }
-  }
+  } */
 
+  {/*
   useEffect(() => {
     if (showLiveScore) {
       fetchIPLScore()
       const interval = setInterval(fetchIPLScore, 180000)
       return () => clearInterval(interval)
     }
-  }, [showLiveScore])
+  }, [showLiveScore]) */}
 
   return (
     <div className="section">
       <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Match Log</span>
-        <button
+        {/*<button
           onClick={() => setShowLiveScore(!showLiveScore)}
           className={`btn-sm ${showLiveScore ? 'btn-danger' : 'btn-success'}`}
           style={{ padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
         >
           {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live Score'}
-        </button>
+        </button> 
       </div>
 
       {showLiveScore && (
@@ -546,7 +549,7 @@ function MatchLog({ matches }) {
             <div style={{ color: '#8899bb' }}>No match is currently Live.</div>
           )}
         </div>
-      )}
+      )} */}
 
       {/* Totals bar — Feature 2: added Payouts Pending chip */}
       <div className="totals-bar">
