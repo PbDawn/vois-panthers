@@ -80,26 +80,49 @@ function generateBreakingNews(matches, stats) {
 }
 
 function computeH2H(matches, p1, p2) {
-  let stats = { commonMatches: 0, p1Wins: 0, p2Wins: 0, p1Points: 0, p2Points: 0, p1Invested: 0, p2Invested: 0, p1Won: 0, p2Won: 0 };
+  let stats = {
+    commonMatches: 0,
+    p1Wins: 0, p2Wins: 0,
+    p1Points: 0, p2Points: 0,
+    p1Invested: 0, p2Invested: 0,
+    p1Won: 0, p2Won: 0
+  };
+
   matches.forEach(m => {
-    const pd1 = m.players[p1], pd2 = m.players[p2];
-    const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—';
-    if (pd1?.joined && pd1?.paid && pd2?.joined && pd2?.paid && m.contest === 'yes') {
+    const pd1 = m.players[p1];
+    const pd2 = m.players[p2];
+    
+    // 1. Check if match is COMPLETED
+    const isMatchDone = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—';
+    
+    // 2. Check if BOTH players Joined, Paid, and have points > 0
+    const p1Valid = pd1?.joined && pd1?.paid && (pd1?.points > 0);
+    const p2Valid = pd2?.joined && pd2?.paid && (pd2?.points > 0);
+
+    // Only process if all conditions are met for a "Completed Contest"
+    if (isMatchDone && m.contest === 'yes' && p1Valid && p2Valid) {
       stats.commonMatches++;
-      stats.p1Invested += m.fee; stats.p2Invested += m.fee;
-      if (done) {
-        stats.p1Points += pd1.points || 0; stats.p2Points += pd2.points || 0;
-        const prizes = calculatePrizes(m);
-        const ranks = prizes._paidRanks || {};
-        if (ranks[p1] === 1) stats.p1Won += prizes[1];
-        else if (ranks[p1] === 2 && prizes.winnerCountLimit === 2) stats.p1Won += prizes[2];
-        if (ranks[p2] === 1) stats.p2Won += prizes[1];
-        else if (ranks[p2] === 2 && prizes.winnerCountLimit === 2) stats.p2Won += prizes[2];
-        if (pd1.points > pd2.points) stats.p1Wins++;
-        else if (pd2.points > pd1.points) stats.p2Wins++;
-      }
+      stats.p1Invested += m.fee;
+      stats.p2Invested += m.fee;
+      stats.p1Points += pd1.points;
+      stats.p2Points += pd2.points;
+      
+      const prizes = calculatePrizes(m);
+      const ranks = prizes._paidRanks || {};
+      
+      // Calculate Winnings for ROI
+      if (ranks[p1] === 1) stats.p1Won += prizes[1];
+      else if (ranks[p1] === 2 && prizes.winnerCountLimit === 2) stats.p1Won += prizes[2];
+      
+      if (ranks[p2] === 1) stats.p2Won += prizes[1];
+      else if (ranks[p2] === 2 && prizes.winnerCountLimit === 2) stats.p2Won += prizes[2];
+
+      // Direct Head-to-Head: Who had the better score?
+      if (pd1.points > pd2.points) stats.p1Wins++;
+      else if (pd2.points > pd1.points) stats.p2Wins++;
     }
   });
+
   return stats;
 }
 
