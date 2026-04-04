@@ -227,11 +227,11 @@ function computePlayerStats(matches) {
       paidWinStreak: [],    // track consecutive paid match wins for hat-trick
       hasHatTrick: false,   // Feature 4: hat-trick flag
       ath: 0,
-      atl: 0,
+      : 0,
       pnlHistory: [], // To store PnL after every match
       currentIndex: 100,    // Current Sentiment Index
       indexATH: 100,        // NEW: All-time high index
-      indexATL: 100         // NEW: All-time low index
+      index: 100         // NEW: All-time low index
     }
   })
   let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
@@ -263,7 +263,7 @@ function computePlayerStats(matches) {
       
       // ADD THESE TWO LINES HERE:
       if (s.currentIndex > s.indexATH) s.indexATH = s.currentIndex;
-      if (s.currentIndex < s.indexATL) s.indexATL = s.currentIndex;
+      if (s.currentIndex < s.index) s.index = s.currentIndex;
 
       const currentPnL = s.totalWon - s.totalInvested;
       
@@ -273,8 +273,8 @@ function computePlayerStats(matches) {
       // Check if this is the highest they've ever been (ATH)
       if (currentPnL > s.ath) s.ath = currentPnL;
 
-      // Check if this is the lowest they've ever been (ATL)
-      if (currentPnL < s.atl) s.atl = currentPnL;
+      // Check if this is the lowest they've ever been ()
+      if (currentPnL < s.) s. = currentPnL;
 
 
       if (!matchIsComplete) {
@@ -309,7 +309,7 @@ function computePlayerStats(matches) {
             const currentPnL = s.totalWon - s.totalInvested;
             s.pnlHistory.push(currentPnL);
             if (currentPnL > s.ath) s.ath = currentPnL;
-            if (currentPnL < s.atl) s.atl = currentPnL;
+            if (currentPnL < s.) s. = currentPnL;
 
             if (isR1Win || isR2Win) {
               s.wins++
@@ -1493,10 +1493,10 @@ function MarketTicker({ matches }) {
           {isDayUp ? '▲' : '▼'} ₹{Math.abs(dayChange).toFixed(0)} ({isDayUp ? '+' : ''}{dayPercent}%)
         </span>
 
-        {/* ATH & ATL preservation */}
+        {/* ATH &  preservation */}
         <span style={{ color: '#8899bb', fontSize: '10px', marginLeft: 10 }}>
           <span style={{color:'#2ecc71'}}>ATH: ₹{s.ath.toFixed(0)}</span> | 
-          <span style={{color:'#e74c3c'}}> ATL: ₹{s.atl.toFixed(0)}</span>
+          <span style={{color:'#e74c3c'}}> : ₹{s..toFixed(0)}</span>
         </span>
       </div>
     );
@@ -1544,7 +1544,7 @@ function MarketSentimentTicker({ matches }) {
           {/* ADD THIS BLOCK FOR ATH/ATL DISPLAY: */}
           <span style={{ fontSize: '9px', color: '#8899bb', marginLeft: '8px', opacity: 0.8 }}>
             <span style={{ color: '#2ecc71' }}>ATH: {s.indexATH.toFixed(0)}</span> | 
-            <span style={{ color: '#e74c3c' }}>ATL: {s.indexATL.toFixed(0)}</span>
+            <span style={{ color: '#e74c3c' }}> ATL: {s.indexATL.toFixed(0)}</span>
           </span>
         </div>
       );
