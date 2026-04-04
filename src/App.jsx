@@ -19,74 +19,64 @@ const ROWS_PER_PAGE  = 7
 // ─── PURE LOGIC ‐----------
 function generateBreakingNews(matches, stats) {
   const completed = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—');
-  if (completed.length < 1) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING RESULTS..."];
+  if (completed.length === 0) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING FIRST MATCH RESULTS..."];
 
   const lastM = completed[completed.length - 1];
   const prevMatches = completed.slice(0, -1);
-  const prevStats = computePlayerStats(prevMatches); 
-  const prevBadges = computeHoFBadges(prevStats);
-  const currentBadges = computeHoFBadges(stats);
+  const prevStats = computePlayerStats(prevMatches); // To check if leadership changed
   
   let headlines = [];
 
-  // 1. Leaderboard Overtake
-  const currentSorted = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested })).sort((a, b) => b.profit - a.profit);
-  const prevSorted = PLAYERS.map(p => ({ name: p, profit: prevStats[p].totalWon - prevStats[p].totalInvested })).sort((a, b) => b.profit - a.profit);
-  
-  if (currentSorted[0].name !== prevSorted[0].name) {
-    headlines.push(`🏆 NEW LEADER: ${currentSorted[0].name.toUpperCase()} has overtaken ${prevSorted[0].name.toUpperCase()} to claim the #1 spot in the standings!`);
+  // --- A. Market Leader & Podium News ---
+  const currentProfits = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested }));
+  const sortedProfits = [...currentProfits].sort((a, b) => b.profit - a.profit);
+  const currentLeader = sortedProfits[0];
+
+  const prevProfits = PLAYERS.map(p => ({ name: p, profit: prevStats[p].totalWon - prevStats[p].totalInvested }));
+  const prevLeader = [...prevProfits].sort((a, b) => b.profit - a.profit)[0];
+
+  if (currentLeader.name !== prevLeader.name && currentLeader.profit > 0) {
+    headlines.push(`🚨 MARKET SHAKEUP: ${currentLeader.name.toUpperCase()} OVERTAKES ${prevLeader.name.toUpperCase()} TO BECOME THE NEW SEASON PROFIT LEADER!`);
+  } else if (currentLeader.profit > 0) {
+    headlines.push(`👑 UNSTOPPABLE: ${currentLeader.name.toUpperCase()} MAINTAINS THE TOP SPOT WITH A NET PROFIT OF ₹${currentLeader.profit.toFixed(0)}!`);
   }
 
+  // --- B. Individual Player News ---
   PLAYERS.forEach(p => {
     const s = stats[p];
-    const ps = prevStats[p];
     const pd = lastM.players[p];
+    const profit = s.totalWon - s.totalInvested;
+
+    // Milestone News
+    if (profit >= 1000) headlines.push(`💰 LEGENDARY STATUS: ${p.toUpperCase()} CROSSES THE ₹1000 PROFIT MILESTONE!`);
+    else if (profit >= 500) headlines.push(`💎 BLUE CHIP PLAYER: ${p.toUpperCase()} SURPASSES ₹500 IN NET EARNINGS!`);
+    else if (profit <= -300) headlines.push(`📉 BEAR MARKET: ${p.toUpperCase()} IS DOWN ₹${Math.abs(profit).toFixed(0)} THIS SEASON. TIME TO PIVOT?`);
+
+    // Match Performance News
+    if (pd?.joined && pd?.paid && pd.points > 0) {
+      const avg = s.pointsMatchCount > 1 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
+      if (pd.points > avg) {
+        headlines.push(`📈 BULL RUN: ${p.toUpperCase()} BEATS THEIR AVERAGE BY SCORING ${pd.points} pts IN THE LAST MATCH!`);
+      }
+    }
     
-    // 2. Win/Loss Streak Logic
-    if (pd?.joined && pd?.paid) {
-      const prizes = calculatePrizes(lastM);
-      const isWinner = prizes._paidRanks?.[p] <= prizes.winnerCountLimit;
-
-      if (isWinner) {
-        // Check for streaks
-        const streak = s.paidWinStreak; // From your updated computePlayerStats
-        const currentStreakCount = streak.slice().reverse().findIndex(val => val === false);
-        const winCount = currentStreakCount === -1 ? streak.length : currentStreakCount;
-
-        if (winCount === 2) headlines.push(`🔥 BACK-TO-BACK: ${p.toUpperCase()} secures their second consecutive win!`);
-        if (winCount === 3) headlines.push(`🎩 HAT-TRICK! ${p.toUpperCase()} is on fire with 3 wins in a row!`);
-        
-        // Check if they broke a losing streak
-        const prevForm = ps.recentForm.slice(-3);
-        if (prevForm.length >= 3 && prevForm.every(f => f === 'loss')) {
-          headlines.push(`🌅 STREAK BROKEN: ${p.toUpperCase()} finally tastes victory after a difficult 3-match losing slump!`);
-        }
-      }
-    }
-
-    // 3. Hall of Fame Badge Changes
-    const pB = prevBadges[p].map(b => b.label);
-    const cB = currentBadges[p].map(b => b.label);
-    cB.forEach(label => {
-      if (!pB.includes(label)) {
-        headlines.push(`🎖️ NEW RECOGNITION: ${p.toUpperCase()} has just earned the "${label.toUpperCase()}" Hall of Fame badge!`);
-      }
-    });
-
-    // 4. Stock Market ATH / ATL (Based on Sentiment Index)
-    // Note: This requires computePlayerStats to track indexATH/indexATL
-    if (s.currentIndex > s.indexATH && ps.indexATH > 0) {
-      headlines.push(`📈 MARKET PEAK: ${p.toUpperCase()}'s stock index just hit an ALL-TIME HIGH of ₹${s.currentIndex.toFixed(0)}!`);
-    } else if (s.currentIndex < s.indexATL && ps.indexATL > 0) {
-      headlines.push(`📉 MARKET CRASH: ${p.toUpperCase()}'s stock index has dropped to an ALL-TIME LOW.`);
-    }
+    // Efficiency News
+    const roi = s.totalInvested > 0 ? ((s.totalWon - s.totalInvested) / s.totalInvested * 100) : 0;
+    if (roi > 50) headlines.push(`🚀 HIGH YIELD: ${p.toUpperCase()} IS DELIVERING A MASSIVE ${roi.toFixed(0)}% ROI TO THEIR PORTFOLIO!`);
   });
 
-  // Global Pool Update
-  const totalPool = completed.reduce((acc, m) => acc + (calculatePrizes(m).totalPool || 0), 0);
-  headlines.unshift(`💰 SEASON UPDATE: Total Prize Pool has surged to ₹${totalPool.toFixed(0)}!`);
+  // --- C. Randomization (The Shuffle) ---
+  // We use the Fisher-Yates shuffle algorithm to ensure randomness
+  for (let i = headlines.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [headlines[i], headlines[j]] = [headlines[j], headlines[i]];
+  }
 
-  return headlines.length > 0 ? headlines : ["MARKET STABLE: No major changes in the last match."];
+  // --- D. Global News (Always at the end or beginning) ---
+  const totalPool = completed.reduce((acc, m) => acc + (calculatePrizes(m).totalPool || 0), 0);
+  headlines.unshift(`🏆 LEAGUE UPDATE: TOTAL SEASON PRIZE POOL REACHES ₹${totalPool.toFixed(0)}!`);
+
+  return headlines;
 }
 
 function computeH2H(matches, p1, p2) {
@@ -236,19 +226,12 @@ function computePlayerStats(matches) {
       activeDeposits: 0,
       paidWinStreak: [],    // track consecutive paid match wins for hat-trick
       hasHatTrick: false,   // Feature 4: hat-trick flag
-      ath: 0,               // PnL ATH
-      atl: 0,               // PnL ATL
-      pnlHistory: [],       // To store PnL after every match
-      // --- NEW LOGIC FOR STOCK TICKERS ---
-      currentIndex: 100,    // Starting "listing price"
-      indexATH: 100,        // All-time high stock price
-      indexATL: 100,        // All-time low stock price
-      lastMatchPnL: 0       // PnL from the match prior to the latest one
+      ath: 0,
+      atl: 0,
+      pnlHistory: [] // To store PnL after every match
     }
   })
-  
-  let cf = {}; 
-  PLAYERS.forEach(p => { cf[p] = 0 })
+  let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
 
   matches.forEach(m => {
     const matchIsComplete = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
@@ -271,23 +254,18 @@ function computePlayerStats(matches) {
       if (!pd || !pd.joined) return
       const s = stats[p]
 
-      // 1. UPDATE SENTIMENT INDEX (STOCK PRICE)
-      // We do this match-by-match to find ATH/ATL of the Index
-      const pts = pd.points || 0
-      const prevIndex = s.currentIndex
-      // Formula: 70% current performance, 30% historical price
-      s.currentIndex = (pts * 0.7) + (prevIndex * 0.3)
+      const currentPnL = s.totalWon - s.totalInvested;
       
-      if (s.currentIndex > s.indexATH) s.indexATH = s.currentIndex
-      if (s.currentIndex < s.indexATL) s.indexATL = s.currentIndex
+      // Save this snapshot to history
+      s.pnlHistory.push(currentPnL);
 
-      // 2. TRACK PnL HISTORY
-      const currentPnL = s.totalWon - s.totalInvested
-      s.pnlHistory.push(currentPnL)
-      if (currentPnL > s.ath) s.ath = currentPnL
-      if (currentPnL < s.atl) s.atl = currentPnL
+      // Check if this is the highest they've ever been (ATH)
+      if (currentPnL > s.ath) s.ath = currentPnL;
 
-      // Handling ongoing matches
+      // Check if this is the lowest they've ever been (ATL)
+      if (currentPnL < s.atl) s.atl = currentPnL;
+
+
       if (!matchIsComplete) {
         if (m.contest === 'yes' && pd.paid) {
           s.activeDeposits += m.fee
@@ -295,17 +273,12 @@ function computePlayerStats(matches) {
         return
       }
 
-      // 3. PROCESS COMPLETED CONTESTS
       s.matchesPlayed++
 
       if (m.contest === 'yes') {
         s.contested++
         if (pd.paid) {
           s.paidContests++
-          
-          // Logic for Last Match PnL (for the "Day Change" ticker)
-          s.lastMatchPnL = currentPnL 
-
           if (cf[p] <= 0) s.totalInvested += m.fee; else cf[p] -= m.fee
 
           if (pd.points > 0) {
@@ -314,48 +287,58 @@ function computePlayerStats(matches) {
             if (pd.points > s.bestPoints) s.bestPoints = pd.points
           }
 
-          const pRank = paidRanks[p]
-          const isR1Win = pRank === 1
-          const isR2Win = pRank === 2 && prizes.winnerCountLimit === 2
+          if (matchIsComplete) {
+            const pRank = paidRanks[p]
+            const isR1Win = pRank === 1
+            const isR2Win = pRank === 2 && prizes.winnerCountLimit === 2
 
-          if (isR1Win || isR2Win) {
-            s.wins++
-            const prizeShare = isR1Win ? (prizes[1]) : (prizes[2])
+            // Store current as "last" before we move to the next iteration
+            s.lastMatchPnL = s.pnlHistory.length > 0 ? s.pnlHistory[s.pnlHistory.length - 1] : 0;
+            
+            const currentPnL = s.totalWon - s.totalInvested;
+            s.pnlHistory.push(currentPnL);
+            if (currentPnL > s.ath) s.ath = currentPnL;
+            if (currentPnL < s.atl) s.atl = currentPnL;
 
-            const isDone = (m.transferred && typeof m.transferred === 'object')
-              ? m.transferred[p] === true
-              : m.transferred === true
+            if (isR1Win || isR2Win) {
+              s.wins++
+              const prizeShare = isR1Win ? (prizes[1]) : (prizes[2])
 
-            if (isDone) {
-              s.totalWon += prizeShare
+              const isDone = (m.transferred && typeof m.transferred === 'object')
+                ? m.transferred[p] === true
+                : m.transferred === true
+
+              if (isDone) {
+                s.totalWon += prizeShare
+              } else {
+                cf[p] += prizeShare
+              }
+              s.recentForm.push(isR1Win ? 'win1' : 'win2')
+              // Feature 4: track paid wins for hat-trick
+              s.paidWinStreak.push(true)
             } else {
-              cf[p] += prizeShare
+              s.recentForm.push('loss')
+              // Feature 4: any paid loss breaks streak reset tracking
+              s.paidWinStreak.push(false)
             }
-            s.recentForm.push(isR1Win ? 'win1' : 'win2')
-            s.paidWinStreak.push(true)
-          } else {
-            s.recentForm.push('loss')
-            s.paidWinStreak.push(false)
           }
         } else {
-          s.recentForm.push('skip')
+          if (matchIsComplete) s.recentForm.push('skip')
         }
       }
     })
   })
 
-  // 4. POST-PROCESSING (Cleaning up and Hat-Trick Check)
   PLAYERS.forEach(p => {
-    const s = stats[p]
-    s.carryFwd = cf[p] > 0 ? cf[p] : 0
-    s.recentForm = s.recentForm.slice(-5)
-    s.totalWon = parseFloat(s.totalWon.toFixed(2))
-    s.carryFwd = parseFloat(s.carryFwd.toFixed(2))
-    
-    const streak = s.paidWinStreak
+    stats[p].carryFwd = cf[p] > 0 ? cf[p] : 0
+    stats[p].recentForm = stats[p].recentForm.slice(-5)
+    stats[p].totalWon = parseFloat(stats[p].totalWon.toFixed(2))
+    stats[p].carryFwd = parseFloat(stats[p].carryFwd.toFixed(2))
+    // Feature 4: Check for 3 consecutive paid wins anywhere in history
+    const streak = stats[p].paidWinStreak
     for (let i = 0; i <= streak.length - 3; i++) {
       if (streak[i] && streak[i+1] && streak[i+2]) {
-        s.hasHatTrick = true
+        stats[p].hasHatTrick = true
         break
       }
     }
@@ -1544,10 +1527,6 @@ function MarketSentimentTicker({ matches }) {
           <span className="index-price">₹{currentVal.toFixed(0)}</span>
           <span className={isUp ? 'stock-up' : 'stock-down'} style={{ marginLeft: 6 }}>
             {isUp ? '▲' : '▼'}{Math.abs(change).toFixed(0)} ({isUp ? '+' : ''}{changePercent}%)
-          </span>
-          {/* ADDED ATH/ATL HERE */}
-          <span style={{fontSize: '9px', color: '#8899bb', marginLeft: '8px', opacity: 0.7}}>
-            H: {stats[p].indexATH.toFixed(0)} | L: {stats[p].indexATL.toFixed(0)}
           </span>
         </div>
       );
