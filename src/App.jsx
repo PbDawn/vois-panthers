@@ -724,7 +724,7 @@ function MatchLog({ matches }) {
       )}
     </div>
   )
-}
+
 
 // Pagination styles
 const paginationStyle = {
