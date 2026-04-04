@@ -21,7 +21,7 @@ function isSessionValid() {
 }
 
 // ─── LIVE SCORE WIDGET (same logic as public page) ────────────
-function AdminLiveScore() {
+/*function AdminLiveScore() {
   const [showLiveScore, setShowLiveScore] = useState(false)
   const [liveMatch, setLiveMatch] = useState(null)
   const [liveLoading, setLiveLoading] = useState(false)
@@ -134,7 +134,7 @@ const lsStyles = {
   venue: { fontSize: 11, color: '#8899bb' },
   refreshMini: { background: 'transparent', border: '1px solid #3498db', color: '#3498db', padding: '2px 7px', borderRadius: 4, fontSize: 11, cursor: 'pointer' },
   dim: { fontSize: 12, color: '#8899bb', fontFamily: "'Rajdhani',sans-serif" },
-}
+}*/
 
 // ─── MAIN ADMIN PAGE ──────────────────────────────────────────
 export default function AdminPage({ onLogout }) {
@@ -162,9 +162,9 @@ export default function AdminPage({ onLogout }) {
         </div>
 
         {/* Centre: Live Score widget — Feature added to admin */}
-        <div style={styles.topCentre}>
+        {/*<div style={styles.topCentre}>
           <AdminLiveScore />
-        </div>
+        </div> */}
 
         {/* Right: logout */}
         <div style={styles.topRight}>
