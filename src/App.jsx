@@ -228,7 +228,10 @@ function computePlayerStats(matches) {
       hasHatTrick: false,   // Feature 4: hat-trick flag
       ath: 0,
       atl: 0,
-      pnlHistory: [] // To store PnL after every match
+      pnlHistory: [], // To store PnL after every match
+      currentIndex: 100,    // Current Sentiment Index
+      indexATH: 100,        // NEW: All-time high index
+      indexATL: 100         // NEW: All-time low index
     }
   })
   let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
@@ -253,6 +256,14 @@ function computePlayerStats(matches) {
       const pd = m.players[p]
       if (!pd || !pd.joined) return
       const s = stats[p]
+
+      const pts = pd.points || 0;
+      const prevIndex = s.currentIndex;
+      s.currentIndex = (pts * 0.7) + (prevIndex * 0.3); // Existing calculation
+      
+      // ADD THESE TWO LINES HERE:
+      if (s.currentIndex > s.indexATH) s.indexATH = s.currentIndex;
+      if (s.currentIndex < s.indexATL) s.indexATL = s.currentIndex;
 
       const currentPnL = s.totalWon - s.totalInvested;
       
@@ -1501,6 +1512,7 @@ function MarketTicker({ matches }) {
 }
 
 function MarketSentimentTicker({ matches }) {
+  const stats = useMemo(() => computePlayerStats(matches), [matches]); // Ensure this line exists
   const completedMatches = useMemo(() => 
     matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
   [matches]);
@@ -1509,6 +1521,7 @@ function MarketSentimentTicker({ matches }) {
     return PLAYERS.map((p, i) => {
       let price = 100;
       let prevPrice = 100;
+      const s = stats[p] || { currentIndex: 100, indexATH: 100, indexATL: 100 }; // Access the pre-calculated stats for this player
       
       completedMatches.forEach((m, idx) => {
         const pts = m.players[p]?.points || 0;
@@ -1528,10 +1541,15 @@ function MarketSentimentTicker({ matches }) {
           <span className={isUp ? 'stock-up' : 'stock-down'} style={{ marginLeft: 6 }}>
             {isUp ? '▲' : '▼'}{Math.abs(change).toFixed(0)} ({isUp ? '+' : ''}{changePercent}%)
           </span>
+          {/* ADD THIS BLOCK FOR ATH/ATL DISPLAY: */}
+          <span style={{ fontSize: '9px', color: '#8899bb', marginLeft: '8px', opacity: 0.8 }}>
+            <span style={{ color: '#2ecc71' }}>ATH: {s.indexATH.toFixed(0)}</span> | 
+            <span style={{ color: '#e74c3c' }}>ATL: {s.indexATL.toFixed(0)}</span>
+          </span>
         </div>
       );
     });
-  }, [completedMatches]);
+  }, [completedMatches], stats);
 
   return (
     <div className="sentiment-ticker-wrap">
