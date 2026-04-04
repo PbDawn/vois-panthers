@@ -464,7 +464,7 @@ function MatchLog({ matches }) {
     return matches.slice(start, start + ROWS_PER_PAGE)
   }, [matches, currentPage])
 
-  /*const fetchIPLScore = async () => {
+  const fetchIPLScore = async () => {
     if (!showLiveScore) return
     setLiveLoading(true)
     setErrorMsg('')
@@ -513,22 +513,22 @@ function MatchLog({ matches }) {
       const interval = setInterval(fetchIPLScore, 180000)
       return () => clearInterval(interval)
     }
-  }, [showLiveScore]) */}
+  }, [showLiveScore])
 
   return (
     <div className="section">
       <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Match Log</span>
-        {/*<button
+        <button
           onClick={() => setShowLiveScore(!showLiveScore)}
           className={`btn-sm ${showLiveScore ? 'btn-danger' : 'btn-success'}`}
           style={{ padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
         >
           {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live Score'}
-        </button> */}
+        </button>
       </div>
 
-      {/* {showLiveScore && (
+      {showLiveScore && (
         <div style={{ marginBottom: '20px', padding: '20px', background: '#161f38', borderRadius: '12px', border: '1px solid #f5a623', textAlign: 'center' }}>
           {liveLoading && !liveMatch ? (
             <div style={{ color: '#8899bb' }}>Updating live feed...</div>
@@ -546,7 +546,7 @@ function MatchLog({ matches }) {
             <div style={{ color: '#8899bb' }}>No match is currently Live.</div>
           )}
         </div>
-      )} */}
+      )}
 
       {/* Totals bar — Feature 2: added Payouts Pending chip */}
       <div className="totals-bar">
@@ -724,7 +724,7 @@ function MatchLog({ matches }) {
       )}
     </div>
   )
-
+}
 
 // Pagination styles
 const paginationStyle = {
