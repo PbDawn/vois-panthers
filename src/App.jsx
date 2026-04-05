@@ -22,59 +22,80 @@ function generateBreakingNews(matches, stats) {
   if (completed.length === 0) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING FIRST MATCH RESULTS..."];
 
   const lastM = completed[completed.length - 1];
-  const prevMatches = completed.slice(0, -1);
-  const prevStats = computePlayerStats(prevMatches); // To check if leadership changed
-  
+  const lastMatchDate = formatDate(lastM.date);
+  const lastMatchTime = formatMatchTimeLabel(lastM.matchTime);
+  const timeStamp = `(${lastMatchDate} ${lastMatchTime})`;
+
   let headlines = [];
 
-  // --- A. Market Leader & Podium News ---
-  const currentProfits = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested }));
-  const sortedProfits = [...currentProfits].sort((a, b) => b.profit - a.profit);
-  const currentLeader = sortedProfits[0];
-
-  const prevProfits = PLAYERS.map(p => ({ name: p, profit: prevStats[p].totalWon - prevStats[p].totalInvested }));
-  const prevLeader = [...prevProfits].sort((a, b) => b.profit - a.profit)[0];
-
-  if (currentLeader.name !== prevLeader.name && currentLeader.profit > 0) {
-    headlines.push(`🚨 MARKET SHAKEUP: ${currentLeader.name.toUpperCase()} OVERTAKES ${prevLeader.name.toUpperCase()} TO BECOME THE NEW SEASON PROFIT LEADER!`);
-  } else if (currentLeader.profit > 0) {
-    headlines.push(`👑 UNSTOPPABLE: ${currentLeader.name.toUpperCase()} MAINTAINS THE TOP SPOT WITH A NET PROFIT OF ₹${currentLeader.profit.toFixed(0)}!`);
+  // --- 1. Leaderboard & Profit Shifts ---
+  const sortedByProfit = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested }))
+    .sort((a, b) => b.profit - a.profit);
+  
+  const currentLeader = sortedByProfit[0];
+  if (currentLeader.profit > 0) {
+    headlines.push(`👑 LEADERBOARD ALPHA ${timeStamp}: ${currentLeader.name.toUpperCase()} sits at the throne with a Season High profit of ₹${currentLeader.profit.toFixed(0)}!`);
   }
 
-  // --- B. Individual Player News ---
+  // --- 2. Player Specific Achievements ---
   PLAYERS.forEach(p => {
     const s = stats[p];
     const pd = lastM.players[p];
     const profit = s.totalWon - s.totalInvested;
+    const streak = s.paidWinStreak; // Array of booleans from computePlayerStats
 
-    // Milestone News
-    if (profit >= 1000) headlines.push(`💰 LEGENDARY STATUS: ${p.toUpperCase()} CROSSES THE ₹1000 PROFIT MILESTONE!`);
-    else if (profit >= 500) headlines.push(`💎 BLUE CHIP PLAYER: ${p.toUpperCase()} SURPASSES ₹500 IN NET EARNINGS!`);
-    else if (profit <= -300) headlines.push(`📉 BEAR MARKET: ${p.toUpperCase()} IS DOWN ₹${Math.abs(profit).toFixed(0)} THIS SEASON. TIME TO PIVOT?`);
-
-    // Match Performance News
-    if (pd?.joined && pd?.paid && pd.points > 0) {
+    // A. Points Records (Personal & Season)
+    if (pd?.points > 0 && pd?.paid) {
+      // Personal Best
+      if (pd.points >= s.bestPoints) {
+        headlines.push(`🎯 PERSONAL BEST ${timeStamp}: ${p.toUpperCase()} smashed their own record with ${pd.points} pts in Match #${lastM.matchno}!`);
+      }
+      
+      // Broken Average
       const avg = s.pointsMatchCount > 1 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
-      if (pd.points > avg) {
-        headlines.push(`📈 BULL RUN: ${p.toUpperCase()} BEATS THEIR AVERAGE BY SCORING ${pd.points} pts IN THE LAST MATCH!`);
+      if (pd.points > avg && avg > 0) {
+        headlines.push(`📈 PERFORMANCE SURGE ${timeStamp}: ${p.toUpperCase()} outperformed their season average (${avg.toFixed(1)}) by scoring ${pd.points} pts!`);
       }
     }
-    
-    // Efficiency News
-    const roi = s.totalInvested > 0 ? ((s.totalWon - s.totalInvested) / s.totalInvested * 100) : 0;
-    if (roi > 50) headlines.push(`🚀 HIGH YIELD: ${p.toUpperCase()} IS DELIVERING A MASSIVE ${roi.toFixed(0)}% ROI TO THEIR PORTFOLIO!`);
+
+    // B. Streak Logic (2-in-a-row, 3-in-a-row, & breaking loss streaks)
+    const len = streak.length;
+    if (len >= 2 && streak[len-1] && streak[len-2]) {
+      const count = (len >= 3 && streak[len-3]) ? "3" : "2";
+      headlines.push(`🔥 ON FIRE ${timeStamp}: ${p.toUpperCase()} is on a ${count}-match winning streak! Unstoppable momentum!`);
+    }
+
+    // Breaking a 3+ loss streak
+    if (streak[len-1] === true) {
+      let lossCount = 0;
+      for (let i = len - 2; i >= 0; i--) {
+        if (streak[i] === false) lossCount++;
+        else break;
+      }
+      if (lossCount >= 3) {
+        headlines.push(`🌅 THE COMEBACK ${timeStamp}: After a dry spell of ${lossCount} matches, ${p.toUpperCase()} finally finds the podium!`);
+      }
+    }
+
+    // C. Market Index ATH / ATL
+    if (s.currentIndex >= s.indexATH && s.currentIndex > 100) {
+      headlines.push(`🚀 MOON MISSION ${timeStamp}: ${p.toUpperCase()} Index has hit an ALL-TIME HIGH of ₹${s.currentIndex.toFixed(0)}!`);
+    }
+    if (s.currentIndex <= s.indexATL && s.currentIndex < 100) {
+      headlines.push(`📉 MARKET CRASH ${timeStamp}: ${p.toUpperCase()} Index dropped to an All-Time Low of ₹${s.currentIndex.toFixed(0)}.`);
+    }
   });
 
-  // --- C. Randomization (The Shuffle) ---
-  // We use the Fisher-Yates shuffle algorithm to ensure randomness
+  // --- 3. Global Season Records ---
+  const seasonHighPoints = Math.max(...PLAYERS.map(p => stats[p].bestPoints));
+  const seasonPointLeader = PLAYERS.find(p => stats[p].bestPoints === seasonHighPoints);
+  headlines.push(`🏆 SEASON RECORD ${timeStamp}: ${seasonPointLeader.toUpperCase()} holds the highest single-match score of the entire season (${seasonHighPoints} pts)!`);
+
+  // --- 4. Shuffle for Randomness ---
   for (let i = headlines.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [headlines[i], headlines[j]] = [headlines[j], headlines[i]];
   }
-
-  // --- D. Global News (Always at the end or beginning) ---
-  const totalPool = completed.reduce((acc, m) => acc + (calculatePrizes(m).totalPool || 0), 0);
-  headlines.unshift(`🏆 LEAGUE UPDATE: TOTAL SEASON PRIZE POOL REACHES ₹${totalPool.toFixed(0)}!`);
 
   return headlines;
 }
