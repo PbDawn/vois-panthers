@@ -22,76 +22,90 @@ function generateBreakingNews(matches, stats) {
   if (completed.length === 0) return ["WELCOME TO IPL 2026: MARKET OPEN. AWAITING FIRST MATCH RESULTS..."];
 
   const lastM = completed[completed.length - 1];
-  const lastMatchDate = formatDate(lastM.date);
-  const lastMatchTime = formatMatchTimeLabel(lastM.matchTime);
-  const timeStamp = `(${lastMatchDate} ${lastMatchTime})`;
-
+  const timeStamp = `${formatDate(lastM.date)} ${formatMatchTimeLabel(lastM.matchTime)}`;
   let headlines = [];
 
-  // --- 1. Leaderboard & Profit Shifts ---
-  const sortedByProfit = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested }))
-    .sort((a, b) => b.profit - a.profit);
-  
-  const currentLeader = sortedByProfit[0];
-  if (currentLeader.profit > 0) {
-    headlines.push(`👑 LEADERBOARD ALPHA ${timeStamp}: ${currentLeader.name.toUpperCase()} sits at the throne with a Season High profit of ₹${currentLeader.profit.toFixed(0)}!`);
-  }
+  // --- 1. LEADERBOARD & GLOBAL RECORDS ---
+  const currentProfits = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested }));
+  const sortedProfits = [...currentProfits].sort((a, b) => b.profit - a.profit);
+  const currentLeader = sortedProfits[0];
+  const maxBestPts = Math.max(...PLAYERS.map(p => stats[p].bestPoints));
+  const seasonPointKing = PLAYERS.find(p => stats[p].bestPoints === maxBestPts);
 
-  // --- 2. Player Specific Achievements ---
+  if (currentLeader.profit > 0) {
+    headlines.push(`👑 LEADERBOARD ALPHA (${timeStamp}): ${currentLeader.name.toUpperCase()} hits a season high profit of ₹${currentLeader.profit.toFixed(0)}!`);
+  }
+  headlines.push(`🏆 SEASON ELITE (${timeStamp}): ${seasonPointKing.toUpperCase()} holds the highest score of the season (${maxBestPts} pts)!`);
+
+  // --- 2. INDIVIDUAL PERFORMANCE & MARKET DATA ---
   PLAYERS.forEach(p => {
     const s = stats[p];
     const pd = lastM.players[p];
+    const streak = s.paidWinStreak || [];
+    const len = streak.length;
     const profit = s.totalWon - s.totalInvested;
-    const streak = s.paidWinStreak; // Array of booleans from computePlayerStats
+    const roi = s.totalInvested > 0 ? ((s.totalWon - s.totalInvested) / s.totalInvested * 100) : 0;
 
-    // A. Points Records (Personal & Season)
-    if (pd?.points > 0 && pd?.paid) {
-      // Personal Best
-      if (pd.points >= s.bestPoints) {
-        headlines.push(`🎯 PERSONAL BEST ${timeStamp}: ${p.toUpperCase()} smashed their own record with ${pd.points} pts in Match #${lastM.matchno}!`);
-      }
-      
-      // Broken Average
-      const avg = s.pointsMatchCount > 1 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
-      if (pd.points > avg && avg > 0) {
-        headlines.push(`📈 PERFORMANCE SURGE ${timeStamp}: ${p.toUpperCase()} outperformed their season average (${avg.toFixed(1)}) by scoring ${pd.points} pts!`);
-      }
+    // Trigger: Broken Average Points
+    const avg = s.pointsMatchCount > 1 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
+    if (pd?.points > avg && avg > 0) {
+      headlines.push(`📈 STAT BURST (${timeStamp}): ${p.toUpperCase()} smashed their season average of ${avg.toFixed(1)} by scoring ${pd.points} pts!`);
     }
 
-    // B. Streak Logic (2-in-a-row, 3-in-a-row, & breaking loss streaks)
-    const len = streak.length;
+    // Trigger: Broken Personal ATH Points
+    if (pd?.points === s.bestPoints && s.matchesPlayed > 1) {
+      headlines.push(`🎯 PERSONAL RECORD (${timeStamp}): ${p.toUpperCase()} just hit their personal best of ${pd.points} points!`);
+    }
+
+    // Trigger: Winning Streaks (2 and 3 in a row) [cite: 53-54]
     if (len >= 2 && streak[len-1] && streak[len-2]) {
       const count = (len >= 3 && streak[len-3]) ? "3" : "2";
-      headlines.push(`🔥 ON FIRE ${timeStamp}: ${p.toUpperCase()} is on a ${count}-match winning streak! Unstoppable momentum!`);
+      headlines.push(`🔥 HOT STREAK (${timeStamp}): ${p.toUpperCase()} has won ${count} matches in a row!`);
     }
 
-    // Breaking a 3+ loss streak
+    // Trigger: Broken 3+ Loss Streak
     if (streak[len-1] === true) {
-      let lossCount = 0;
-      for (let i = len - 2; i >= 0; i--) {
-        if (streak[i] === false) lossCount++;
-        else break;
-      }
-      if (lossCount >= 3) {
-        headlines.push(`🌅 THE COMEBACK ${timeStamp}: After a dry spell of ${lossCount} matches, ${p.toUpperCase()} finally finds the podium!`);
+      let losses = 0;
+      for (let i = len - 2; i >= 0; i--) { if (streak[i] === false) losses++; else break; }
+      if (losses >= 3) {
+        headlines.push(`🌅 THE RECOVERY (${timeStamp}): ${p.toUpperCase()} finally breaks a ${losses}-match losing streak!`);
       }
     }
 
-    // C. Market Index ATH / ATL
+    // Trigger: Index ATH / ATL [cite: 43-44]
     if (s.currentIndex >= s.indexATH && s.currentIndex > 100) {
-      headlines.push(`🚀 MOON MISSION ${timeStamp}: ${p.toUpperCase()} Index has hit an ALL-TIME HIGH of ₹${s.currentIndex.toFixed(0)}!`);
+      headlines.push(`🚀 BULL MARKET (${timeStamp}): ${p.toUpperCase()} Index has soared to an ALL-TIME HIGH of ₹${s.currentIndex.toFixed(0)}!`);
     }
     if (s.currentIndex <= s.indexATL && s.currentIndex < 100) {
-      headlines.push(`📉 MARKET CRASH ${timeStamp}: ${p.toUpperCase()} Index dropped to an All-Time Low of ₹${s.currentIndex.toFixed(0)}.`);
+      headlines.push(`📉 BEAR TRAP (${timeStamp}): ${p.toUpperCase()} Index has slumped to an All-Time Low of ₹${s.currentIndex.toFixed(0)}.`);
+    }
+
+    // --- NEW SUGGESTED HEADLINES ---
+    // Trigger: High ROI 
+    if (roi > 50) {
+      headlines.push(`🚀 VENTURE CAPITALIST (${timeStamp}): ${p.toUpperCase()} is delivering a staggering ${roi.toFixed(0)}% ROI!`);
+    }
+    
+    // Trigger: Debt Clearance (Coming out of negative PnL)
+    const prevPnL = s.lastMatchPnL || 0;
+    if (prevPnL < 0 && profit >= 0) {
+      headlines.push(`💸 DEBT FREE (${timeStamp}): ${p.toUpperCase()} has cleared all losses and is officially back in the Green!`);
+    }
+
+    // Trigger: Most Expensive Asset (Portfolio Value)
+    const maxWon = Math.max(...PLAYERS.map(pl => stats[pl].totalWon));
+    if (s.totalWon === maxWon && maxWon > 0) {
+      headlines.push(`💎 BLUE CHIP ASSET (${timeStamp}): ${p.toUpperCase()} is the league's most valued player with ₹${s.totalWon.toFixed(0)} in total winnings!`);
+    }
+
+    // Trigger: Consistency Guard (Win Rate) 
+    const winPct = s.paidContests > 0 ? (s.wins / s.paidContests) : 0;
+    if (winPct > 0.5 && s.paidContests >= 3) {
+      headlines.push(`🛡️ IRON GUARD (${timeStamp}): ${p.toUpperCase()} maintains a deadly ${(winPct * 100).toFixed(0)}% win rate!`);
     }
   });
 
-  // --- 3. Global Season Records ---
-  const seasonHighPoints = Math.max(...PLAYERS.map(p => stats[p].bestPoints));
-  const seasonPointLeader = PLAYERS.find(p => stats[p].bestPoints === seasonHighPoints);
-  headlines.push(`🏆 SEASON RECORD ${timeStamp}: ${seasonPointLeader.toUpperCase()} holds the highest single-match score of the entire season (${seasonHighPoints} pts)!`);
-
-  // --- 4. Shuffle for Randomness ---
+  // --- 3. RANDOMIZATION (THE SHUFFLE) [cite: 14-15] ---
   for (let i = headlines.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [headlines[i], headlines[j]] = [headlines[j], headlines[i]];
