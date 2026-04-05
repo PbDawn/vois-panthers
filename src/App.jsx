@@ -572,7 +572,7 @@ function MatchLog({ matches }) {
           style={{ padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}
         >
           {showLiveScore ? '🛑 Hide Live Score' : '📡 Show Live Score'}
-        </button>*/
+        </button>*/}
       </div>
 
       {/*
@@ -594,7 +594,7 @@ function MatchLog({ matches }) {
             <div style={{ color: '#8899bb' }}>No match is currently Live.</div>
           )}
         </div>
-      )} */
+      )} */}
 
       {/* Totals bar — Feature 2: added Payouts Pending chip */}
       <div className="totals-bar">
