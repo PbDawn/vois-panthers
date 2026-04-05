@@ -260,10 +260,6 @@ function computePlayerStats(matches) {
       const pts = pd.points || 0;
       const prevIndex = s.currentIndex;
       s.currentIndex = (pts * 0.7) + (prevIndex * 0.3); // Existing calculation
-      
-      // ADD THESE TWO LINES HERE:
-      if (s.currentIndex > s.indexATH) s.indexATH = s.currentIndex;
-      if (s.currentIndex < s.indexATL) s.indexATL = s.currentIndex;
 
       const currentPnL = s.totalWon - s.totalInvested;
       
@@ -283,6 +279,10 @@ function computePlayerStats(matches) {
         }
         return
       }
+
+      // ADD THESE TWO LINES HERE:
+      if (s.currentIndex > s.indexATH) s.indexATH = s.currentIndex;
+      if (s.currentIndex < s.indexATL) s.indexATL = s.currentIndex;
 
       s.matchesPlayed++
 
