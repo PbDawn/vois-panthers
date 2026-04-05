@@ -257,6 +257,13 @@ function computePlayerStats(matches) {
       if (!pd || !pd.joined) return
       const s = stats[p]
 
+      if (!matchIsComplete) {
+        if (m.contest === 'yes' && pd.paid) {
+          s.activeDeposits += m.fee
+        }
+        return
+      }
+
       const pts = pd.points || 0;
       const prevIndex = s.currentIndex;
       s.currentIndex = (pts * 0.7) + (prevIndex * 0.3); // Existing calculation
@@ -271,14 +278,6 @@ function computePlayerStats(matches) {
 
       // Check if this is the lowest they've ever been (ATL)
       if (currentPnL < s.atl) s.atl = currentPnL;
-
-
-      if (!matchIsComplete) {
-        if (m.contest === 'yes' && pd.paid) {
-          s.activeDeposits += m.fee
-        }
-        return
-      }
 
       // ADD THESE TWO LINES HERE:
       if (s.currentIndex > s.indexATH) s.indexATH = s.currentIndex;
