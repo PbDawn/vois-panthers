@@ -1549,7 +1549,7 @@ function MarketTicker({ matches }) {
 }
 
 function MarketSentimentTicker({ matches }) {
-  const stats = useMemo(() => computePlayerStats(matches), [matches]); // Ensure this line exists
+  const stats = useMemo(() => computePlayerStats(matches), [matches]);
   const completedMatches = useMemo(() => 
     matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
   [matches]);
@@ -1558,27 +1558,51 @@ function MarketSentimentTicker({ matches }) {
     return PLAYERS.map((p, i) => {
       let price = 100;
       let prevPrice = 100;
-      const s = stats[p] || { currentIndex: 100, indexATH: 100, indexATL: 100 }; // Access the pre-calculated stats for this player
+      const s = stats[p] || { currentIndex: 100, indexATH: 100, indexATL: 100 };
       
+      // Determine if the player played the very last completed match for the ticker change
+      const lastM = completedMatches[completedMatches.length - 1];
+      const playedLastMatch = lastM?.players?.[p]?.joined || false;
+
       completedMatches.forEach((m, idx) => {
-        const pts = m.players[p]?.points || 0;
-        if (idx === completedMatches.length - 1) prevPrice = price;
+        const pd = m.players[p];
+        
+        // FIX: If the player didn't join this specific match, 
+        // do not run the index math. The price stays what it was.
+        if (!pd || !pd.joined) {
+          return; 
+        }
+
+        // Capture price BEFORE the very last match to calculate 'Day Change'
+        if (idx === completedMatches.length - 1) {
+          prevPrice = price;
+        }
+
+        const pts = pd.points || 0;
         price = (pts * 0.7) + (price * 0.3);
       });
 
       const currentVal = price;
-      const change = currentVal - prevPrice;
-      const isUp = change >= 0;
-      const changePercent = prevPrice > 0 ? ((change / prevPrice) * 100).toFixed(1) : '0.0';
+      
+      // FIX: If they didn't play the last match, the 'change' is 0 (Flat)
+      const change = playedLastMatch ? (currentVal - prevPrice) : 0;
+      const isUp = change > 0;
+      const isDown = change < 0;
+      const changePercent = (playedLastMatch && prevPrice > 0) 
+        ? ((change / prevPrice) * 100).toFixed(1) 
+        : '0.0';
 
       return (
         <div className="sentiment-item" key={p}>
           <span style={{ color: COLORS[i] }}>{p} INDEX:</span>
           <span className="index-price">₹{currentVal.toFixed(0)}</span>
-          <span className={isUp ? 'stock-up' : 'stock-down'} style={{ marginLeft: 6 }}>
-            {isUp ? '▲' : '▼'}{Math.abs(change).toFixed(0)} ({isUp ? '+' : ''}{changePercent}%)
+          
+          {/* Visual logic for Up, Down, or Flat (Unchanged) */}
+          <span className={isUp ? 'stock-up' : isDown ? 'stock-down' : ''} style={{ marginLeft: 6, color: !playedLastMatch ? '#8899bb' : undefined }}>
+            {isUp ? '▲' : isDown ? '▼' : '—'}
+            {Math.abs(change).toFixed(0)} ({isUp ? '+' : ''}{changePercent}%)
           </span>
-          {/* ADD THIS BLOCK FOR ATH/ATL DISPLAY: */}
+
           <span style={{ fontSize: '9px', color: '#8899bb', marginLeft: '8px', opacity: 0.8 }}>
             <span style={{ color: '#2ecc71' }}>ATH: {s.indexATH.toFixed(0)}</span> | 
             <span style={{ color: '#e74c3c' }}> ATL: {s.indexATL.toFixed(0)}</span>
@@ -1586,7 +1610,7 @@ function MarketSentimentTicker({ matches }) {
         </div>
       );
     });
-  }, [completedMatches], stats);
+  }, [completedMatches, stats]);
 
   return (
     <div className="sentiment-ticker-wrap">
