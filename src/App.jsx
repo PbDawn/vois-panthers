@@ -1311,71 +1311,88 @@ function MarketSentimentChart({ matches }) {
     </div>
   );
 }
-function MarketCandleChart({ matches }) {
+function MarketSentimentChart({ matches }) {
   const completedMatches = useMemo(() => 
     matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
   [matches]);
 
-  const chartData = useMemo(() => {
-    return {
-      labels: completedMatches.map(m => `M${m.matchno}`),
-      datasets: PLAYERS.map((p, i) => {
-        return {
-          label: p,
-          // Calculate the PnL CHANGE for just this specific match
-          data: completedMatches.map(m => {
-            const pd = m.players[p];
-            if (pd?.joined && pd?.paid && m.contest === 'yes') {
-               const prizes = calculatePrizes(m);
-               const paidRanks = prizes._paidRanks || {};
-               const pRank = paidRanks[p];
-               
-               const won = (pRank === 1) ? prizes[1] : (pRank === 2 && prizes.winnerCountLimit === 2) ? prizes[2] : 0;
-               // Match PnL = Winnings - Entry Fee
-               return parseFloat((won - m.fee).toFixed(2));
-            }
-            return 0;
-          }),
-          // Green if Profit (>0), Red if Loss (<0)
-          backgroundColor: (ctx) => (ctx.raw >= 0 ? '#2ecc71cc' : '#e74c3ccc'),
-          borderColor: (ctx) => (ctx.raw >= 0 ? '#2ecc71' : '#e74c3c'),
-          borderWidth: 1,
-          borderRadius: 2,
-          barPercentage: 0.6,
-        };
-      })
-    };
+  const marketData = useMemo(() => {
+    const labels = completedMatches.map(m => `M${m.matchno}`);
+    const datasets = PLAYERS.map((p, i) => {
+      let price = 100; // Starting Listing Price
+      let prevPrice = 100;
+      
+      const history = completedMatches.map((m, idx) => {
+        const pd = m.players[p];
+        
+        // --- FIX: CHECK IF JOINED ---
+        // If the player did not join, price remains unchanged from previous 
+        if (pd && pd.joined) {
+          const pts = pd.points || 0;
+          
+          // Save price BEFORE the last match to calculate correctly 
+          if (idx === completedMatches.length - 1) prevPrice = price;
+          
+          // Weighted Moving Average: 70% current performance, 30% previous price 
+          price = (pts * 0.7) + (price * 0.3);
+        } else {
+          // If they skipped the last match, prevPrice is set to current price so change is 0
+          if (idx === completedMatches.length - 1) prevPrice = price;
+        }
+        
+        return parseFloat(price.toFixed(2));
+      });
+
+      // Calculate Day Change for the Label
+      const currentVal = price;
+      // Only calculate change if they participated in the very last match
+      const lastMatchJoined = completedMatches[completedMatches.length - 1]?.players[p]?.joined;
+      const change = lastMatchJoined ? (currentVal - prevPrice) : 0;
+      
+      const isUp = change > 0;
+      const isDown = change < 0;
+      const changePercent = (lastMatchJoined && prevPrice > 0) ? ((change / prevPrice) * 100).toFixed(1) : '0.0';
+      
+      // Dynamic Label: Name | Price | Change % (Showing '-' if unchanged) 
+      const dynamicLabel = `${p}: ₹${currentVal.toFixed(0)} ${change === 0 ? '—' : isUp ? '▲' : '▼'}${Math.abs(change).toFixed(0)} (${isUp && change !== 0 ? '+' : ''}${changePercent}%)`;
+
+      return {
+        label: dynamicLabel,
+        data: history,
+        borderColor: COLORS[i],
+        backgroundColor: COLORS[i] + '15',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 2
+      };
+    });
+    return { labels, datasets };
   }, [completedMatches]);
 
-  const candleOpts = {
-    ...chartOpts('₹'),
-    plugins: {
-      ...chartOpts().plugins,
-      title: {
-        display: true,
-        text: '🕯️ DAILY PnL CANDLESTICKS',
-        color: '#f5a623',
-        font: { family: 'Bebas Neue', size: 18 }
-      }
-    },
-    scales: {
-      ...chartOpts().scales,
-      y: {
-        ...chartOpts().scales.y,
-        // Ensure the 0 line (Base) is visible to separate Red/Green
-        grid: { color: 'rgba(255, 255, 255, 0.1)' }
-      }
-    }
-  };
-
   return (
-    <div className="chart-card" style={{ gridColumn: '1/-1' }}>
-      <div className="chart-wrap" style={{ height: 380 }}>
-        {completedMatches.length > 0 ? (
-          <Bar data={chartData} options={candleOpts} />
-        ) : (
-          <div className="no-data">Market Closed: No completed matches.</div>
-        )}
+    <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #f5a623' }}>
+      <div className="chart-title">📊 PLAYER MARKET VALUE (SENTIMENT INDEX)</div>
+      <div className="chart-wrap" style={{ height: 350 }}>
+        <Line 
+          data={marketData} 
+          options={{
+            ...chartOpts('₹'),
+            plugins: {
+              ...chartOpts('₹').plugins,
+              legend: {
+                labels: {
+                  color: '#8899bb',
+                  font: { family: 'Rajdhani', size: 11, weight: '700' },
+                  padding: 15,
+                  usePointStyle: true 
+                }
+              }
+            }
+          }} 
+        />
+      </div>
+      <div style={{ padding: '8px', fontSize: '10px', color: '#8899bb', textAlign: 'center', borderTop: '1px solid #1e2d50' }}>
+        💡 Legend shows: <b>Name: Current Value | Day Change | % Change</b> (Price is frozen if match skipped)
       </div>
     </div>
   );
