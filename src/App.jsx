@@ -1357,8 +1357,19 @@ function MarketSentimentChart({ matches }) {
           }} 
         />
       </div>
-      <div style={{ padding: '8px', fontSize: '10px', color: '#8899bb', textAlign: 'center', borderTop: '1px solid #1e2d50' }}>
-        💡 Graph reflects <b>40/60 EMA Stabilized Weight + Rank Multipliers</b>. Price freezes during skipped matches.
+      <div style={{ padding: '12px', fontSize: '11px', color: '#8899bb', background: 'rgba(0,0,0,0.2)', borderRadius: '0 0 12px 12px', borderTop: '1px solid #1e2d50' }}>
+        <div style={{ fontWeight: 'bold', color: '#f5a623', marginBottom: '4px' }}>📊 PLAYER MOMENTUM INDEX v2.0</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div>
+            <b>Formula:</b> (40% Current Match Pts + 50% Prev Index) × Rank Multiplier
+          </div>
+          <div>
+            <b>Multipliers:</b> 1st(+20%) | 2nd(+10%) | 3rd(+5%) | 4th(+0%) | 5th(+0%) | 6th(-5%) | 7th(-10%)
+          </div>
+        </div>
+        <div style={{ marginTop: '5px', fontStyle: 'italic', opacity: 0.8 }}>
+          *Skipped matches result in a "Frozen" price (Flat Line).
+        </div>
       </div>
     </div>
   );
