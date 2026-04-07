@@ -265,6 +265,7 @@ function computePlayerStats(matches) {
       ath: 0,
       atl: 0,
       pnlHistory: [], // To store PnL after every match
+      prevIndexSnapshot: 100, // Initialize at listing price
       currentIndex: 100,    // Current Sentiment Index
       indexATH: 100,        // NEW: All-time high index
       indexATL: 100         // NEW: All-time low index
@@ -302,7 +303,26 @@ function computePlayerStats(matches) {
 
       const pts = pd.points || 0;
       const prevIndex = s.currentIndex;
-      s.currentIndex = (pts * 0.7) + (prevIndex * 0.3); // Existing calculation
+      // Save this specifically to calculate the "Day Change" in the Ticker
+      s.prevIndexSnapshot = prevIndex;
+
+      let newIndexBase = (pts * 0.4) + (prevIndex * 0.6);
+      // 4. FORM-BASED MULTIPLIERS (Confidence Kickers)
+      const pRank = paidRanks[p] || 0; // Assuming paidRanks is calculated earlier in the loop 
+      let multiplier = 1.0;
+    
+      if (pRank === 1) multiplier = 1.20;      // +20% for 1st Rank
+      else if (pRank === 2) multiplier = 1.10; // +10% for 2nd Rank
+      else if (pRank === 3) multiplier = 1.05; // +5% for 3rd Rank
+      else if (pRank === 4 || pRank === 5) multiplier = 1.00; // Neutral
+      else if (pRank === 6) multiplier = 0.95; // -5% for 6th Rank
+      else if (pRank === 7) multiplier = 0.90; // -10% for 7th Rank
+    
+      // Apply the multiplier to the base index
+      s.currentIndex = newIndexBase * multiplier;
+
+      
+      //s.currentIndex = (pts * 0.7) + (prevIndex * 0.3); // Existing calculation
 
       const currentPnL = s.totalWon - s.totalInvested;
       
@@ -1573,40 +1593,20 @@ function MarketSentimentTicker({ matches }) {
 
   const tickerItems = useMemo(() => {
     return PLAYERS.map((p, i) => {
-      let price = 100;
-      let prevPrice = 100;
-      const s = stats[p] || { currentIndex: 100, indexATH: 100, indexATL: 100 };
+      const s = stats[p] || { currentIndex: 100, indexATH: 100, indexATL: 100, prevIndexSnapshot: 100 };
       
-      // Determine if the player played the very last completed match for the ticker change
       const lastM = completedMatches[completedMatches.length - 1];
       const playedLastMatch = lastM?.players?.[p]?.joined || false;
 
-      completedMatches.forEach((m, idx) => {
-        const pd = m.players[p];
-        
-        // FIX: If the player didn't join this specific match, 
-        // do not run the index math. The price stays what it was.
-        if (!pd || !pd.joined) {
-          return; 
-        }
+      const currentVal = s.currentIndex;
+      const prevVal = s.prevIndexSnapshot; // This is the fixed "Previous Close"
 
-        // Capture price BEFORE the very last match to calculate 'Day Change'
-        if (idx === completedMatches.length - 1) {
-          prevPrice = price;
-        }
-
-        const pts = pd.points || 0;
-        price = (pts * 0.7) + (price * 0.3);
-      });
-
-      const currentVal = price;
-      
-      // FIX: If they didn't play the last match, the 'change' is 0 (Flat)
-      const change = playedLastMatch ? (currentVal - prevPrice) : 0;
+      // Change logic: if they didn't play the last match, the market didn't move for them
+      const change = playedLastMatch ? (currentVal - prevVal) : 0;
       const isUp = change > 0;
       const isDown = change < 0;
-      const changePercent = (playedLastMatch && prevPrice > 0) 
-        ? ((change / prevPrice) * 100).toFixed(1) 
+      const changePercent = (playedLastMatch && prevVal > 0) 
+        ? ((change / prevVal) * 100).toFixed(1) 
         : '0.0';
 
       return (
@@ -1614,8 +1614,8 @@ function MarketSentimentTicker({ matches }) {
           <span style={{ color: COLORS[i] }}>{p} INDEX:</span>
           <span className="index-price">₹{currentVal.toFixed(0)}</span>
           
-          {/* Visual logic for Up, Down, or Flat (Unchanged) */}
-          <span className={isUp ? 'stock-up' : isDown ? 'stock-down' : ''} style={{ marginLeft: 6, color: !playedLastMatch ? '#8899bb' : undefined }}>
+          <span className={isUp ? 'stock-up' : isDown ? 'stock-down' : ''} 
+                style={{ marginLeft: 6, color: !playedLastMatch ? '#8899bb' : undefined }}>
             {isUp ? '▲' : isDown ? '▼' : '—'}
             {Math.abs(change).toFixed(0)} ({isUp ? '+' : ''}{changePercent}%)
           </span>
