@@ -1361,10 +1361,10 @@ function MarketSentimentChart({ matches }) {
         <div style={{ fontWeight: 'bold', color: '#f5a623', marginBottom: '4px' }}>📊 PLAYER MOMENTUM INDEX v2.0</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
           <div>
-            <b>Formula:</b> (40% Current Match Pts + 50% Prev Index) × Rank Multiplier
+            <b>Formula:</b> (40% Current Match Pts + 60% Prev Index) × Rank Multiplier
           </div>
           <div>
-            <b>Multipliers:</b> 1st(+20%) | 2nd(+10%) | 3rd(+5%) | 4th(+0%) | 5th(+0%) | 6th(-5%) | 7th(-10%)
+            <b>Rank Multipliers:</b> 1st(+20%) | 2nd(+10%) | 3rd(+5%) | 4th(+0%) | 5th(+0%) | 6th(-5%) | 7th(-10%)
           </div>
         </div>
         <div style={{ marginTop: '5px', fontStyle: 'italic', opacity: 0.8 }}>
