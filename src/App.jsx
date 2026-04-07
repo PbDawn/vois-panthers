@@ -1275,18 +1275,36 @@ function MarketSentimentChart({ matches }) {
       const history = completedMatches.map((m, idx) => {
         const pd = m.players[p];
         
-        // --- FIX: CHECK IF JOINED ---
-        // If the player did not join, price remains unchanged from previous 
+        // FIX: CHECK IF JOINED - Price only updates if the player participated 
         if (pd && pd.joined) {
-          const pts = pd.points || 0;
+          // 1. CALCULATE RANKS FOR THIS SPECIFIC MATCH 
+          const eligible = PLAYERS
+            .filter(pl => m.players?.[pl]?.paid && m.players?.[pl]?.points > 0)
+            .map(pl => ({ name: pl, points: m.players[pl].points }))
+            .sort((a, b) => b.points - a.points);
           
-          // Save price BEFORE the last match to calculate correctly 
+          let rank = 0;
+          let currentR = 1;
+          eligible.forEach((player, i) => {
+            if (i > 0 && player.points < eligible[i - 1].points) currentR++;
+            if (player.name === p) rank = currentR;
+          });
+
+          // 2. CAPTURE PREV PRICE (For the Label change calculation)
           if (idx === completedMatches.length - 1) prevPrice = price;
           
-          // Weighted Moving Average: 70% current performance, 30% previous price 
-          price = (pts * 0.7) + (price * 0.3);
+          // 3. NEW 40/60 LOGIC + FORM MULTIPLIERS 
+          const pts = pd.points || 0;
+          let multiplier = 1.0;
+          if (rank === 1) multiplier = 1.20;      // +20%
+          else if (rank === 2) multiplier = 1.10; // +10%
+          else if (rank === 3) multiplier = 1.05; // +5%
+          else if (rank === 6) multiplier = 0.95; // -5%
+          else if (rank === 7) multiplier = 0.90; // -10%
+
+          price = ((pts * 0.4) + (price * 0.6)) * multiplier;
         } else {
-          // If they skipped the last match, prevPrice is set to current price so change is 0
+          // If they skipped, price remains unchanged (Frozen) 
           if (idx === completedMatches.length - 1) prevPrice = price;
         }
         
@@ -1295,7 +1313,6 @@ function MarketSentimentChart({ matches }) {
 
       // Calculate Day Change for the Label
       const currentVal = price;
-      // Only calculate change if they participated in the very last match
       const lastMatchJoined = completedMatches[completedMatches.length - 1]?.players[p]?.joined;
       const change = lastMatchJoined ? (currentVal - prevPrice) : 0;
       
@@ -1303,7 +1320,6 @@ function MarketSentimentChart({ matches }) {
       const isDown = change < 0;
       const changePercent = (lastMatchJoined && prevPrice > 0) ? ((change / prevPrice) * 100).toFixed(1) : '0.0';
       
-      // Dynamic Label: Name | Price | Change % (Showing '-' if unchanged) 
       const dynamicLabel = `${p}: ₹${currentVal.toFixed(0)} ${change === 0 ? '—' : isUp ? '▲' : '▼'}${Math.abs(change).toFixed(0)} (${isUp && change !== 0 ? '+' : ''}${changePercent}%)`;
 
       return {
@@ -1321,7 +1337,7 @@ function MarketSentimentChart({ matches }) {
 
   return (
     <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #f5a623' }}>
-      <div className="chart-title">📊 PLAYER MARKET VALUE (SENTIMENT INDEX)</div>
+      <div className="chart-title">📊 PLAYER MOMENTUM INDEX (FORM-BASED)</div>
       <div className="chart-wrap" style={{ height: 350 }}>
         <Line 
           data={marketData} 
@@ -1342,7 +1358,7 @@ function MarketSentimentChart({ matches }) {
         />
       </div>
       <div style={{ padding: '8px', fontSize: '10px', color: '#8899bb', textAlign: 'center', borderTop: '1px solid #1e2d50' }}>
-        💡 Legend shows: <b>Name: Current Value | Day Change | % Change</b> (Price is frozen if match skipped)
+        💡 Graph reflects <b>40/60 EMA Stabilized Weight + Rank Multipliers</b>. Price freezes during skipped matches.
       </div>
     </div>
   );
