@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import AdminLogin from './AdminLogin'
 import AdminPage  from './AdminPage'
@@ -301,20 +302,7 @@ function computePlayerStats(matches) {
 
       const pts = pd.points || 0;
       const prevIndex = s.currentIndex;
-      let newIndexBase = (pts * 0.4) + (prevIndex * 0.6);
-
-      const pRank = paidRanks[p] || 0; // Assuming paidRanks is calculated earlier in the loop 
-      let multiplier = 1.0;
-
-      if (pRank === 1) multiplier = 1.20;      // +20% for 1st Rank
-      else if (pRank === 2) multiplier = 1.10; // +10% for 2nd Rank
-      else if (pRank === 3) multiplier = 1.05; // +5% for 3rd Rank
-      else if (pRank === 4 || pRank === 5) multiplier = 1.00; // Neutral
-      else if (pRank === 6) multiplier = 0.95; // -5% for 6th Rank
-      else if (pRank === 7) multiplier = 0.90; // -10% for 7th Rank
-
-      // Apply the multiplier to the base index
-      s.currentIndex = newIndexBase * multiplier;
+      s.currentIndex = (pts * 0.7) + (prevIndex * 0.3); // Existing calculation
 
       const currentPnL = s.totalWon - s.totalInvested;
       
