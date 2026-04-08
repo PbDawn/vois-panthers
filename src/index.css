@@ -497,3 +497,31 @@ tr:hover td { background: rgba(245,166,35,0.04); }
   opacity: 0.6;
   margin-top: 4px;
 }
+/* Positive: Bold Green */
+.pos-bold {
+  color: #2ecc71 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 10px rgba(46, 204, 113, 0.2);
+}
+
+/* Negative: Red */
+.neg {
+  color: #e74c3c !important;
+  font-weight: 700;
+}
+
+/* Zero/Neutral: Greyed out */
+.neu-grey {
+  color: #8899bb !important;
+  opacity: 0.5;
+  font-weight: 400;
+}
+
+/* Ensure the big value class supports the color override */
+.lb-val-big {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 26px;
+  line-height: 1;
+  letter-spacing: 1px;
+  transition: color 0.3s ease;
+}
