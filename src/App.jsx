@@ -1147,9 +1147,9 @@ function OlympicPodium({ sorted, sortBy }) {
   // 2. DYNAMIC LABEL GENERATOR
   const getDynamicStat = (p) => {
     switch(sortBy) {
-      case 'winPct': return `${p.winPct.toFixed(1)}%`;
+      case 'winPct': return `${p.winPct.toFixed(1)}% Win`;
       case 'totalWon': return `₹${p.totalWon.toFixed(0)} Won`;
-      case 'avgPoints': return `${p.avgPoints.toFixed(1)}`;
+      case 'avgPoints': return `${p.avgPoints.toFixed(1)} Pts`;
       case 'roi': return `${p.roi.toFixed(0)}% ROI`;
       default: 
         const profit = p.totalWon - p.totalInvested;
