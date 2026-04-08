@@ -927,17 +927,9 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
                 <div style={{flex:1}}>
                   <div className="p-name">{p}</div>
                   <div className="p-winpct">Win Rate: <span>{winpct}%</span> ({s.wins}/{s.paidContests} paid)</div>
-                 {/* NEW: Rank Breakdown Display */}
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '4px', marginBottom: '4px' }}>
-                    <div style={{ fontSize: '11px', color: 'var(--text)' }}>
-                      🥇 1st: <span style={{ color: '#FFD700', fontWeight: 'bold' }}>{s.winsRank1}</span>
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text)' }}>
-                      🥈 2nd: <span style={{ color: '#C0C0C0', fontWeight: 'bold' }}>{s.winsRank2}</span>
-                    </div>
-                  </div>
+                 
                   <div className="form-strip">
-                    <span className="form-label">Form:</span>
+                    <span className="form-label">Current Form:</span>
                     {s.recentForm.length === 0
                       ? <span style={{fontSize:11,color:'var(--text2)'}}>No data yet</span>
                       : s.recentForm.map((r, ri) => {
@@ -948,6 +940,16 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
                         })
                     }
                   </div>
+                  {/* NEW: Rank Breakdown Display */}
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '4px', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text)' }}>
+                      🥇 1st: <span style={{ color: '#FFD700', fontWeight: 'bold' }}>{s.winsRank1}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text)' }}>
+                      🥈 2nd: <span style={{ color: '#C0C0C0', fontWeight: 'bold' }}>{s.winsRank2}</span>
+                    </div>
+                  </div>
+                  
                 </div>
               </div>
               <div className="p-card-body">
