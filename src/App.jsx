@@ -268,7 +268,9 @@ function computePlayerStats(matches) {
       prevIndexSnapshot: 100, // Initialize at listing price
       currentIndex: 100,    // Current Sentiment Index
       indexATH: 100,        // NEW: All-time high index
-      indexATL: 100         // NEW: All-time low index
+      indexATL: 100,         // NEW: All-time low index
+      winsRank1: 0, // NEW: Track 1st ranks
+      winsRank2: 0 // NEW: Track 2nd ranks
     }
   })
   let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
@@ -368,6 +370,8 @@ function computePlayerStats(matches) {
 
             if (isR1Win || isR2Win) {
               s.wins++
+              if (isR1Win) s.winsRank1++; // Increment Gold
+              if (isR2Win) s.winsRank2++; // Increment Silver
               const prizeShare = isR1Win ? (prizes[1]) : (prizes[2])
 
               const isDone = (m.transferred && typeof m.transferred === 'object')
@@ -923,6 +927,15 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
                 <div style={{flex:1}}>
                   <div className="p-name">{p}</div>
                   <div className="p-winpct">Win Rate: <span>{winpct}%</span> ({s.wins}/{s.paidContests} paid)</div>
+                 {/* NEW: Rank Breakdown Display */}
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '4px', marginBottom: '4px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text)' }}>
+                      🥇 1st: <span style={{ color: '#FFD700', fontWeight: 'bold' }}>{s.winsRank1}</span>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text)' }}>
+                      🥈 2nd: <span style={{ color: '#C0C0C0', fontWeight: 'bold' }}>{s.winsRank2}</span>
+                    </div>
+                  </div>
                   <div className="form-strip">
                     <span className="form-label">Form:</span>
                     {s.recentForm.length === 0
