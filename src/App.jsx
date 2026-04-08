@@ -1216,6 +1216,7 @@ function OlympicPodium({ sorted }) {
 }
 
 // ─── LEADERBOARD ──────────────────────────────────────────────
+/*
 function Leaderboard({ matches }) {
   const stats = useMemo(() => computePlayerStats(matches), [matches])
   const sorted = useMemo(() => PLAYERS.map((p, i) => ({ name:p, color:COLORS[i], ...stats[p] }))
@@ -1273,6 +1274,140 @@ function Leaderboard({ matches }) {
       </div>
     </div>
   )
+} */
+
+function Leaderboard({ matches }) {
+  // 1. STATE & COMPUTATION
+  const [sortBy, setSortBy] = useState('profit'); // Options: profit, winPct, totalWon, avgPoints, roi
+  const stats = useMemo(() => computePlayerStats(matches), [matches]);
+
+  const sorted = useMemo(() => {
+    return PLAYERS.map((p, i) => {
+      const s = stats[p];
+      const profit = s.totalWon - s.totalInvested;
+      const winPct = s.paidContests > 0 ? (s.wins / s.paidContests) * 100 : 0;
+      const avgPoints = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
+      const roi = s.totalInvested > 0 ? (profit / s.totalInvested) * 100 : 0;
+      
+      return { 
+        name: p, 
+        color: COLORS[i], 
+        profit, 
+        winPct, 
+        avgPoints,
+        roi,
+        ...s 
+      };
+    }).sort((a, b) => {
+      // Sort logic based on selected filter
+      if (sortBy === 'winPct') return b.winPct - a.winPct;
+      if (sortBy === 'totalWon') return b.totalWon - a.totalWon;
+      if (sortBy === 'avgPoints') return b.avgPoints - a.avgPoints;
+      if (sortBy === 'roi') return b.roi - a.roi;
+      return b.profit - a.profit;
+    });
+  }, [stats, sortBy]);
+
+  // 2. DYNAMIC RANKING LOGIC
+  let currentRank = 1, lastVal = null;
+  const ranked = sorted.map(p => {
+    const val = p[sortBy];
+    // Group players with identical values into the same rank
+    if (lastVal !== null && val < lastVal) currentRank++;
+    lastVal = val;
+    return { ...p, currentSortVal: val, rank: currentRank };
+  });
+
+  // 3. UI HELPERS
+  const getBigDisplay = (p) => {
+    switch(sortBy) {
+      case 'winPct': return { val: `${p.winPct.toFixed(1)}%`, label: 'Win Rate', cls: 'pos' };
+      case 'totalWon': return { val: `₹${p.totalWon.toFixed(0)}`, label: 'Total Won', cls: 'pos' };
+      case 'avgPoints': return { val: p.avgPoints.toFixed(1), label: 'Avg Points', cls: 'neu' };
+      case 'roi': return { val: `${p.roi.toFixed(0)}%`, label: 'ROI %', cls: p.roi >= 0 ? 'pos' : 'neg' };
+      default: return { val: `${p.profit >= 0 ? '+' : ''}₹${p.profit.toFixed(0)}`, label: 'Total PnL', cls: p.profit >= 0 ? 'pos' : 'neg' };
+    }
+  };
+
+  return (
+    <div className="section">
+      <div className="sec-title" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <span>Leaderboard Standings</span>
+          <span style={{ fontSize: '10px', color: 'var(--text2)', letterSpacing: '1px' }}>SORTED BY: {sortBy.toUpperCase()}</span>
+        </div>
+        
+        {/* FILTER BAR */}
+        <div className="filter-scroll-wrap" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }}>
+          {[
+            { id: 'profit', label: '💰 PnL', desc: 'Net Profit/Loss' },
+            { id: 'winPct', label: '🎯 Win %', desc: 'Accuracy' },
+            { id: 'totalWon', label: '🏆 Won', desc: 'Gross Winnings' },
+            { id: 'avgPoints', label: '📊 Avg Pts', desc: 'Consistency' },
+            { id: 'roi', label: '📈 ROI', desc: 'Efficiency' }
+          ].map(f => (
+            <button 
+              key={f.id}
+              onClick={() => setSortBy(f.id)}
+              className={`filter-pill ${sortBy === f.id ? 'active' : ''}`}
+              title={f.desc}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                whiteSpace: 'nowrap',
+                background: sortBy === f.id ? 'var(--accent)' : 'rgba(255,255,255,0.05)',
+                color: sortBy === f.id ? '#000' : '#8899bb',
+                border: '1px solid ' + (sortBy === f.id ? 'var(--accent)' : 'rgba(255,255,255,0.1)'),
+                cursor: 'pointer',
+                fontFamily: 'Rajdhani',
+                fontWeight: '700',
+                transition: '0.2s'
+              }}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <OlympicPodium sorted={ranked} />
+
+      <div className="lb-grid">
+        {ranked.map((p) => {
+          const rankDisplay = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : p.rank;
+          const displayData = getBigDisplay(p); // Get dynamic right-side value
+          
+          return (
+            <div key={p.name} className={`lb-card rank${p.rank}`}>
+              <div className="lb-rank">{rankDisplay}</div>
+              <div style={{ flex: 1 }}>
+                <div className="lb-name" style={{ color: p.color }}>{p.name}</div>
+                <div className="lb-stats">
+                  <div className="lb-stat">Matches: <span>{p.matchesPlayed}</span></div>
+                  <div className="lb-stat">Wins: <span>{p.wins}</span></div>
+                  {/* Show specific details based on sort to add context */}
+                  {sortBy === 'avgPoints' && <div className="lb-stat">Total Pts: <span>{p.totalPointsSum}</span></div>}
+                  {sortBy === 'roi' && <div className="lb-stat">Invested: <span>₹{p.totalInvested}</span></div>}
+                  {sortBy !== 'avgPoints' && sortBy !== 'roi' && <div className="lb-stat">Win %: <span>{p.winPct.toFixed(1)}%</span></div>}
+                </div>
+              </div>
+
+              {/* DYNAMIC BIG NUMBER */}
+              <div style={{ textAlign: 'right', minWidth: '100px' }}>
+                <div className={`lb-profit ${displayData.cls}`} style={{ fontSize: '24px', lineHeight: '1' }}>
+                  {displayData.val}
+                </div>
+                <div className="lb-wins" style={{ fontSize: '9px', textTransform: 'uppercase', opacity: 0.6, marginTop: '4px' }}>
+                  {displayData.label}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 // ─── GRAPHS ───────────────────────────────────────────────────
