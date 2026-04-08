@@ -1301,6 +1301,7 @@ function Leaderboard({ matches }) {
   const [sortBy, setSortBy] = useState('profit'); 
   const stats = useMemo(() => computePlayerStats(matches), [matches]);
 
+  // Compute stats and ranks based on the active filter
   const sorted = useMemo(() => {
     return PLAYERS.map((p, i) => {
       const s = stats[p];
@@ -1313,6 +1314,7 @@ function Leaderboard({ matches }) {
     }).sort((a, b) => b[sortBy] - a[sortBy]);
   }, [stats, sortBy]);
 
+  // Handle ties in ranking
   let currentRank = 1, lastVal = null;
   const ranked = sorted.map(p => {
     const val = p[sortBy];
@@ -1321,41 +1323,62 @@ function Leaderboard({ matches }) {
     return { ...p, rank: currentRank };
   });
 
-  const getBigDisplay = (p) => {
+  // Dynamic values for the right-hand side of the card
+  const getDisplayData = (p) => {
     switch(sortBy) {
-      case 'winPct': return { val: `${p.winPct.toFixed(1)}%`, label: 'Win Rate', cls: 'pos' };
-      case 'totalWon': return { val: `₹${p.totalWon.toFixed(0)}`, label: 'Total Won', cls: 'pos' };
+      case 'winPct': return { val: `${p.winPct.toFixed(1)}%`, label: 'Accuracy', cls: 'pos' };
+      case 'totalWon': return { val: `₹${p.totalWon.toFixed(0)}`, label: 'Gross Won', cls: 'pos' };
       case 'avgPoints': return { val: p.avgPoints.toFixed(1), label: 'Avg Points', cls: 'neu' };
-      case 'roi': return { val: `${p.roi.toFixed(0)}%`, label: 'ROI %', cls: p.roi >= 0 ? 'pos' : 'neg' };
-      default: return { val: `${p.profit >= 0 ? '+' : ''}₹${p.profit.toFixed(0)}`, label: 'Total PnL', cls: p.profit >= 0 ? 'pos' : 'neg' };
+      case 'roi': return { val: `${p.roi.toFixed(0)}%`, label: 'Efficiency', cls: p.roi >= 0 ? 'pos' : 'neg' };
+      default: return { val: `${p.profit >= 0 ? '+' : ''}₹${p.profit.toFixed(0)}`, label: 'Net PnL', cls: p.profit >= 0 ? 'pos' : 'neg' };
     }
   };
 
+  const filterOptions = [
+    { id: 'profit',    label: 'PnL',    icon: '💰' },
+    { id: 'winPct',    label: 'Win %',  icon: '🎯' },
+    { id: 'totalWon',  label: 'Won',    icon: '🏆' },
+    { id: 'avgPoints', label: 'Avg Pts',icon: '📊' },
+    { id: 'roi',       label: 'ROI',    icon: '📈' }
+  ];
+
   return (
     <div className="section">
-      <div className="sec-title" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span>Leaderboard</span>
-          <div style={{ display: 'flex', gap: '5px' }}>
-            {['profit', 'winPct', 'totalWon', 'avgPoints', 'roi'].map(f => (
-              <button key={f} onClick={() => setSortBy(f)} className={`btn-sm ${sortBy === f ? 'active' : ''}`}
-                style={{ background: sortBy === f ? 'var(--accent)' : 'transparent', color: sortBy === f ? '#000' : '#8899bb', border: '1px solid var(--accent)', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>
-                {f.toUpperCase()}
-              </button>
-            ))}
+      <div className="sec-title" style={{ paddingBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+          <span style={{ fontSize: '24px', letterSpacing: '2px', fontFamily: 'Bebas Neue' }}>LEADERBOARD</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+             <span style={{ fontSize: '9px', color: '#2ecc71', fontWeight: 800 }}>LIVE</span>
+             <div className="live-dot" style={{ width: '6px', height: '6px', background: '#2ecc71', borderRadius: '50%' }} />
           </div>
+        </div>
+
+        {/* Filter Grid - Stacks on mobile */}
+        <div className="filter-grid-wrap">
+          {filterOptions.map(f => (
+            <button 
+              key={f.id} 
+              onClick={() => setSortBy(f.id)} 
+              className={`filter-pill ${sortBy === f.id ? 'active' : ''}`}
+            >
+              <span style={{ fontSize: '16px' }}>{f.icon}</span>
+              <span>{f.label}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* CRITICAL FIX: Passing sortBy prop here */}
+      {/* Syncing Podium with current sortBy */}
       <OlympicPodium sorted={ranked} sortBy={sortBy} />
 
-      <div className="lb-grid">
+      <div className="lb-grid" style={{ marginTop: '20px' }}>
         {ranked.map((p) => {
-          const displayData = getBigDisplay(p);
+          const rankIcon = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : p.rank;
+          const display = getDisplayData(p);
+          
           return (
             <div key={p.name} className={`lb-card rank${p.rank}`}>
-              <div className="lb-rank">{p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : p.rank}</div>
+              <div className="lb-rank">{rankIcon}</div>
               <div style={{ flex: 1 }}>
                 <div className="lb-name" style={{ color: p.color }}>{p.name}</div>
                 <div className="lb-stats">
@@ -1363,9 +1386,15 @@ function Leaderboard({ matches }) {
                   <div className="lb-stat">Paid: <span>{p.paidContests}</span></div>
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div className={`lb-profit ${displayData.cls}`} style={{ fontSize: '22px' }}>{displayData.val}</div>
-                <div className="lb-wins" style={{ fontSize: '9px' }}>{displayData.label}</div>
+
+              {/* Dynamic Right Side */}
+              <div style={{ textAlign: 'right', minWidth: '90px' }}>
+                <div className={`lb-val-big ${display.cls}`}>
+                  {display.val}
+                </div>
+                <div className="lb-label-small">
+                  {display.label}
+                </div>
               </div>
             </div>
           );
@@ -1374,6 +1403,7 @@ function Leaderboard({ matches }) {
     </div>
   );
 }
+
 // ─── GRAPHS ───────────────────────────────────────────────────
 
 function MarketSentimentChart({ matches }) {
