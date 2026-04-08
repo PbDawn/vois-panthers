@@ -415,3 +415,9 @@ tr:hover td { background: rgba(245,166,35,0.04); }
   animation-play-state: paused;
   cursor: help;
 }
+.rank-count-num {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  margin-left: 2px;
+}
