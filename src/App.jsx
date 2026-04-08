@@ -1116,7 +1116,7 @@ const PODIUM_CSS = `
 
 const RANK_COLORS = { 1:'#FFD700', 2:'#C0C0C0', 3:'#CD7F32' }
 const RANK_MEDALS = { 1:'🥇', 2:'🥈', 3:'🥉' }
-
+                                                {/*
 function OlympicPodium({ sorted }) {
   const top3 = sorted.slice(0, 3)
   if (top3.length < 1) return null
@@ -1213,10 +1213,65 @@ function OlympicPodium({ sorted }) {
       </div>
     </div>
   )
+} */}
+
+function OlympicPodium({ sorted, sortBy }) {
+  const top3 = sorted.slice(0, 3);
+  if (top3.length < 1) return null;
+
+  // Function to format the podium text based on current filter
+  const getPodiumStat = (p) => {
+    switch(sortBy) {
+      case 'winPct': return `${p.winPct.toFixed(1)}% Win Rate`;
+      case 'totalWon': return `₹${p.totalWon.toFixed(0)} Won`;
+      case 'avgPoints': return `${p.avgPoints.toFixed(1)} Avg Pts`;
+      case 'roi': return `${p.roi.toFixed(0)}% ROI`;
+      default: return `${p.profit >= 0 ? '+' : '-'}₹${Math.abs(p.profit).toFixed(2)}`;
+    }
+  };
+
+  const displayOrder = [top3[1], top3[0], top3[2]].filter(Boolean);
+  const displayRanks = [2, 1, 3];
+  const displayCls   = ['pr2','pr1','pr3'];
+
+  return (
+    <div className="pd-outer">
+      <div className="pd-confetti-layer"><div id="pd-confetti-inner" /></div>
+      <div className="pd-title">🏆 {sortBy.toUpperCase()} CHAMPIONS 🏆</div>
+      <div className="pd-stage">
+        {displayOrder.map((p, oi) => {
+          const rank = displayRanks[oi];
+          const cls = displayCls[oi];
+          const isPos = p[sortBy] >= 0;
+
+          return (
+            <div className={`pd-slot ${cls}`} key={p.name}>
+              {rank === 1 && <div className="pd-crown">👑</div>}
+              <div className="pd-char">
+                <div className="pd-ring-wrap">
+                  <div className="pd-ring">
+                    <img src={PLAYER_IMAGES[p.name]} alt={p.name} />
+                  </div>
+                  <div className="pd-ring-medal">{RANK_MEDALS[rank]}</div>
+                </div>
+              </div>
+              <div className="pd-name">{p.name}</div>
+              {/* This is the line that was static before - now dynamic */}
+              <div className={`pd-prize ${isPos ? 'pd-profit-pos' : 'pd-profit-neg'}`}>
+                {getPodiumStat(p)}
+              </div>
+              <div className="pd-block"><div className="pd-block-num">{rank}</div></div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="pd-base" />
+    </div>
+  );
 }
 
 // ─── LEADERBOARD ──────────────────────────────────────────────
-/*
+{/*
 function Leaderboard({ matches }) {
   const stats = useMemo(() => computePlayerStats(matches), [matches])
   const sorted = useMemo(() => PLAYERS.map((p, i) => ({ name:p, color:COLORS[i], ...stats[p] }))
@@ -1274,11 +1329,10 @@ function Leaderboard({ matches }) {
       </div>
     </div>
   )
-} */
+} */}
 
 function Leaderboard({ matches }) {
-  // 1. STATE & COMPUTATION
-  const [sortBy, setSortBy] = useState('profit'); // Options: profit, winPct, totalWon, avgPoints, roi
+  const [sortBy, setSortBy] = useState('profit'); 
   const stats = useMemo(() => computePlayerStats(matches), [matches]);
 
   const sorted = useMemo(() => {
@@ -1289,36 +1343,18 @@ function Leaderboard({ matches }) {
       const avgPoints = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
       const roi = s.totalInvested > 0 ? (profit / s.totalInvested) * 100 : 0;
       
-      return { 
-        name: p, 
-        color: COLORS[i], 
-        profit, 
-        winPct, 
-        avgPoints,
-        roi,
-        ...s 
-      };
-    }).sort((a, b) => {
-      // Sort logic based on selected filter
-      if (sortBy === 'winPct') return b.winPct - a.winPct;
-      if (sortBy === 'totalWon') return b.totalWon - a.totalWon;
-      if (sortBy === 'avgPoints') return b.avgPoints - a.avgPoints;
-      if (sortBy === 'roi') return b.roi - a.roi;
-      return b.profit - a.profit;
-    });
+      return { name: p, color: COLORS[i], profit, winPct, avgPoints, roi, ...s };
+    }).sort((a, b) => b[sortBy] - a[sortBy]);
   }, [stats, sortBy]);
 
-  // 2. DYNAMIC RANKING LOGIC
   let currentRank = 1, lastVal = null;
   const ranked = sorted.map(p => {
     const val = p[sortBy];
-    // Group players with identical values into the same rank
     if (lastVal !== null && val < lastVal) currentRank++;
     lastVal = val;
-    return { ...p, currentSortVal: val, rank: currentRank };
+    return { ...p, rank: currentRank };
   });
 
-  // 3. UI HELPERS
   const getBigDisplay = (p) => {
     switch(sortBy) {
       case 'winPct': return { val: `${p.winPct.toFixed(1)}%`, label: 'Win Rate', cls: 'pos' };
@@ -1332,75 +1368,38 @@ function Leaderboard({ matches }) {
   return (
     <div className="section">
       <div className="sec-title" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-          <span>Leaderboard Standings</span>
-          <span style={{ fontSize: '10px', color: 'var(--text2)', letterSpacing: '1px' }}>SORTED BY: {sortBy.toUpperCase()}</span>
-        </div>
-        
-        {/* FILTER BAR */}
-        <div className="filter-scroll-wrap" style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '5px' }}>
-          {[
-            { id: 'profit', label: '💰 PnL', desc: 'Net Profit/Loss' },
-            { id: 'winPct', label: '🎯 Win %', desc: 'Accuracy' },
-            { id: 'totalWon', label: '🏆 Won', desc: 'Gross Winnings' },
-            { id: 'avgPoints', label: '📊 Avg Pts', desc: 'Consistency' },
-            { id: 'roi', label: '📈 ROI', desc: 'Efficiency' }
-          ].map(f => (
-            <button 
-              key={f.id}
-              onClick={() => setSortBy(f.id)}
-              className={`filter-pill ${sortBy === f.id ? 'active' : ''}`}
-              title={f.desc}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '12px',
-                fontSize: '11px',
-                whiteSpace: 'nowrap',
-                background: sortBy === f.id ? 'var(--accent)' : 'rgba(255,255,255,0.05)',
-                color: sortBy === f.id ? '#000' : '#8899bb',
-                border: '1px solid ' + (sortBy === f.id ? 'var(--accent)' : 'rgba(255,255,255,0.1)'),
-                cursor: 'pointer',
-                fontFamily: 'Rajdhani',
-                fontWeight: '700',
-                transition: '0.2s'
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>Leaderboard</span>
+          <div style={{ display: 'flex', gap: '5px' }}>
+            {['profit', 'winPct', 'totalWon', 'avgPoints', 'roi'].map(f => (
+              <button key={f} onClick={() => setSortBy(f)} className={`btn-sm ${sortBy === f ? 'active' : ''}`}
+                style={{ background: sortBy === f ? 'var(--accent)' : 'transparent', color: sortBy === f ? '#000' : '#8899bb', border: '1px solid var(--accent)', padding: '2px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '10px' }}>
+                {f.toUpperCase()}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <OlympicPodium sorted={ranked} />
+      {/* CRITICAL FIX: Passing sortBy prop here */}
+      <OlympicPodium sorted={ranked} sortBy={sortBy} />
 
       <div className="lb-grid">
         {ranked.map((p) => {
-          const rankDisplay = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : p.rank;
-          const displayData = getBigDisplay(p); // Get dynamic right-side value
-          
+          const displayData = getBigDisplay(p);
           return (
             <div key={p.name} className={`lb-card rank${p.rank}`}>
-              <div className="lb-rank">{rankDisplay}</div>
+              <div className="lb-rank">{p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : p.rank}</div>
               <div style={{ flex: 1 }}>
                 <div className="lb-name" style={{ color: p.color }}>{p.name}</div>
                 <div className="lb-stats">
-                  <div className="lb-stat">Matches: <span>{p.matchesPlayed}</span></div>
                   <div className="lb-stat">Wins: <span>{p.wins}</span></div>
-                  {/* Show specific details based on sort to add context */}
-                  {sortBy === 'avgPoints' && <div className="lb-stat">Total Pts: <span>{p.totalPointsSum}</span></div>}
-                  {sortBy === 'roi' && <div className="lb-stat">Invested: <span>₹{p.totalInvested}</span></div>}
-                  {sortBy !== 'avgPoints' && sortBy !== 'roi' && <div className="lb-stat">Win %: <span>{p.winPct.toFixed(1)}%</span></div>}
+                  <div className="lb-stat">Paid: <span>{p.paidContests}</span></div>
                 </div>
               </div>
-
-              {/* DYNAMIC BIG NUMBER */}
-              <div style={{ textAlign: 'right', minWidth: '100px' }}>
-                <div className={`lb-profit ${displayData.cls}`} style={{ fontSize: '24px', lineHeight: '1' }}>
-                  {displayData.val}
-                </div>
-                <div className="lb-wins" style={{ fontSize: '9px', textTransform: 'uppercase', opacity: 0.6, marginTop: '4px' }}>
-                  {displayData.label}
-                </div>
+              <div style={{ textAlign: 'right' }}>
+                <div className={`lb-profit ${displayData.cls}`} style={{ fontSize: '22px' }}>{displayData.val}</div>
+                <div className="lb-wins" style={{ fontSize: '9px' }}>{displayData.label}</div>
               </div>
             </div>
           );
@@ -1409,7 +1408,6 @@ function Leaderboard({ matches }) {
     </div>
   );
 }
-
 // ─── GRAPHS ───────────────────────────────────────────────────
 
 function MarketSentimentChart({ matches }) {
