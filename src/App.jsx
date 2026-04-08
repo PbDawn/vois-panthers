@@ -1116,7 +1116,7 @@ const PODIUM_CSS = `
 
 const RANK_COLORS = { 1:'#FFD700', 2:'#C0C0C0', 3:'#CD7F32' }
 const RANK_MEDALS = { 1:'🥇', 2:'🥈', 3:'🥉' }
-                                                {/*
+
 function OlympicPodium({ sorted }) {
   const top3 = sorted.slice(0, 3)
   if (top3.length < 1) return null
@@ -1213,61 +1213,6 @@ function OlympicPodium({ sorted }) {
       </div>
     </div>
   )
-} */}
-
-function OlympicPodium({ sorted, sortBy }) {
-  const top3 = sorted.slice(0, 3);
-  if (top3.length < 1) return null;
-
-  // Function to format the podium text based on current filter
-  const getPodiumStat = (p) => {
-    switch(sortBy) {
-      case 'winPct': return `${p.winPct.toFixed(1)}% Win Rate`;
-      case 'totalWon': return `₹${p.totalWon.toFixed(0)} Won`;
-      case 'avgPoints': return `${p.avgPoints.toFixed(1)} Avg Pts`;
-      case 'roi': return `${p.roi.toFixed(0)}% ROI`;
-      default: return `${p.profit >= 0 ? '+' : '-'}₹${Math.abs(p.profit).toFixed(2)}`;
-    }
-  };
-
-  const displayOrder = [top3[1], top3[0], top3[2]].filter(Boolean);
-  const displayRanks = [2, 1, 3];
-  const displayCls   = ['pr2','pr1','pr3'];
-
-  return (
-    <div className="pd-outer">
-      <div className="pd-confetti-layer"><div id="pd-confetti-inner" /></div>
-      <div className="pd-title">🏆 {sortBy.toUpperCase()} CHAMPIONS 🏆</div>
-      <div className="pd-stage">
-        {displayOrder.map((p, oi) => {
-          const rank = displayRanks[oi];
-          const cls = displayCls[oi];
-          const isPos = p[sortBy] >= 0;
-
-          return (
-            <div className={`pd-slot ${cls}`} key={p.name}>
-              {rank === 1 && <div className="pd-crown">👑</div>}
-              <div className="pd-char">
-                <div className="pd-ring-wrap">
-                  <div className="pd-ring">
-                    <img src={PLAYER_IMAGES[p.name]} alt={p.name} />
-                  </div>
-                  <div className="pd-ring-medal">{RANK_MEDALS[rank]}</div>
-                </div>
-              </div>
-              <div className="pd-name">{p.name}</div>
-              {/* This is the line that was static before - now dynamic */}
-              <div className={`pd-prize ${isPos ? 'pd-profit-pos' : 'pd-profit-neg'}`}>
-                {getPodiumStat(p)}
-              </div>
-              <div className="pd-block"><div className="pd-block-num">{rank}</div></div>
-            </div>
-          );
-        })}
-      </div>
-      <div className="pd-base" />
-    </div>
-  );
 }
 
 // ─── LEADERBOARD ──────────────────────────────────────────────
