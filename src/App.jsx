@@ -1117,46 +1117,66 @@ const PODIUM_CSS = `
 const RANK_COLORS = { 1:'#FFD700', 2:'#C0C0C0', 3:'#CD7F32' }
 const RANK_MEDALS = { 1:'🥇', 2:'🥈', 3:'🥉' }
 
-function OlympicPodium({ sorted }) {
-  const top3 = sorted.slice(0, 3)
-  if (top3.length < 1) return null
+function OlympicPodium({ sorted, sortBy }) {
+  const top3 = sorted.slice(0, 3);
+  if (top3.length < 1) return null;
 
+  // 1. ADD EFFECT TO CLEAN UP CONFETTI ON RE-SORT
   useEffect(() => {
     if (!document.getElementById('podium-styles')) {
-      const s = document.createElement('style')
-      s.id = 'podium-styles'
-      s.textContent = PODIUM_CSS
-      document.head.appendChild(s)
+      const s = document.createElement('style');
+      s.id = 'podium-styles';
+      s.textContent = PODIUM_CSS;
+      document.head.appendChild(s);
     }
-    const wrap = document.getElementById('pd-confetti-inner')
-    if (!wrap || wrap.children.length > 0) return
-    const colors = ['#f5a623','#2ecc71','#3498db','#e74c3c','#9b59b6','#C0C0C0','#FFD700','#1abc9c','#e67e22','#fff']
-    for (let i = 0; i < 40; i++) {
-      const d = document.createElement('div')
-      d.className = 'pd-dot'
-      const sz = 4 + Math.random() * 6
-      d.style.cssText = `left:${Math.random()*100}%;top:-14px;width:${sz}px;height:${sz}px;background:${colors[i%colors.length]};animation-duration:${3+Math.random()*3.5}s;animation-delay:${Math.random()*6}s;border-radius:${Math.random()>0.5?'50%':'2px'};`
-      wrap.appendChild(d)
+    
+    // Clear and re-add confetti only if the container is empty
+    const wrap = document.getElementById('pd-confetti-inner');
+    if (wrap && wrap.children.length === 0) {
+      const colors = ['#f5a623','#2ecc71','#3498db','#e74c3c','#9b59b6','#C0C0C0','#FFD700','#1abc9c','#e67e22','#fff'];
+      for (let i = 0; i < 40; i++) {
+        const d = document.createElement('div');
+        d.className = 'pd-dot';
+        const sz = 4 + Math.random() * 6;
+        d.style.cssText = `left:${Math.random()*100}%;top:-14px;width:${sz}px;height:${sz}px;background:${colors[i%colors.length]};animation-duration:${3+Math.random()*3.5}s;animation-delay:${Math.random()*6}s;border-radius:${Math.random()>0.5?'50%':'2px'};`;
+        wrap.appendChild(d);
+      }
     }
-  }, [])
+  }, []);
 
-  const displayOrder = [top3[1], top3[0], top3[2]].filter(Boolean)
-  const displayRanks = [2, 1, 3]
-  const displayCls   = ['pr2','pr1','pr3']
+  // 2. DYNAMIC LABEL GENERATOR
+  const getDynamicStat = (p) => {
+    switch(sortBy) {
+      case 'winPct': return `${p.winPct.toFixed(1)}% Win Rate`;
+      case 'totalWon': return `₹${p.totalWon.toFixed(0)} Won`;
+      case 'avgPoints': return `${p.avgPoints.toFixed(1)} Avg Pts`;
+      case 'roi': return `${p.roi.toFixed(0)}% ROI`;
+      default: 
+        const profit = p.totalWon - p.totalInvested;
+        return `${profit >= 0 ? '+' : '-'}₹${Math.abs(profit).toFixed(2)}`;
+    }
+  };
+
+  const displayOrder = [top3[1], top3[0], top3[2]].filter(Boolean);
+  const displayRanks = [2, 1, 3];
+  const displayCls   = ['pr2','pr1','pr3'];
 
   return (
     <div className="pd-outer">
       <div className="pd-confetti-layer"><div id="pd-confetti-inner" /></div>
-      <div className="pd-title">🏆 Season Champions Podium 🏆</div>
-      <div className="pd-subtitle">VOIS Panthers · IPL 2026 · Fantasy League Top Warriors</div>
+      
+      {/* DYNAMIC TITLE BASED ON SORT */}
+      <div className="pd-title">🏆 {sortBy === 'profit' ? 'PnL' : sortBy.toUpperCase()} LEADERS 🏆</div>
+      <div className="pd-subtitle">VOIS Panthers · IPL 2026 · Current Top Warriors</div>
+      
       <div className="pd-stage">
         {displayOrder.map((p, oi) => {
-          if (!p) return null
-          const rank    = displayRanks[oi]
-          const cls     = displayCls[oi]
-          const profit  = p.totalWon - p.totalInvested
-          const imgPath = PLAYER_IMAGES[p.name]
-          const isPos   = profit >= 0
+          if (!p) return null;
+          const rank    = displayRanks[oi];
+          const cls     = displayCls[oi];
+          // Use the current sort value to determine color theme
+          const isPos   = p[sortBy] >= 0; 
+          const imgPath = PLAYER_IMAGES[p.name];
 
           return (
             <div className={`pd-slot ${cls}`} key={p.name}>
@@ -1177,46 +1197,47 @@ function OlympicPodium({ sorted }) {
                 </div>
                 <div className="pd-jersey" style={{background:`linear-gradient(160deg,${p.color}dd,${p.color}88)`}}>
                   <span style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:rank===1?14:12,fontWeight:900,color:'#fff',opacity:0.9,letterSpacing:1}}>{p.name[0]}</span>
-                  <div className="pd-hang-medal">
-                    <div className="pd-hang-string" />
-                    <span className="pd-hang-emoji">{RANK_MEDALS[rank]}</span>
-                  </div>
                 </div>
               </div>
+              
               <div className="pd-name">{p.name}</div>
-              <div className={`pd-prize ${isPos?'pd-profit-pos':'pd-profit-neg'}`}>
-                {isPos?'+':'-'}₹{profit.toFixed(2)}
+              
+              {/* DYNAMIC PRIZE BOX */}
+              <div className={`pd-prize ${isPos ? 'pd-profit-pos' : 'pd-profit-neg'}`}>
+                {getDynamicStat(p)}
               </div>
-              <div className="pd-wintag">🏏 {p.wins} win{p.wins!==1?'s':''} · {p.paidContests} paid contests</div>
+
+              <div className="pd-wintag">🏏 {p.wins} wins · {p.paidContests} paid</div>
               <div className="pd-trophy-icon">{rank===1?'🏆':rank===2?'🥈':'🥉'}</div>
               <div className="pd-block">
                 <div className="pd-block-num">{rank}</div>
               </div>
             </div>
-          )
+          );
         })}
       </div>
+      
       <div className="pd-base" />
+      
       <div className="pd-chips">
         {top3.map((p, i) => {
-          const profit  = p.totalWon - p.totalInvested
-          const mc      = [RANK_COLORS[1],RANK_COLORS[2],RANK_COLORS[3]][i]
+          const mc = [RANK_COLORS[1], RANK_COLORS[2], RANK_COLORS[3]][i];
           return (
             <div className="pd-chip" key={p.name} style={{borderColor: mc+'44'}}>
               <div className="pd-chip-lbl" style={{color:mc}}>{['🥇 Gold','🥈 Silver','🥉 Bronze'][i]}</div>
               <div className="pd-chip-name" style={{color:mc}}>{p.name}</div>
-              <div className="pd-chip-sub">P/L: {profit>=0?'+':''}₹{profit.toFixed(2)}</div>
-              <div className="pd-chip-sub">{p.wins}W · {p.paidContests} paid</div>
+              {/* SYNCED CHIP DATA */}
+              <div className="pd-chip-sub">{getDynamicStat(p)}</div>
+              <div className="pd-chip-sub">{p.wins}W · {p.paidContests} matches</div>
             </div>
-          )
+          );
         })}
       </div>
     </div>
-  )
+  );
 }
-
 // ─── LEADERBOARD ──────────────────────────────────────────────
-{/*
+/*
 function Leaderboard({ matches }) {
   const stats = useMemo(() => computePlayerStats(matches), [matches])
   const sorted = useMemo(() => PLAYERS.map((p, i) => ({ name:p, color:COLORS[i], ...stats[p] }))
@@ -1274,7 +1295,7 @@ function Leaderboard({ matches }) {
       </div>
     </div>
   )
-} */}
+} */
 
 function Leaderboard({ matches }) {
   const [sortBy, setSortBy] = useState('profit'); 
