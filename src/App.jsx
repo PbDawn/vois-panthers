@@ -1324,13 +1324,30 @@ function Leaderboard({ matches }) {
   });
 
   // Dynamic values for the right-hand side of the card
-  const getDisplayData = (p) => {
+   const getDisplayData = (p) => {
+    // Helper to determine color class based on value
+    const getColorClass = (val) => {
+      if (val > 0) return 'pos-bold'; // New class for bold green
+      if (val < 0) return 'neg';      // Standard red
+      return 'neu-grey';             // Greyed out for zero
+    };
+  
     switch(sortBy) {
-      case 'winPct': return { val: `${p.winPct.toFixed(1)}%`, label: 'Accuracy', cls: 'pos' };
-      case 'totalWon': return { val: `₹${p.totalWon.toFixed(0)}`, label: 'Gross Won', cls: 'pos' };
-      case 'avgPoints': return { val: p.avgPoints.toFixed(1), label: 'Avg Points', cls: 'neu' };
-      case 'roi': return { val: `${p.roi.toFixed(0)}%`, label: 'Efficiency', cls: p.roi >= 0 ? 'pos' : 'neg' };
-      default: return { val: `${p.profit >= 0 ? '+' : ''}₹${p.profit.toFixed(0)}`, label: 'Net PnL', cls: p.profit >= 0 ? 'pos' : 'neg' };
+      case 'winPct': 
+        return { val: `${p.winPct.toFixed(1)}%`, label: 'Accuracy', cls: getColorClass(p.winPct) };
+      case 'totalWon': 
+        return { val: `₹${p.totalWon.toFixed(0)}`, label: 'Gross Won', cls: getColorClass(p.totalWon) };
+      case 'avgPoints': 
+        return { val: p.avgPoints.toFixed(1), label: 'Avg Points', cls: getColorClass(p.avgPoints) };
+      case 'roi': 
+        return { val: `${p.roi.toFixed(0)}%`, label: 'Efficiency', cls: getColorClass(p.roi) };
+      default: 
+        const profit = p.totalWon - p.totalInvested;
+        return { 
+          val: `${profit > 0 ? '+' : ''}₹${profit.toFixed(0)}`, 
+          label: 'Net PnL', 
+          cls: getColorClass(profit) 
+        };
     }
   };
 
