@@ -7,7 +7,7 @@ import { Line, Bar, Doughnut, PolarArea } from 'react-chartjs-2'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, RadialLinearScale, Title, Tooltip, Legend, Filler)
 
-// ─── CONSTANTS ────────────────────────────────────────────────
+// ─── CONSTANTS  ────────────────────────────────────────────────
 const PLAYERS = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
 const COLORS  = ['#f5a623','#3498db','#2ecc71','#e74c3c','#9b59b6','#1abc9c','#e67e22']
 const PLAYER_IMAGES = { Ashish:'/vois-panthers/ashish.jpg', Kalpesh:'/vois-panthers/kalpesh.jpg', Nilesh:'/vois-panthers/nilesh.jpeg', Prabhat:'/vois-panthers/prabhat.jpg', Pritam:'/vois-panthers/pritam.jpeg', Sudhir:'/vois-panthers/sudhir.jpg', Swapnil:'/vois-panthers/swapnil.jpg' }
@@ -1732,22 +1732,27 @@ function Graphs({ matches }) {
 // ─── TV NEWS BULLETIN COMPONENT ───────────────────────────────
 
 // Strips emojis, category prefix "WORD WORD (date): " pattern, and extra whitespace
+function stripEmojis(str) {
+  return str
+    .replace(/[\u2600-\u27BF]/g, '')
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '')
+    .replace(/[\u200D\uFE0F]/g, '')
+    .replace(/[\u2300-\u23FF]/g, '')
+    .replace(/[\u2B00-\u2BFF]/g, '')
+    .trim();
+}
+
 function buildSpeakText(raw) {
-  // Remove all emoji characters
-  let t = raw.replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '');
-  // Remove leading category label like "HOT STREAK (09 Apr 26 7:30 PM IST):" or "LEADERBOARD ALPHA (...):"
+  let t = stripEmojis(raw);
   t = t.replace(/^[A-Z\s]+([\w\s]+)?\([^)]+\)\s*:\s*/i, '');
-  // Remove any remaining parenthetical date stamps
   t = t.replace(/\([^)]*\)/g, '');
-  // Collapse multiple spaces
   t = t.replace(/\s+/g, ' ').trim();
   return t;
 }
 
-// Extracts a short display title from the headline e.g. "VENTURE CAPITALIST"
 function buildDisplayTitle(raw) {
-  // Category word(s) before the date stamp
-  const m = raw.match(/^[\p{Emoji_Presentation}\p{Extended_Pictographic}]*\s*([A-Z][A-Z\s]+?)\s*[\(\:]/u);
+  const cleaned = stripEmojis(raw).trim();
+  const m = cleaned.match(/^([A-Z][A-Z\s]+?)\s*[(:]/);
   if (m) return m[1].trim();
   return '';
 }
