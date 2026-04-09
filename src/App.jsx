@@ -268,7 +268,7 @@ function computePlayerStats(matches) {
       prevIndexSnapshot: 100, // Initialize at listing price
       currentIndex: 100,    // Current Sentiment Index
       indexATH: 100,        // NEW: All-time high index
-      indexATL: 100,         // NEW: All-time low index
+      indexATL: null,         // NEW: All-time low index
       winsRank1: 0, // NEW: Track 1st ranks
       winsRank2: 0 // NEW: Track 2nd ranks
     }
@@ -339,7 +339,7 @@ function computePlayerStats(matches) {
 
       // ADD THESE TWO LINES HERE:
       if (s.currentIndex > s.indexATH) s.indexATH = s.currentIndex;
-      if (s.currentIndex < s.indexATL) s.indexATL = s.currentIndex;
+      if (s.indexATL === null || s.currentIndex < s.indexATL) s.indexATL = s.currentIndex;
 
       s.matchesPlayed++
 
@@ -1812,6 +1812,7 @@ function MarketSentimentTicker({ matches }) {
   const tickerItems = useMemo(() => {
     return PLAYERS.map((p, i) => {
       const s = stats[p] || { currentIndex: 100, indexATH: 100, indexATL: 100, prevIndexSnapshot: 100 };
+      const displayATL = s.indexATL !== null ? s.indexATL.toFixed(0) : "100"; // Fallback to 100 only for display
       
       const lastM = completedMatches[completedMatches.length - 1];
       const playedLastMatch = lastM?.players?.[p]?.joined || false;
@@ -1840,7 +1841,7 @@ function MarketSentimentTicker({ matches }) {
 
           <span style={{ fontSize: '9px', color: '#8899bb', marginLeft: '8px', opacity: 0.8 }}>
             <span style={{ color: '#2ecc71' }}>ATH: {s.indexATH.toFixed(0)}</span> | 
-            <span style={{ color: '#e74c3c' }}> ATL: {s.indexATL.toFixed(0)}</span>
+            <span style={{ color: '#e74c3c' }}> ATL: {displayATL}</span>
           </span>
         </div>
       );
