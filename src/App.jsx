@@ -1439,67 +1439,70 @@ function MarketSentimentChart({ matches }) {
   const marketData = useMemo(() => {
     const labels = completedMatches.map(m => `M${m.matchno}`);
     const datasets = PLAYERS.map((p, i) => {
-      let price = 100; // Starting Listing Price
-      let prevPrice = 100;
+      let runningPrice = 100; // Running index starting at listing price
+      let prevPriceSnapshot = 100;
       
+      // We use .map to create the 'history' array with unique values for each match
       const history = completedMatches.map((m, idx) => {
         const pd = m.players[p];
         
-        // FIX: CHECK IF JOINED - Price only updates if the player participated 
+        // Price only updates if the player participated
         if (pd && pd.joined) {
-          // 1. CALCULATE RANKS FOR THIS SPECIFIC MATCH 
+          // 1. CALCULATE RANKS FOR THIS SPECIFIC MATCH to get correct multiplier
           const eligible = PLAYERS
             .filter(pl => m.players?.[pl]?.paid && m.players?.[pl]?.points > 0)
             .map(pl => ({ name: pl, points: m.players[pl].points }))
             .sort((a, b) => b.points - a.points);
           
-          let rank = 0;
+          let matchRank = 0;
           let currentR = 1;
           eligible.forEach((player, i) => {
             if (i > 0 && player.points < eligible[i - 1].points) currentR++;
-            if (player.name === p) rank = currentR;
+            if (player.name === p) matchRank = currentR;
           });
 
-          // 2. CAPTURE PREV PRICE (For the Label change calculation)
-          if (idx === completedMatches.length - 1) prevPrice = price;
+          // 2. CAPTURE PREV PRICE (Only for the latest match label calculation)
+          if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice;
           
-          // 3. NEW 40/60 LOGIC + FORM MULTIPLIERS 
+          // 3. APPLY 40/60 LOGIC + MULTIPLIER
           const pts = pd.points || 0;
           let multiplier = 1.0;
-          if (rank === 1) multiplier = 1.20;      // +20%
-          else if (rank === 2) multiplier = 1.10; // +10%
-          else if (rank === 3) multiplier = 1.05; // +5%
-          else if (rank === 6) multiplier = 0.95; // -5%
-          else if (rank === 7) multiplier = 0.90; // -10%
+          if (matchRank === 1) multiplier = 1.20;      // +20%
+          else if (matchRank === 2) multiplier = 1.10; // +10%
+          else if (matchRank === 3) multiplier = 1.05; // +5%
+          else if (matchRank === 6) multiplier = 0.95; // -5%
+          else if (matchRank === 7) multiplier = 0.90; // -10%
 
-          price = ((pts * 0.4) + (price * 0.6)) * multiplier;
+          runningPrice = ((pts * 0.4) + (runningPrice * 0.6)) * multiplier; //
         } else {
-          // If they skipped, price remains unchanged (Frozen) 
-          if (idx === completedMatches.length - 1) prevPrice = price;
+          // If they skipped, capture the price for change calculation
+          if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice;
         }
         
-        return parseFloat(price.toFixed(2));
+        // Return a fresh number for this match point
+        return parseFloat(runningPrice.toFixed(2));
       });
 
-      // Calculate Day Change for the Label
-      const currentVal = price;
+      // Day Change for the Legend
+      const currentVal = runningPrice;
       const lastMatchJoined = completedMatches[completedMatches.length - 1]?.players[p]?.joined;
-      const change = lastMatchJoined ? (currentVal - prevPrice) : 0;
+      const change = lastMatchJoined ? (currentVal - prevPriceSnapshot) : 0;
       
       const isUp = change > 0;
       const isDown = change < 0;
-      const changePercent = (lastMatchJoined && prevPrice > 0) ? ((change / prevPrice) * 100).toFixed(1) : '0.0';
+      const changePercent = (lastMatchJoined && prevPriceSnapshot > 0) ? ((change / prevPriceSnapshot) * 100).toFixed(1) : '0.0';
       
       const dynamicLabel = `${p}: ₹${currentVal.toFixed(0)} ${change === 0 ? '—' : isUp ? '▲' : '▼'}${Math.abs(change).toFixed(0)} (${isUp && change !== 0 ? '+' : ''}${changePercent}%)`;
 
       return {
         label: dynamicLabel,
-        data: history,
+        data: history, // Correctly mapped unique snapshots
         borderColor: COLORS[i],
         backgroundColor: COLORS[i] + '15',
         fill: true,
         tension: 0.4,
-        pointRadius: 2
+        pointRadius: 3, // Slightly larger points for better hover
+        pointHitRadius: 10
       };
     });
     return { labels, datasets };
@@ -1513,6 +1516,10 @@ function MarketSentimentChart({ matches }) {
           data={marketData} 
           options={{
             ...chartOpts('₹'),
+            interaction: {
+              mode: 'index',
+              intersect: false, // Allows tooltips to show for all players at that match index
+            },
             plugins: {
               ...chartOpts('₹').plugins,
               legend: {
@@ -1521,6 +1528,11 @@ function MarketSentimentChart({ matches }) {
                   font: { family: 'Rajdhani', size: 11, weight: '700' },
                   padding: 15,
                   usePointStyle: true 
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => `${ctx.dataset.label.split(':')[0]}: ₹${ctx.parsed.y.toFixed(2)}`
                 }
               }
             }
