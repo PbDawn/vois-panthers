@@ -1439,16 +1439,13 @@ function MarketSentimentChart({ matches }) {
   const marketData = useMemo(() => {
     const labels = completedMatches.map(m => `M${m.matchno}`);
     const datasets = PLAYERS.map((p, i) => {
-      let runningPrice = 100; // Running index starting at listing price
+      let runningPrice = 100; 
       let prevPriceSnapshot = 100;
       
-      // We use .map to create the 'history' array with unique values for each match
       const history = completedMatches.map((m, idx) => {
         const pd = m.players[p];
         
-        // Price only updates if the player participated
         if (pd && pd.joined) {
-          // 1. CALCULATE RANKS FOR THIS SPECIFIC MATCH to get correct multiplier
           const eligible = PLAYERS
             .filter(pl => m.players?.[pl]?.paid && m.players?.[pl]?.points > 0)
             .map(pl => ({ name: pl, points: m.players[pl].points }))
@@ -1461,47 +1458,41 @@ function MarketSentimentChart({ matches }) {
             if (player.name === p) matchRank = currentR;
           });
 
-          // 2. CAPTURE PREV PRICE (Only for the latest match label calculation)
           if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice;
           
-          // 3. APPLY 40/60 LOGIC + MULTIPLIER
           const pts = pd.points || 0;
           let multiplier = 1.0;
-          if (matchRank === 1) multiplier = 1.20;      // +20%
-          else if (matchRank === 2) multiplier = 1.10; // +10%
-          else if (matchRank === 3) multiplier = 1.05; // +5%
-          else if (matchRank === 6) multiplier = 0.95; // -5%
-          else if (matchRank === 7) multiplier = 0.90; // -10%
+          if (matchRank === 1) multiplier = 1.20;      
+          else if (matchRank === 2) multiplier = 1.10; 
+          else if (matchRank === 3) multiplier = 1.05; 
+          else if (matchRank === 6) multiplier = 0.95; 
+          else if (matchRank === 7) multiplier = 0.90; 
 
-          runningPrice = ((pts * 0.4) + (runningPrice * 0.6)) * multiplier; //
+          runningPrice = ((pts * 0.4) + (runningPrice * 0.6)) * multiplier;
         } else {
-          // If they skipped, capture the price for change calculation
           if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice;
         }
         
-        // Return a fresh number for this match point
         return parseFloat(runningPrice.toFixed(2));
       });
 
-      // Day Change for the Legend
       const currentVal = runningPrice;
       const lastMatchJoined = completedMatches[completedMatches.length - 1]?.players[p]?.joined;
       const change = lastMatchJoined ? (currentVal - prevPriceSnapshot) : 0;
       
       const isUp = change > 0;
-      const isDown = change < 0;
       const changePercent = (lastMatchJoined && prevPriceSnapshot > 0) ? ((change / prevPriceSnapshot) * 100).toFixed(1) : '0.0';
       
       const dynamicLabel = `${p}: ₹${currentVal.toFixed(0)} ${change === 0 ? '—' : isUp ? '▲' : '▼'}${Math.abs(change).toFixed(0)} (${isUp && change !== 0 ? '+' : ''}${changePercent}%)`;
 
       return {
         label: dynamicLabel,
-        data: history, // Correctly mapped unique snapshots
+        data: history,
         borderColor: COLORS[i],
         backgroundColor: COLORS[i] + '15',
         fill: true,
         tension: 0.4,
-        pointRadius: 3, // Slightly larger points for better hover
+        pointRadius: 3,
         pointHitRadius: 10
       };
     });
@@ -1518,7 +1509,7 @@ function MarketSentimentChart({ matches }) {
             ...chartOpts('₹'),
             interaction: {
               mode: 'index',
-              intersect: false, // Allows tooltips to show for all players at that match index
+              intersect: false,
             },
             plugins: {
               ...chartOpts('₹').plugins,
@@ -1532,7 +1523,25 @@ function MarketSentimentChart({ matches }) {
               },
               tooltip: {
                 callbacks: {
-                  label: (ctx) => `${ctx.dataset.label.split(':')[0]}: ₹${ctx.parsed.y.toFixed(2)}`
+                  label: (ctx) => {
+                    const playerName = ctx.dataset.label.split(':')[0];
+                    const currentPoint = ctx.parsed.y;
+                    const index = ctx.dataIndex;
+                    const dataset = ctx.dataset.data;
+                    
+                    let changeText = "";
+                    if (index > 0) {
+                      const prevPoint = dataset[index - 1];
+                      const diff = currentPoint - prevPoint;
+                      const pct = ((diff / prevPoint) * 100).toFixed(1);
+                      const icon = diff > 0 ? "▲" : diff < 0 ? "▼" : "—";
+                      changeText = ` (${icon}${Math.abs(diff).toFixed(0)} / ${diff > 0 ? '+' : ''}${pct}%)`;
+                    } else {
+                      changeText = " (Listing)";
+                    }
+                    
+                    return `${playerName}: ₹${currentPoint.toFixed(0)}${changeText}`;
+                  }
                 }
               }
             }
