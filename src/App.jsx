@@ -1399,8 +1399,16 @@ function Leaderboard({ matches }) {
               <div style={{ flex: 1 }}>
                 <div className="lb-name" style={{ color: p.color }}>{p.name}</div>
                 <div className="lb-stats">
-                  <div className="lb-stat">Wins: <span>{p.wins}</span></div>
+                    <div className="lb-stat">
+                      Wins: <span>{p.wins} </span>
+                      <span style={{ fontSize: '10px', color: 'var(--text2)' }}>
+                        (🥇:{p.winsRank1} 🥈:{p.winsRank2})
+                      </span>
+                    </div>
                   <div className="lb-stat">Paid: <span>{p.paidContests}</span></div>
+                  <div className="lb-stat">Avg Pts: <span>{p.avgPoints.toFixed(1)}</span></div>
+                  <div className="lb-stat">Invested: <span>₹{p.totalInvested}</span></div>
+                  <div className="lb-stat">ROI: <span className={p.roi >= 0 ? 'pos' : 'neg'}>{p.roi.toFixed(0)}%</span></div>
                 </div>
               </div>
 
