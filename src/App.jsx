@@ -518,6 +518,7 @@ function MatchLog({ matches }) {
   const [liveMatch, setLiveMatch] = useState(null)
   const [liveLoading, setLiveLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [selectedMatch, setSelectedMatch] = useState(null)
 
   // Feature 1: Pagination — always start on page that has the latest match
   const totalPages = Math.ceil(matches.length / ROWS_PER_PAGE)
@@ -706,7 +707,7 @@ function MatchLog({ matches }) {
               }
 
               return (
-                <tr key={idx}>
+                <tr key={idx} className={done ? 'clickable-match-row' : ''} onClick={() => done && setSelectedMatch(m)} title={done ? 'Click to view full match result' : ''}>
                   <td><span className="match-no-badge">#{m.matchno}</span></td>
                   <td style={{fontSize:11}}>{formatDate(m.date)}</td>
                   <td><span className="team-tag">{m.teams}</span></td>
@@ -794,6 +795,14 @@ function MatchLog({ matches }) {
             <button style={paginationStyle.btn} disabled={currentPage===totalPages} onClick={() => setCurrentPage(totalPages)}>Last »</button>
           </div>
         </div>
+      )}
+
+      {/* Click tip */}
+      <div style={{textAlign:'center',fontSize:10,color:'#8899bb',marginTop:8,letterSpacing:1,opacity:0.7}}>
+        💡 Tap any completed match row to view full detailed result
+      </div>
+      {selectedMatch && (
+        <MatchDetailModal match={selectedMatch} onClose={() => setSelectedMatch(null)} />
       )}
     </div>
   )
@@ -1729,9 +1738,185 @@ function Graphs({ matches }) {
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
 
-// ─── TV NEWS BULLETIN COMPONENT ───────────────────────────────
+// ─── MATCH DETAIL MODAL ───────────────────────────────────────
+function MatchDetailModal({ match, onClose }) {
+  if (!match) return null;
+  const done = match.teamwon && match.teamwon.trim() !== '' && match.teamwon !== '—';
+  const prizes = calculatePrizes(match);
 
-// Strips emojis, category prefix "WORD WORD (date): " pattern, and extra whitespace
+  const eligiblePaid = PLAYERS
+    .filter(p => match.players?.[p]?.paid && match.players?.[p]?.points > 0)
+    .map(p => ({ name: p, points: match.players[p].points }))
+    .sort((a, b) => b.points - a.points);
+
+  let paidRanks = {};
+  let currentRankMD = 1;
+  eligiblePaid.forEach((p, i) => {
+    if (i > 0 && p.points < eligiblePaid[i - 1].points) currentRankMD++;
+    paidRanks[p.name] = currentRankMD;
+  });
+
+  const winners = eligiblePaid.filter(p => {
+    const r = paidRanks[p.name];
+    return r === 1 || (r === 2 && prizes.winnerCountLimit === 2);
+  });
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{zIndex:2000}}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background:'linear-gradient(135deg,#0a0f1e,#161f38)',
+        border:'1px solid rgba(245,166,35,0.4)',
+        borderRadius:20, padding:0, width:'min(96vw,560px)',
+        maxHeight:'90vh', overflowY:'auto',
+        boxShadow:'0 0 60px rgba(245,166,35,0.15), 0 20px 60px rgba(0,0,0,0.8)',
+        position:'relative'
+      }}>
+        {/* Header */}
+        <div style={{
+          background:'linear-gradient(90deg,rgba(245,166,35,0.12),rgba(232,83,26,0.08))',
+          borderBottom:'1px solid rgba(245,166,35,0.25)',
+          padding:'16px 20px', borderRadius:'20px 20px 0 0',
+          display:'flex', justifyContent:'space-between', alignItems:'center'
+        }}>
+          <div>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:3,color:'#f5a623'}}>
+              MATCH #{match.matchno} — FULL RESULT
+            </div>
+            <div style={{fontSize:11,color:'#8899bb',letterSpacing:1.5,marginTop:2}}>
+              {match.teams} · {formatDate(match.date)} · {formatMatchTimeLabel(match.matchTime)}
+            </div>
+          </div>
+          <button onClick={onClose} style={{
+            background:'rgba(231,76,60,0.15)',border:'1px solid rgba(231,76,60,0.4)',
+            color:'#e74c3c',borderRadius:8,padding:'5px 11px',cursor:'pointer',
+            fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:12,flexShrink:0
+          }}>✕</button>
+        </div>
+
+        <div style={{padding:'16px 20px'}}>
+          {/* Winner Banner */}
+          {done && (
+            <div style={{
+              background:'linear-gradient(135deg,rgba(245,166,35,0.08),rgba(46,204,113,0.04))',
+              border:'1px solid rgba(245,166,35,0.25)',borderRadius:12,
+              padding:'12px 16px',marginBottom:16,textAlign:'center'
+            }}>
+              <div style={{fontSize:10,letterSpacing:3,color:'#8899bb',marginBottom:4}}>IPL MATCH WON BY</div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:24,letterSpacing:3,color:'#f5a623'}}>
+                🏏 {match.teamwon}
+              </div>
+              {match.contest === 'yes' && (
+                <div style={{marginTop:8,fontSize:12,color:'#8899bb',display:'flex',justifyContent:'center',gap:16,flexWrap:'wrap'}}>
+                  <span>Pool: <b style={{color:'#2ecc71'}}>₹{prizes.totalPool}</b></span>
+                  <span>Entry: <b style={{color:'#f5a623'}}>₹{match.fee}</b></span>
+                  <span>Players: <b>{match.joinedCount}/{PLAYERS.length}</b></span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Fantasy Winners */}
+          {done && winners.length > 0 && (
+            <div style={{marginBottom:16}}>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:3,color:'#f5a623',marginBottom:8}}>
+                🏆 FANTASY WINNERS
+              </div>
+              <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
+                {winners.map(w => {
+                  const rank = paidRanks[w.name];
+                  const prize = rank === 1 ? prizes[1] : prizes[2];
+                  const isDone = (match.transferred && typeof match.transferred === 'object')
+                    ? match.transferred[w.name] === true
+                    : match.transferred === true;
+                  const color = COLORS[PLAYERS.indexOf(w.name)];
+                  return (
+                    <div key={w.name} style={{
+                      background:`linear-gradient(135deg,${color}12,${color}06)`,
+                      border:`1px solid ${color}40`,borderRadius:12,
+                      padding:'12px 14px',flex:1,minWidth:120,
+                      display:'flex',flexDirection:'column',alignItems:'center',gap:5
+                    }}>
+                      <div style={{width:46,height:46,borderRadius:'50%',overflow:'hidden',border:`2px solid ${color}`}}>
+                        <img src={PLAYER_IMAGES[w.name]} alt={w.name}
+                          style={{width:'100%',height:'100%',objectFit:'cover'}}
+                          onError={e=>{e.target.style.display='none'}}
+                        />
+                      </div>
+                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:15,letterSpacing:2,color}}>{w.name}</div>
+                      <div style={{fontSize:10,color:'#8899bb'}}>{rank===1?'🥇 1st Place':'🥈 2nd Place'}</div>
+                      <div style={{fontSize:14,fontWeight:700,color:'#2ecc71'}}>₹{prize?.toFixed(2)}</div>
+                      <div style={{fontSize:10}}>{isDone
+                        ? <span style={{color:'#2ecc71'}}>✅ Transferred</span>
+                        : <span style={{color:'#f5a623'}}>⏳ Pending</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* All Players Score Grid */}
+          <div>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:13,letterSpacing:3,color:'#f5a623',marginBottom:8}}>
+              📊 PLAYER SCORECARD
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {eligiblePaid.map(player => {
+                const rank = paidRanks[player.name];
+                const isWinner = rank === 1 || (rank === 2 && prizes.winnerCountLimit === 2);
+                const color = COLORS[PLAYERS.indexOf(player.name)];
+                const pd = match.players[player.name];
+                return (
+                  <div key={player.name} style={{
+                    background: isWinner ? 'rgba(245,166,35,0.07)' : 'rgba(255,255,255,0.02)',
+                    border: isWinner ? '1px solid rgba(245,166,35,0.3)' : '1px solid rgba(255,255,255,0.06)',
+                    borderRadius:10,padding:'9px 12px',
+                    display:'flex',alignItems:'center',gap:9
+                  }}>
+                    <div style={{width:34,height:34,borderRadius:'50%',overflow:'hidden',border:`2px solid ${color}`,flexShrink:0}}>
+                      <img src={PLAYER_IMAGES[player.name]} alt={player.name}
+                        style={{width:'100%',height:'100%',objectFit:'cover'}}
+                        onError={e=>{e.target.style.display='none'}}
+                      />
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:1,color,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                        {player.name} {isWinner?(rank===1?'🥇':'🥈'):''}
+                      </div>
+                      <div style={{fontSize:10,color:'#8899bb'}}>
+                        {pd?.paid?'💰 Paid':'—'} · Rank #{rank}
+                      </div>
+                    </div>
+                    <div style={{
+                      fontFamily:"'Orbitron',sans-serif",fontSize:17,fontWeight:700,
+                      color: isWinner?'#f5a623':'#e8eaf6',flexShrink:0
+                    }}>{player.points}</div>
+                  </div>
+                );
+              })}
+              {PLAYERS.filter(p => !match.players?.[p]?.joined).map(p => (
+                <div key={p} style={{
+                  background:'rgba(0,0,0,0.1)',border:'1px solid rgba(255,255,255,0.04)',
+                  borderRadius:10,padding:'9px 12px',display:'flex',alignItems:'center',gap:9,opacity:0.35
+                }}>
+                  <div style={{width:34,height:34,borderRadius:'50%',background:'#1b2540',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontFamily:"'Bebas Neue',sans-serif",color:'#8899bb'}}>
+                    {p[0]}
+                  </div>
+                  <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,color:'#8899bb'}}>{p}</div>
+                  <div style={{marginLeft:'auto',fontSize:11,color:'#8899bb'}}>Not joined</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TV NEWS BULLETIN ─────────────────────────────────────────
+
 function stripEmojis(str) {
   return str
     .replace(/[\u2600-\u27BF]/g, '')
@@ -1757,7 +1942,6 @@ function buildDisplayTitle(raw) {
   return '';
 }
 
-// Returns { tag, color, bg } for the category pill
 function getCategoryInfo(h) {
   if (h.includes('👑') || h.includes('LEADERBOARD')) return { tag: 'LEADERBOARD',   color: '#f5a623', bg: 'rgba(245,166,35,0.15)' };
   if (h.includes('🏆') || h.includes('SEASON'))      return { tag: 'SEASON RECORD', color: '#ffd700', bg: 'rgba(255,215,0,0.15)' };
@@ -1774,7 +1958,6 @@ function getCategoryInfo(h) {
   return { tag: 'BREAKING NEWS', color: '#c0392b', bg: 'rgba(192,57,43,0.15)' };
 }
 
-// Female news anchor SVG — world map bg, anchor at desk with lipsync
 function AnchorSVG({ isSpeaking }) {
   return (
     <svg viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', height: '100%', display: 'block' }}>
@@ -1791,124 +1974,61 @@ function AnchorSVG({ isSpeaking }) {
           <stop offset="0%" stopColor="#f5c5a0"/>
           <stop offset="100%" stopColor="#e8a87c"/>
         </radialGradient>
-        <clipPath id="svgClip">
-          <rect width="320" height="180"/>
-        </clipPath>
+        <clipPath id="svgClip"><rect width="320" height="180"/></clipPath>
       </defs>
       <g clipPath="url(#svgClip)">
-        {/* Background */}
         <rect width="320" height="180" fill="url(#bgGrad)"/>
-        {/* World map dots pattern */}
-        {[...Array(18)].map((_, row) =>
-          [...Array(32)].map((_, col) => (
-            <circle key={`${row}-${col}`} cx={col*10+5} cy={row*10+5} r="1.2"
-              fill="rgba(255,255,255,0.2)"
-              opacity={Math.random() > 0.4 ? 1 : 0}
-            />
-          ))
-        )}
-        {/* Subtle world map continents */}
         <ellipse cx="80" cy="75" rx="28" ry="18" fill="rgba(255,255,255,0.12)"/>
         <ellipse cx="155" cy="70" rx="35" ry="22" fill="rgba(255,255,255,0.12)"/>
         <ellipse cx="230" cy="72" rx="18" ry="14" fill="rgba(255,255,255,0.12)"/>
-        <ellipse cx="110" cy="105" rx="22" ry="12" fill="rgba(255,255,255,0.08)"/>
-        <ellipse cx="195" cy="100" rx="16" ry="10" fill="rgba(255,255,255,0.08)"/>
-
-        {/* Desk */}
         <rect x="0" y="140" width="320" height="40" fill="url(#deskGrad)" rx="2"/>
         <rect x="0" y="138" width="320" height="4" fill="#c49040"/>
-
-        {/* Laptop on desk */}
         <rect x="195" y="110" width="70" height="42" rx="4" fill="#e0e0e0" stroke="#aaa" strokeWidth="1"/>
-        <rect x="198" y="113" width="64" height="36" rx="2" fill="#444"/>
-        <rect x="185" y="150" width="90" height="5" rx="2" fill="#ccc"/>
-        {/* Laptop screen glow */}
-        <rect x="199" y="114" width="62" height="34" rx="2" fill="#1a3a5c" opacity="0.8"/>
+        <rect x="198" y="113" width="64" height="36" rx="2" fill="#1a3a5c" opacity="0.8"/>
         <rect x="202" y="117" width="56" height="6" rx="1" fill="#f5a623" opacity="0.5"/>
-        <rect x="202" y="126" width="40" height="2" rx="1" fill="rgba(255,255,255,0.3)"/>
-        <rect x="202" y="131" width="50" height="2" rx="1" fill="rgba(255,255,255,0.2)"/>
-        <rect x="202" y="136" width="35" height="2" rx="1" fill="rgba(255,255,255,0.2)"/>
-
-        {/* LIVE badge top-right */}
         <rect x="270" y="8" width="42" height="20" rx="3" fill="#c0392b"/>
         <text x="291" y="22" textAnchor="middle" fontSize="10" fontWeight="bold" fill="white" fontFamily="Arial">LIVE</text>
-
-        {/* ── ANCHOR BODY ── */}
-        {/* Body / jacket (red) */}
         <ellipse cx="155" cy="170" rx="50" ry="30" fill="#c0392b"/>
-        {/* Torso */}
         <rect x="120" y="115" width="70" height="55" rx="12" fill="#c0392b"/>
-        {/* Collar/neckline */}
-        <path d="M140 115 L155 128 L170 115" fill="#1a3a7c" stroke="none"/>
-        {/* Arms */}
+        <path d="M140 115 L155 128 L170 115" fill="#1a3a7c"/>
         <path d="M120 118 Q90 130 88 148 Q100 145 110 135 L120 125Z" fill="#c0392b"/>
         <path d="M190 118 Q220 128 218 148 Q208 145 198 135 L190 125Z" fill="#c0392b"/>
-        {/* Hands on desk */}
         <ellipse cx="100" cy="150" rx="12" ry="7" fill="url(#skinTone)"/>
         <ellipse cx="210" cy="150" rx="12" ry="7" fill="url(#skinTone)"/>
-
-        {/* Neck */}
         <rect x="147" y="95" width="16" height="22" rx="8" fill="url(#skinTone)"/>
-
-        {/* Head */}
         <ellipse cx="155" cy="72" rx="28" ry="30" fill="url(#skinTone)"/>
-
-        {/* Hair — long brown wavy */}
         <path d="M127 62 Q118 40 128 28 Q140 15 155 18 Q172 15 182 28 Q192 40 183 62 Q178 80 178 95 Q168 100 162 98 Q165 82 168 65 Q162 50 155 48 Q148 50 142 65 Q145 82 148 98 Q142 100 132 95 Q132 80 127 62Z" fill="#6b3a1f"/>
-        {/* Hair highlights */}
-        <path d="M133 30 Q140 20 155 18 Q162 19 155 28 Q148 26 133 30Z" fill="#8b5a2b" opacity="0.6"/>
-        {/* Side hair */}
         <path d="M127 62 Q115 70 118 90 Q122 105 130 110 Q126 98 128 80Z" fill="#6b3a1f"/>
         <path d="M183 62 Q195 70 192 90 Q188 105 180 110 Q184 98 182 80Z" fill="#6b3a1f"/>
-
-        {/* Ears */}
         <ellipse cx="127" cy="72" rx="5" ry="7" fill="url(#skinTone)"/>
         <ellipse cx="183" cy="72" rx="5" ry="7" fill="url(#skinTone)"/>
-
-        {/* Eyes */}
         <ellipse cx="144" cy="66" rx="7" ry="5" fill="white"/>
         <ellipse cx="166" cy="66" rx="7" ry="5" fill="white"/>
         <ellipse cx="145" cy="67" rx="4" ry="4" fill="#3d2005"/>
         <ellipse cx="167" cy="67" rx="4" ry="4" fill="#3d2005"/>
         <ellipse cx="146" cy="66" rx="1.5" ry="1.5" fill="#1a0a00"/>
         <ellipse cx="168" cy="66" rx="1.5" ry="1.5" fill="#1a0a00"/>
-        {/* Eye shine */}
         <circle cx="147" cy="65" r="1" fill="white" opacity="0.8"/>
         <circle cx="169" cy="65" r="1" fill="white" opacity="0.8"/>
-        {/* Eyebrows */}
         <path d="M138 59 Q144 56 150 58" stroke="#4a2800" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
         <path d="M160 58 Q166 56 172 59" stroke="#4a2800" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
-
-        {/* Nose */}
         <path d="M153 70 Q155 78 157 70" stroke="#c49a70" strokeWidth="1.2" fill="none"/>
         <ellipse cx="152" cy="77" rx="3" ry="2" fill="#d4926e" opacity="0.5"/>
         <ellipse cx="158" cy="77" rx="3" ry="2" fill="#d4926e" opacity="0.5"/>
-
-        {/* MOUTH — lipsync animation */}
         {isSpeaking ? (
           <g>
-            {/* Animated open mouth */}
             <path d="M146 85 Q155 82 164 85" stroke="#c0392b" strokeWidth="1.5" fill="none"/>
             <path className="tv-mouth-open" d="M146 85 Q155 95 164 85" fill="#c0392b"/>
-            {/* Teeth */}
             <path d="M148 86 Q155 90 162 86" fill="white"/>
           </g>
         ) : (
           <path d="M146 86 Q155 90 164 86 Q155 92 146 86Z" fill="#c0392b"/>
         )}
-
-        {/* Lips outline */}
         <path d="M146 85 Q151 83 155 84 Q159 83 164 85" stroke="#a0392b" strokeWidth="1" fill="none"/>
-
-        {/* Cheek blush */}
         <ellipse cx="134" cy="78" rx="8" ry="5" fill="#e8a0a0" opacity="0.35"/>
         <ellipse cx="176" cy="78" rx="8" ry="5" fill="#e8a0a0" opacity="0.35"/>
-
-        {/* Earrings */}
         <circle cx="127" cy="80" r="2.5" fill="#ffd700"/>
         <circle cx="183" cy="80" r="2.5" fill="#ffd700"/>
-
-        {/* Microphone badge on desk */}
         <rect x="143" y="148" width="24" height="10" rx="3" fill="#1a1a3a" stroke="#f5a623" strokeWidth="0.8"/>
         <text x="155" y="156" textAnchor="middle" fontSize="5" fill="#f5a623" fontFamily="Arial" fontWeight="bold">ANCHOR</text>
       </g>
@@ -1917,148 +2037,164 @@ function AnchorSVG({ isSpeaking }) {
 }
 
 function TVNewsBulletin({ matches }) {
-  const stats = useMemo(() => computePlayerStats(matches), [matches]);
+  const stats    = useMemo(() => computePlayerStats(matches), [matches]);
   const headlines = useMemo(() => generateBreakingNews(matches, stats), [matches, stats]);
 
+  // Start with ticker-only; expand to full TV after 8s
+  const [showTV, setShowTV]           = useState(false);
   const [currentIdx, setCurrentIdx]   = useState(0);
   const [visible, setVisible]         = useState(true);
   const [isMuted, setIsMuted]         = useState(true);
   const [isSpeaking, setIsSpeaking]   = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
   const [time, setTime]               = useState('');
-  const isFirstRef  = useRef(true);   // track welcome intro
-  const synthRef    = useRef(window.speechSynthesis);
-  const queueRef    = useRef([]);     // pending utterances
-  const mutedRef    = useRef(true);   // mirror isMuted for callbacks
+  const isFirstRef = useRef(true);
+  const synthRef   = useRef(window.speechSynthesis);
+  const mutedRef   = useRef(true);
 
-  // sync muted ref
+  useEffect(() => {
+    const t = setTimeout(() => setShowTV(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+
   useEffect(() => { mutedRef.current = isMuted; }, [isMuted]);
 
-  // Clock
   useEffect(() => {
-    const tick = () => setTime(new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+    const tick = () => setTime(new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true }));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
 
-  // ── getVoice helper ───────────────────────────────────────────
   const getVoice = useCallback(() => {
     const voices = synthRef.current.getVoices();
-    return voices.find(v => v.lang === 'en-IN' && v.name.toLowerCase().includes('female'))
-      || voices.find(v => v.lang === 'en-IN')
-      || voices.find(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('zira') || v.name.toLowerCase().includes('samantha') || v.name.toLowerCase().includes('karen') || v.name.toLowerCase().includes('moira') || v.name.toLowerCase().includes('female')))
+    return voices.find(v => v.lang==='en-IN' && v.name.toLowerCase().includes('female'))
+      || voices.find(v => v.lang==='en-IN')
+      || voices.find(v => v.lang.startsWith('en') && (v.name.toLowerCase().includes('zira')||v.name.toLowerCase().includes('samantha')||v.name.toLowerCase().includes('karen')||v.name.toLowerCase().includes('moira')))
       || voices.find(v => v.lang.startsWith('en'));
   }, []);
 
-  // ── speak a single utterance, resolve promise when done ──────
   const speakOne = useCallback((text) => new Promise(resolve => {
     const synth = synthRef.current;
     if (!synth) { resolve(); return; }
     const utter = new SpeechSynthesisUtterance(text);
-    utter.rate = 0.92;
-    utter.pitch = 1.1;
-    utter.volume = 1;
-    const v = getVoice();
-    if (v) utter.voice = v;
-    utter.onstart  = () => setIsSpeaking(true);
-    utter.onend    = () => { setIsSpeaking(false); resolve(); };
-    utter.onerror  = () => { setIsSpeaking(false); resolve(); };
+    utter.rate = 0.92; utter.pitch = 1.1; utter.volume = 1;
+    const v = getVoice(); if (v) utter.voice = v;
+    utter.onstart = () => setIsSpeaking(true);
+    utter.onend   = () => { setIsSpeaking(false); resolve(); };
+    utter.onerror = () => { setIsSpeaking(false); resolve(); };
     synth.speak(utter);
   }), [getVoice]);
 
-  // ── sequentially read all headlines, advancing UI each time ──
-  const readAllRef = useRef(null);
   const runReadAll = useCallback(async (startIdx) => {
-    const synth = synthRef.current;
-    if (!synth || mutedRef.current) return;
-    const total = headlines.length;
-    if (!total) return;
-
-    // Welcome intro — only once per session
+    if (!synthRef.current || mutedRef.current) return;
+    const total = headlines.length; if (!total) return;
     if (isFirstRef.current) {
       isFirstRef.current = false;
-      const lastMatch = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—').slice(-1)[0];
-      const matchInfo = lastMatch ? `after match number ${lastMatch.matchno || ''}, ${lastMatch.teams || ''}` : '';
-      await speakOne(`Welcome to VOIS Panthers News! ${matchInfo}. Here are the breaking news.`);
+      const lastM = matches.filter(m => m.teamwon && m.teamwon.trim()!=='' && m.teamwon!=='—').slice(-1)[0];
+      const info = lastM ? `after match number ${lastM.matchno||''}, ${lastM.teams||''}` : '';
+      await speakOne(`Welcome to VOIS Panthers News! ${info}. Here are the breaking news.`);
       if (mutedRef.current) return;
     }
-
     let idx = startIdx;
     while (!mutedRef.current) {
-      const raw = headlines[idx % total];
-      const spoken = buildSpeakText(raw);
-
-      // Show the headline visually
+      const spoken = buildSpeakText(headlines[idx % total]);
       setVisible(false);
       await new Promise(r => setTimeout(r, 400));
       setCurrentIdx(idx % total);
       setVisible(true);
-
-      // Speak full clean headline
       await speakOne(spoken);
       if (mutedRef.current) break;
-
-      // Small pause between headlines
       await new Promise(r => setTimeout(r, 600));
       idx++;
     }
   }, [headlines, matches, speakOne]);
 
-  // ── Timer-based visual cycling when MUTED ────────────────────
   const timerRef = useRef(null);
   useEffect(() => {
     if (!isMuted) { clearInterval(timerRef.current); return; }
     if (!headlines.length) return;
     timerRef.current = setInterval(() => {
       setVisible(false);
-      setTimeout(() => {
-        setCurrentIdx(i => (i + 1) % headlines.length);
-        setVisible(true);
-      }, 400);
+      setTimeout(() => { setCurrentIdx(i => (i+1)%headlines.length); setVisible(true); }, 400);
     }, 6000);
     return () => clearInterval(timerRef.current);
   }, [isMuted, headlines]);
 
-  // ── Toggle mute ───────────────────────────────────────────────
   const toggleMute = useCallback(() => {
     const next = !isMuted;
-    setIsMuted(next);
-    mutedRef.current = next;
-    if (next) {
-      synthRef.current?.cancel();
-      setIsSpeaking(false);
-    } else {
-      // voices may not be loaded yet — small delay
-      setTimeout(() => runReadAll(currentIdx), 300);
-    }
+    setIsMuted(next); mutedRef.current = next;
+    if (next) { synthRef.current?.cancel(); setIsSpeaking(false); }
+    else { setTimeout(() => runReadAll(currentIdx), 300); }
   }, [isMuted, currentIdx, runReadAll]);
 
-  // ── Cleanup on unmount ────────────────────────────────────────
   useEffect(() => () => { synthRef.current?.cancel(); }, []);
 
   if (!headlines.length) return null;
 
-  const headline    = headlines[currentIdx] || '';
-  const cat         = getCategoryInfo(headline);
-  const displayTitle = buildDisplayTitle(headline);
-  // Spoken-clean text for display (strip emojis + date stamps from headline body)
-  const cleanBody   = buildSpeakText(headline);
-
+  const headline       = headlines[currentIdx] || '';
+  const cat            = getCategoryInfo(headline);
+  const displayTitle   = buildDisplayTitle(headline);
+  const cleanBody      = buildSpeakText(headline);
   const mentionedPlayer = PLAYERS.find(p => headline.toUpperCase().includes(p.toUpperCase()));
-  const avatarUrl       = mentionedPlayer ? PLAYER_IMAGES[mentionedPlayer] : null;
-  const playerColor     = mentionedPlayer ? COLORS[PLAYERS.indexOf(mentionedPlayer)] : '#f5a623';
+  const avatarUrl      = mentionedPlayer ? PLAYER_IMAGES[mentionedPlayer] : null;
+  const playerColor    = mentionedPlayer ? COLORS[PLAYERS.indexOf(mentionedPlayer)] : '#f5a623';
+
+  const completedMatches = matches.filter(m => m.teamwon && m.teamwon.trim()!=='' && m.teamwon!=='—');
+  const lastMatch = completedMatches[completedMatches.length - 1];
+  const newsDateLabel = lastMatch
+    ? `Post M#${lastMatch.matchno} · ${formatDate(lastMatch.date)}`
+    : 'Pre-Season';
+
+  // Bottom ticker (shown always, even before TV expands)
+  const BottomTicker = () => (
+    <div className="tv-bottom-ticker">
+      <div className="tv-ticker-label">BREAKING</div>
+      <div className="tv-ticker-scroll">
+        <div className="tv-ticker-track">
+          {[...headlines,...headlines].map((h,i) => {
+            const idx = i % headlines.length;
+            return (
+              <span key={i} className="tv-ticker-item">
+                <span className="tv-ticker-bullet" style={{color: idx===currentIdx?'#f5a623':'#c0392b'}}>◆</span>{" "}
+                {buildSpeakText(h)}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (!showTV) {
+    return (
+      <div className="tv-news-bulletin" style={{position:'relative',zIndex:160}}>
+        <div className="tv-channel-bar" style={{padding:'4px 14px'}}>
+          <div className="tv-channel-logo">
+            <span className="tv-logo-icon">📺</span>
+            <div>
+              <div className="tv-channel-name" style={{fontSize:13}}>VOIS PANTHERS NEWS</div>
+              <div className="tv-channel-sub">{newsDateLabel} · IPL 2026 · LIVE</div>
+            </div>
+          </div>
+          <div className="tv-channel-right">
+            <div className="tv-live-badge"><span className="tv-live-dot"/>LIVE</div>
+            <div className="tv-clock">{time}</div>
+          </div>
+        </div>
+        <BottomTicker />
+      </div>
+    );
+  }
 
   return (
     <div className="tv-news-bulletin" style={{ position: 'relative', zIndex: 160 }}>
-
-      {/* ── CHANNEL BAR ── */}
+      {/* Channel Bar */}
       <div className="tv-channel-bar">
         <div className="tv-channel-logo">
           <span className="tv-logo-icon">📺</span>
           <div>
             <div className="tv-channel-name">VOIS PANTHERS NEWS</div>
-            <div className="tv-channel-sub">IPL 2026 FANTASY LEAGUE · LIVE COVERAGE</div>
+            <div className="tv-channel-sub">{newsDateLabel} · IPL 2026 FANTASY</div>
           </div>
         </div>
         <div className="tv-channel-right">
@@ -2068,118 +2204,106 @@ function TVNewsBulletin({ matches }) {
             {isMuted ? '🔇' : isSpeaking ? '🔊' : '🔈'}
             <span>{isMuted ? 'UNMUTE' : 'MUTE'}</span>
           </button>
-          <button className="tv-minimize-btn" onClick={() => setIsMinimized(m => !m)}>
-            {isMinimized ? '▼ EXPAND' : '▲ MINIMIZE'}
-          </button>
         </div>
       </div>
 
-      {/* ── MAIN BULLETIN BODY ── */}
-      {!isMinimized && (
-        <div className="tv-bulletin-body">
+      {/* Main Bulletin — TV Set Layout */}
+      <div className="tv-bulletin-body">
 
-          {/* LEFT — Anchor */}
-          <div className="tv-anchor-col">
-            <div className="tv-anchor-scene">
-              <AnchorSVG isSpeaking={isSpeaking && !isMuted} />
-            </div>
-            <div className="tv-anchor-nameplate">
-              <div className="tv-anchor-name">PRIYA SHARMA</div>
-              <div className="tv-anchor-desk">VOIS Panthers Desk</div>
+        {/* LEFT: TV Set with anchor INSIDE the screen */}
+        <div className="tv-set-col">
+          <div className="tv-set-frame">
+            <div className="tv-set-bezel">
+              <div className="tv-screen">
+                <div className="tv-screen-scanline" />
+                <AnchorSVG isSpeaking={isSpeaking && !isMuted} />
+                <div className="tv-screen-lower-third">
+                  <div className="tv-lower-third-name">PRIYA SHARMA</div>
+                  <div className="tv-lower-third-desk">VOIS Panthers Desk · LIVE</div>
+                </div>
+                <div className="tv-screen-glare" />
+              </div>
+              <div className="tv-set-controls">
+                <div className="tv-set-btn" />
+                <div className="tv-set-btn red-btn" />
+                <div className="tv-set-knob" />
+              </div>
             </div>
             {isSpeaking && !isMuted && (
-              <div className="tv-speak-bars">
+              <div className="tv-speak-bars" style={{justifyContent:'center',marginTop:4}}>
                 <span/><span/><span/><span/><span/>
               </div>
             )}
           </div>
+        </div>
 
-          {/* CENTER — News Panel */}
-          <div className="tv-news-col">
-            {/* Category badge */}
-            <div className="tv-breaking-tag" style={{ background: cat.bg, borderColor: cat.color, color: cat.color }}>
-              ⚡ BREAKING: {cat.tag}
-            </div>
-
-            {/* Display title */}
-            {displayTitle && (
-              <div className="tv-display-title" style={{ color: cat.color }}>{displayTitle}</div>
-            )}
-
-            {/* Main headline */}
-            <div className={`tv-headline-text ${visible ? 'tv-headline-in' : 'tv-headline-out'}`}>
-              {cleanBody}
-            </div>
-
-            {/* Player spotlight card */}
-            {mentionedPlayer && (
-              <div className="tv-player-spotlight" style={{ borderColor: `${playerColor}44` }}>
-                <div className="tv-player-avatar-wrap" style={{ borderColor: playerColor }}>
-                  {avatarUrl && (
-                    <img src={avatarUrl} alt={mentionedPlayer} className="tv-player-avatar-img"
-                      onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
-                    />
-                  )}
-                  <div className="tv-player-avatar-fallback" style={{ display: avatarUrl ? 'none' : 'flex', background: `linear-gradient(135deg,${playerColor},#0a0f1e)` }}>
-                    {mentionedPlayer[0]}
-                  </div>
-                </div>
-                <div>
-                  <div className="tv-player-spotlight-name" style={{ color: playerColor }}>{mentionedPlayer.toUpperCase()}</div>
-                  <div className="tv-player-spotlight-stat">
-                    INDEX ₹{(stats[mentionedPlayer]?.currentIndex||100).toFixed(0)}&nbsp;&nbsp;
-                    PTS {stats[mentionedPlayer]?.bestPoints||0}&nbsp;&nbsp;
-                    ROI {stats[mentionedPlayer]?.totalInvested>0?(((stats[mentionedPlayer].totalWon-stats[mentionedPlayer].totalInvested)/stats[mentionedPlayer].totalInvested)*100).toFixed(0):0}%
-                  </div>
+        {/* CENTER: News Panel */}
+        <div className="tv-news-col">
+          <div className="tv-breaking-tag" style={{ background: cat.bg, borderColor: cat.color, color: cat.color }}>
+            ⚡ BREAKING: {cat.tag}
+          </div>
+          {displayTitle && (
+            <div className="tv-display-title" style={{ color: cat.color }}>{displayTitle}</div>
+          )}
+          <div className={`tv-headline-text ${visible ? 'tv-headline-in' : 'tv-headline-out'}`}>
+            {cleanBody}
+          </div>
+          {mentionedPlayer && (
+            <div className="tv-player-spotlight" style={{ borderColor: `${playerColor}44` }}>
+              <div className="tv-player-avatar-wrap" style={{ borderColor: playerColor }}>
+                {avatarUrl && (
+                  <img src={avatarUrl} alt={mentionedPlayer} className="tv-player-avatar-img"
+                    onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
+                  />
+                )}
+                <div className="tv-player-avatar-fallback" style={{ display: avatarUrl?'none':'flex', background:`linear-gradient(135deg,${playerColor},#0a0f1e)` }}>
+                  {mentionedPlayer[0]}
                 </div>
               </div>
-            )}
-
-            {/* Progress bar */}
-            <div className="tv-progress-bar">
-              <div className="tv-progress-fill" key={`${currentIdx}-${isMuted}`} style={{ '--bar-color': cat.color, '--bar-dur': isMuted ? '6s' : '15s' }}/>
-            </div>
-          </div>
-
-          {/* RIGHT — Standings */}
-          <div className="tv-stats-col">
-            <div className="tv-stats-title">📊 STANDINGS</div>
-            {PLAYERS.map((p, i) => {
-              const s = stats[p];
-              const profit = s.totalWon - s.totalInvested;
-              const isUp = profit >= 0;
-              return (
-                <div key={p} className="tv-stat-row">
-                  <div className="tv-stat-name" style={{ color: COLORS[i] }}>{p}</div>
-                  <div className="tv-stat-val" style={{ color: isUp ? '#2ecc71' : '#e74c3c' }}>
-                    {isUp ? '▲' : '▼'} ₹{Math.abs(profit).toFixed(0)}
-                  </div>
+              <div>
+                <div className="tv-player-spotlight-name" style={{ color: playerColor }}>{mentionedPlayer.toUpperCase()}</div>
+                <div className="tv-player-spotlight-stat">
+                  INDEX ₹{(stats[mentionedPlayer]?.currentIndex||100).toFixed(0)}&nbsp;&nbsp;
+                  PTS {stats[mentionedPlayer]?.bestPoints||0}&nbsp;&nbsp;
+                  ROI {stats[mentionedPlayer]?.totalInvested>0?(((stats[mentionedPlayer].totalWon-stats[mentionedPlayer].totalInvested)/stats[mentionedPlayer].totalInvested)*100).toFixed(0):0}%
                 </div>
-              );
-            })}
+              </div>
+            </div>
+          )}
+          <div className="tv-progress-bar">
+            <div className="tv-progress-fill" key={`${currentIdx}-${isMuted}`} style={{ '--bar-color': cat.color, '--bar-dur': isMuted?'6s':'15s' }}/>
           </div>
-
+          <div style={{fontSize:9,color:'#8899bb',marginTop:4,letterSpacing:1}}>
+            {currentIdx+1}/{headlines.length} STORIES · {newsDateLabel}
+          </div>
         </div>
-      )}
 
-      {/* ── BOTTOM TICKER ── */}
-      <div className="tv-bottom-ticker">
-        <div className="tv-ticker-label">BREAKING NEWS</div>
-        <div className="tv-ticker-scroll">
-          <div className="tv-ticker-track">
-            {[...headlines, ...headlines].map((h, i) => {
-              const idx = i % headlines.length;
-              return (
-                <span key={i} className="tv-ticker-item">
-                  <span className="tv-ticker-bullet" style={{ color: idx === currentIdx ? '#f5a623' : '#c0392b' }}>◆</span>{' '}
-                  {buildSpeakText(h)}
-                </span>
-              );
-            })}
-          </div>
+        {/* RIGHT: Live Standings with player pics */}
+        <div className="tv-stats-col">
+          <div className="tv-stats-title">📊 LIVE STANDINGS</div>
+          {PLAYERS.map((p, i) => {
+            const s = stats[p];
+            const profit = s.totalWon - s.totalInvested;
+            const isUp = profit >= 0;
+            return (
+              <div key={p} className="tv-stat-row">
+                <div style={{display:'flex',alignItems:'center',gap:4}}>
+                  <img src={PLAYER_IMAGES[p]} alt={p}
+                    style={{width:16,height:16,borderRadius:'50%',objectFit:'cover',border:`1px solid ${COLORS[i]}60`,flexShrink:0}}
+                    onError={e=>{e.target.style.display='none'}}
+                  />
+                  <div className="tv-stat-name" style={{ color: COLORS[i] }}>{p}</div>
+                </div>
+                <div className="tv-stat-val" style={{ color: isUp?'#2ecc71':'#e74c3c' }}>
+                  {isUp?'▲':'▼'} ₹{Math.abs(profit).toFixed(0)}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
+      <BottomTicker />
     </div>
   );
 }
@@ -2390,24 +2514,24 @@ export default function App() {
       <div className="watermark">#PbDawn</div>
       {loading && <div className="loading-overlay"><div className="spinner"/><div className="loading-text">Loading live data...</div></div>}
 
-      {/* HEADER — moved to top for premium feel */}
+      {/* HEADER — compact mobile-first */}
       <header>
         <div className="header-inner">
           <div className="logo-area">
             <div className="logo-icon">🏏</div>
             <div>
-              <div className="title-main">VOIS Panthers IPL 2026 Fantasy League Tracker</div>
-              <div className="title-sub"><span className="title-live-dot"/>&nbsp;MyCircle11 Private Contest · Season 2026</div>
+              <div className="title-main">VOIS Panthers IPL 2026</div>
+              <div className="title-sub"><span className="title-live-dot"/>&nbsp;Fantasy League · MyCircle11</div>
             </div>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:6}}>
             <div className="season-badge">IPL 2026</div>
             <button
               onClick={() => setAdminView('login')}
               title="Admin Login"
               style={{
-                fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:12,letterSpacing:2,
-                padding:'5px 13px',borderRadius:20,border:'1px solid rgba(231,76,60,0.5)',
+                fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:11,letterSpacing:1,
+                padding:'4px 10px',borderRadius:16,border:'1px solid rgba(231,76,60,0.5)',
                 background:'rgba(231,76,60,0.1)',color:'#e74c3c',cursor:'pointer',
                 textTransform:'uppercase',transition:'all 0.2s',whiteSpace:'nowrap'
               }}
