@@ -349,7 +349,7 @@ tr:hover td { background: rgba(245,166,35,0.04); }
   color: #8899bb;
 }
 .index-price { color: #f5a623; font-weight: 800; margin-left: 5px; }
-.modal-overlay { position: fixed; inset: 0; background: rgba(5, 8, 15, 0.9); display: flex; align-items: center; justify-content: center; z-index: 2000; padding: 20px; backdrop-filter: blur(8px); }
+.modal-overlay { position: fixed; inset: 0; background: rgba(5,8,15,0.92); display: flex; align-items: center; justify-content: center; z-index: 9999 !important; padding: 16px; backdrop-filter: blur(8px); }
 .h2h-content { background: var(--card); border: 2px solid var(--accent); border-radius: 24px; width: 100%; max-width: 450px; padding: 30px; box-shadow: 0 0 50px rgba(245, 166, 35, 0.2); }
 .h2h-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
 .h2h-player { text-align: center; flex: 1; }
@@ -915,13 +915,7 @@ tr.clickable-match-row:hover td:first-child .match-no-badge {
    MATCH DETAIL MODAL — modal-overlay already exists, just
    ensure z-index layers are right
 ════════════════════════════════════════════════════════════ */
-.modal-overlay {
-  position: fixed; inset: 0; z-index: 2000;
-  background: rgba(0,0,0,0.85);
-  display: flex; align-items: center; justify-content: center;
-  padding: 16px;
-  backdrop-filter: blur(4px);
-}
+
 
 
 /* ════════════════════════════════════════════════════════════
@@ -970,3 +964,37 @@ tr.clickable-match-row:hover td:first-child .match-no-badge {
   .match-no-badge { font-size: 10px; padding: 1px 5px; }
 }
 
+
+
+/* ════════════════════════════════════════════════════════════
+   MINI TV — compact 56px news bar (replaces full TV bulletin)
+════════════════════════════════════════════════════════════ */
+@keyframes miniHeadlineIn  { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+@keyframes miniHeadlineOut { from { opacity:1; transform:translateY(0); }   to { opacity:0; transform:translateY(-4px); } }
+
+.mini-in  { animation: miniHeadlineIn  0.35s ease forwards; }
+.mini-out { animation: miniHeadlineOut 0.25s ease forwards; }
+
+/* TV speak bars — compact */
+.tv-speak-bars span {
+  width: 3px;
+  background: #f5a623;
+  border-radius: 2px;
+  animation: tvSpeakBar 0.45s ease-in-out infinite;
+  min-height: 3px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   MODAL ALWAYS ON TOP — portal renders at body level
+════════════════════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 9999 !important;
+  background: rgba(5,8,15,0.93) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  backdrop-filter: blur(8px) !important;
+}
