@@ -787,3 +787,186 @@ tr:hover td { background: rgba(245,166,35,0.04); }
   .tv-bulletin-body { min-height: 90px; max-height: none; }
   .tv-headline-text { font-size: 13px; }
 }
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE COMPACT HEADER
+════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  .title-main { font-size: clamp(14px,4.5vw,22px); letter-spacing: 1px; }
+  .title-sub   { font-size: 8px; letter-spacing: 2px; }
+  .logo-icon   { font-size: 28px; }
+  header       { padding: 0 10px; }
+  .header-inner { padding: 7px 0; gap: 6px; }
+  .season-badge { font-size: 11px; padding: 3px 8px; }
+  .ticker-info  { display: none; }
+  .ticker-bar   { padding: 5px 10px; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   CLICKABLE MATCH ROWS
+════════════════════════════════════════════════════════════ */
+.clickable-match-row { cursor: pointer; transition: background 0.15s; }
+.clickable-match-row:hover td {
+  background: rgba(245,166,35,0.07) !important;
+}
+.clickable-match-row td:first-child::before {
+  content: '';
+}
+tr.clickable-match-row:hover td:first-child .match-no-badge {
+  box-shadow: 0 0 10px rgba(245,166,35,0.5);
+}
+
+/* ════════════════════════════════════════════════════════════
+   TV SET STYLES — anchor lives INSIDE the screen
+════════════════════════════════════════════════════════════ */
+.tv-set-col {
+  width: 200px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 10px 10px 6px;
+  background: linear-gradient(135deg, #04060f 0%, #080c18 100%);
+  border-right: 1px solid rgba(192,57,43,0.25);
+}
+.tv-set-frame { width: 100%; display: flex; flex-direction: column; align-items: center; }
+.tv-set-bezel {
+  width: 100%;
+  background: linear-gradient(145deg, #1a1a2e, #0d0d1a);
+  border: 3px solid #2a2a4a;
+  border-radius: 10px;
+  padding: 6px 6px 2px;
+  box-shadow:
+    0 0 0 1px #111,
+    inset 0 0 8px rgba(0,0,0,0.8),
+    0 4px 20px rgba(0,0,0,0.6);
+}
+.tv-screen {
+  position: relative; width: 100%;
+  border-radius: 6px; overflow: hidden;
+  border: 2px solid #0a0a1a;
+  box-shadow:
+    inset 0 0 20px rgba(0,50,150,0.15),
+    0 0 15px rgba(100,150,255,0.2);
+  background: #000;
+  aspect-ratio: 16/10;
+}
+.tv-screen-scanline {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.03) 2px,
+    rgba(0,0,0,0.03) 4px
+  );
+  pointer-events: none; z-index: 10;
+  animation: tvScanline 5s linear infinite;
+}
+.tv-screen-lower-third {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.88));
+  padding: 6px 8px 4px;
+  z-index: 11;
+}
+.tv-lower-third-name {
+  font-family: 'Bebas Neue', sans-serif; font-size: 10px;
+  letter-spacing: 2px; color: #f5a623; line-height: 1;
+}
+.tv-lower-third-desk {
+  font-size: 7px; color: rgba(255,255,255,0.55); letter-spacing: 1px;
+}
+.tv-screen-glare {
+  position: absolute; top: 0; left: 0; width: 50%; height: 45%;
+  background: linear-gradient(135deg, rgba(255,255,255,0.06), transparent);
+  pointer-events: none; border-radius: 6px 0 0 0; z-index: 12;
+}
+.tv-set-controls {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 5px; padding: 4px 6px 2px; margin-top: 2px;
+}
+.tv-set-btn {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #2a2a4a; border: 1px solid #3a3a6a;
+}
+.tv-set-btn.red-btn { background: rgba(192,57,43,0.6); border-color: #c0392b; }
+.tv-set-knob {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #4a4a6a, #1a1a3a);
+  border: 1px solid #5a5a8a;
+}
+
+/* ════════════════════════════════════════════════════════════
+   OVERRIDE: replace old anchor col with new tv-set-col in body
+════════════════════════════════════════════════════════════ */
+@media (max-width: 900px) {
+  .tv-set-col   { width: 150px; }
+  .tv-stats-col { width: 120px; }
+}
+@media (max-width: 640px) {
+  .tv-set-col   { width: 130px; }
+  .tv-stats-col { display: none; }
+  .tv-bulletin-body { min-height: 90px; }
+  .tv-headline-text { font-size: 13px; }
+}
+@media (max-width: 420px) {
+  .tv-set-col { display: none; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   MATCH DETAIL MODAL — modal-overlay already exists, just
+   ensure z-index layers are right
+════════════════════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0,0,0,0.85);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  backdrop-filter: blur(4px);
+}
+
+
+/* ════════════════════════════════════════════════════════════
+   MOBILE FIRST-SCREEN LAYOUT TIGHTENING
+════════════════════════════════════════════════════════════ */
+
+/* Make header tighter on mobile */
+@media (max-width: 640px) {
+  .header-inner { padding: 6px 0; }
+  .logo-icon { font-size: 26px; }
+  .logo-area { gap: 8px; }
+  /* Shrink sentiment ticker height on mobile */
+  .sentiment-ticker-wrap { height: 26px; font-size: 10px; }
+  .sentiment-item { font-size: 10px; gap: 4px; }
+  .index-price { font-size: 11px; }
+  /* NAV — compact on mobile */
+  .nav-btn { padding: 10px 12px; font-size: 12px; letter-spacing: 1px; }
+  nav { top: 30px; }
+}
+
+/* TV bulletin body — don't let it be too tall on mobile */
+@media (max-width: 640px) {
+  .tv-bulletin-body {
+    min-height: 80px !important;
+    max-height: 160px !important;
+  }
+  .tv-news-col { padding: 8px 12px; gap: 5px; }
+  .tv-breaking-tag { font-size: 9px; padding: 2px 7px; }
+  .tv-headline-text { font-size: 12px !important; }
+  .tv-player-spotlight { padding: 4px 8px; }
+  .tv-player-avatar-wrap { width: 26px; height: 26px; }
+  .tv-player-spotlight-name { font-size: 12px; }
+  .tv-channel-bar { padding: 4px 10px; flex-wrap: nowrap; overflow: hidden; }
+  .tv-channel-name { font-size: 13px; letter-spacing: 1.5px; }
+  .tv-channel-sub { font-size: 7px; }
+}
+
+/* Sentiment ticker — even more compact on very small phones */
+@media (max-width: 380px) {
+  .sentiment-ticker-wrap { height: 22px; }
+  .sentiment-item { font-size: 9px; }
+}
+
+/* Match table — add "click to view" indicator column glow on mobile */
+@media (max-width: 640px) {
+  .match-no-badge { font-size: 10px; padding: 1px 5px; }
+}
+
