@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import ReactDOM from 'react-dom'
 import AdminLogin from './AdminLogin'
 import AdminPage  from './AdminPage'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, RadialLinearScale, Title, Tooltip, Legend, Filler } from 'chart.js'
@@ -1761,8 +1762,8 @@ function MatchDetailModal({ match, onClose }) {
     return r === 1 || (r === 2 && prizes.winnerCountLimit === 2);
   });
 
-  return (
-    <div className="modal-overlay" onClick={onClose} style={{zIndex:2000}}>
+  return ReactDOM.createPortal(
+    <div className="modal-overlay" onClick={onClose} style={{zIndex:9999, position:'fixed', inset:0, display:'flex', alignItems:'center', justifyContent:'center', padding:'16px', background:'rgba(0,0,0,0.88)', backdropFilter:'blur(6px)'}}>
       <div onClick={e => e.stopPropagation()} style={{
         background:'linear-gradient(135deg,#0a0f1e,#161f38)',
         border:'1px solid rgba(245,166,35,0.4)',
@@ -1911,7 +1912,8 @@ function MatchDetailModal({ match, onClose }) {
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -2187,123 +2189,126 @@ function TVNewsBulletin({ matches }) {
   }
 
   return (
-    <div className="tv-news-bulletin" style={{ position: 'relative', zIndex: 160 }}>
-      {/* Channel Bar */}
-      <div className="tv-channel-bar">
-        <div className="tv-channel-logo">
-          <span className="tv-logo-icon">📺</span>
-          <div>
-            <div className="tv-channel-name">VOIS PANTHERS NEWS</div>
-            <div className="tv-channel-sub">{newsDateLabel} · IPL 2026 FANTASY</div>
+    <div style={{
+      background:'linear-gradient(90deg,#04060f,#060810,#04060f)',
+      borderTop:'2px solid #c0392b',
+      borderBottom:'1px solid rgba(192,57,43,0.2)',
+      display:'flex',
+      alignItems:'center',
+      gap:0,
+      height:'56px',
+      overflow:'hidden',
+      position:'relative',
+      zIndex:160
+    }}>
+      {/* MINI TV SET — anchor lipsyncs inside */}
+      <div style={{
+        flexShrink:0, width:'80px', height:'100%',
+        background:'linear-gradient(135deg,#1a1a2e,#0d0d1a)',
+        borderRight:'1px solid rgba(192,57,43,0.3)',
+        display:'flex', flexDirection:'column',
+        alignItems:'center', justifyContent:'center',
+        padding:'3px', gap:'2px'
+      }}>
+        {/* Mini TV bezel */}
+        <div style={{
+          width:'70px', background:'#111122',
+          border:'2px solid #2a2a4a', borderRadius:'4px',
+          padding:'2px', boxShadow:'inset 0 0 6px rgba(0,0,0,0.8), 0 0 8px rgba(100,150,255,0.15)'
+        }}>
+          <div style={{position:'relative',borderRadius:'2px',overflow:'hidden',lineHeight:0}}>
+            <AnchorSVG isSpeaking={isSpeaking && !isMuted} />
+            {/* Live badge overlay */}
+            <div style={{
+              position:'absolute',top:2,right:2,
+              background:'#c0392b',color:'#fff',
+              fontFamily:"'Bebas Neue',sans-serif",fontSize:'6px',letterSpacing:'1px',
+              padding:'1px 3px',borderRadius:'2px',lineHeight:1
+            }}>LIVE</div>
+            {/* Scanline */}
+            <div style={{
+              position:'absolute',inset:0,
+              background:'repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px)',
+              pointerEvents:'none'
+            }}/>
           </div>
         </div>
-        <div className="tv-channel-right">
-          <div className="tv-live-badge"><span className="tv-live-dot"/>LIVE</div>
-          <div className="tv-clock">{time}</div>
-          <button className="tv-mute-btn" onClick={toggleMute}>
+        {/* Anchor name + speak bars */}
+        <div style={{display:'flex',alignItems:'center',gap:2}}>
+          {isSpeaking && !isMuted
+            ? <div className="tv-speak-bars" style={{height:8,gap:1}}>
+                <span style={{width:2}}/><span style={{width:2}}/><span style={{width:2}}/><span style={{width:2}}/>
+              </div>
+            : <div style={{fontSize:'6px',color:'#8899bb',letterSpacing:0.5,fontFamily:"'Bebas Neue',sans-serif"}}>PRIYA SHARMA</div>
+          }
+        </div>
+      </div>
+
+      {/* CHANNEL LABEL */}
+      <div style={{
+        flexShrink:0, padding:'0 8px',
+        borderRight:'1px solid rgba(192,57,43,0.2)',
+        display:'flex', flexDirection:'column', justifyContent:'center', alignItems:'center',
+        height:'100%', gap:2,
+        background:'linear-gradient(180deg,#0d0204,#160408)'
+      }}>
+        <div style={{
+          fontFamily:"'Bebas Neue',sans-serif",fontSize:'9px',letterSpacing:'2px',
+          color:'#fff',textShadow:'0 0 8px rgba(192,57,43,0.8)',lineHeight:1,whiteSpace:'nowrap'
+        }}>📺 VOIS NEWS</div>
+        <div style={{fontSize:'7px',color:'#c0392b',letterSpacing:'1px',whiteSpace:'nowrap'}}>{newsDateLabel}</div>
+        <div style={{display:'flex',alignItems:'center',gap:3}}>
+          <div className="tv-live-badge" style={{fontSize:'7px',padding:'1px 4px'}}>
+            <span className="tv-live-dot" style={{width:4,height:4}}/>LIVE
+          </div>
+          <button className="tv-mute-btn" onClick={toggleMute}
+            style={{fontSize:'9px',padding:'1px 4px',display:'flex',alignItems:'center',gap:2}}>
             {isMuted ? '🔇' : isSpeaking ? '🔊' : '🔈'}
-            <span>{isMuted ? 'UNMUTE' : 'MUTE'}</span>
           </button>
         </div>
       </div>
 
-      {/* Main Bulletin — TV Set Layout */}
-      <div className="tv-bulletin-body">
-
-        {/* LEFT: TV Set with anchor INSIDE the screen */}
-        <div className="tv-set-col">
-          <div className="tv-set-frame">
-            <div className="tv-set-bezel">
-              <div className="tv-screen">
-                <div className="tv-screen-scanline" />
-                <AnchorSVG isSpeaking={isSpeaking && !isMuted} />
-                <div className="tv-screen-lower-third">
-                  <div className="tv-lower-third-name">PRIYA SHARMA</div>
-                  <div className="tv-lower-third-desk">VOIS Panthers Desk · LIVE</div>
-                </div>
-                <div className="tv-screen-glare" />
-              </div>
-              <div className="tv-set-controls">
-                <div className="tv-set-btn" />
-                <div className="tv-set-btn red-btn" />
-                <div className="tv-set-knob" />
-              </div>
+      {/* HEADLINES TICKER — fills rest of width */}
+      <div style={{flex:1, overflow:'hidden', display:'flex', flexDirection:'column', justifyContent:'center', height:'100%', background:'#04060f'}}>
+        {/* Category pill + current headline */}
+        <div style={{
+          display:'flex',alignItems:'center',gap:6,
+          padding:'0 10px', height:'50%',
+          borderBottom:'1px solid rgba(255,255,255,0.04)'
+        }}>
+          <div style={{
+            flexShrink:0,
+            background:cat.bg, border:`1px solid ${cat.color}`, color:cat.color,
+            fontFamily:"'Bebas Neue',sans-serif",fontSize:'8px',letterSpacing:'1.5px',
+            padding:'1px 5px',borderRadius:'2px',whiteSpace:'nowrap'
+          }}>⚡ {cat.tag}</div>
+          {mentionedPlayer && (
+            <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:3}}>
+              <img src={PLAYER_IMAGES[mentionedPlayer]||''} alt={mentionedPlayer}
+                style={{width:16,height:16,borderRadius:'50%',objectFit:'cover',border:`1px solid ${playerColor}`}}
+                onError={e=>{e.target.style.display='none'}}
+              />
+              <span style={{fontSize:'9px',fontFamily:"'Bebas Neue',sans-serif",color:playerColor,letterSpacing:1}}>{mentionedPlayer}</span>
             </div>
-            {isSpeaking && !isMuted && (
-              <div className="tv-speak-bars" style={{justifyContent:'center',marginTop:4}}>
-                <span/><span/><span/><span/><span/>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* CENTER: News Panel */}
-        <div className="tv-news-col">
-          <div className="tv-breaking-tag" style={{ background: cat.bg, borderColor: cat.color, color: cat.color }}>
-            ⚡ BREAKING: {cat.tag}
-          </div>
-          {displayTitle && (
-            <div className="tv-display-title" style={{ color: cat.color }}>{displayTitle}</div>
           )}
-          <div className={`tv-headline-text ${visible ? 'tv-headline-in' : 'tv-headline-out'}`}>
+        </div>
+        {/* Scrolling headline text */}
+        <div style={{overflow:'hidden', flex:1, display:'flex', alignItems:'center', padding:'0 10px'}}>
+          <div className={`mini-headline ${visible?'mini-in':'mini-out'}`} style={{
+            fontFamily:"'Bebas Neue',sans-serif",
+            fontSize:'clamp(10px,2vw,13px)',
+            letterSpacing:'1px',
+            color:'#fff',
+            whiteSpace:'nowrap',
+            overflow:'hidden',
+            textOverflow:'ellipsis',
+            maxWidth:'100%'
+          }}>
             {cleanBody}
           </div>
-          {mentionedPlayer && (
-            <div className="tv-player-spotlight" style={{ borderColor: `${playerColor}44` }}>
-              <div className="tv-player-avatar-wrap" style={{ borderColor: playerColor }}>
-                {avatarUrl && (
-                  <img src={avatarUrl} alt={mentionedPlayer} className="tv-player-avatar-img"
-                    onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
-                  />
-                )}
-                <div className="tv-player-avatar-fallback" style={{ display: avatarUrl?'none':'flex', background:`linear-gradient(135deg,${playerColor},#0a0f1e)` }}>
-                  {mentionedPlayer[0]}
-                </div>
-              </div>
-              <div>
-                <div className="tv-player-spotlight-name" style={{ color: playerColor }}>{mentionedPlayer.toUpperCase()}</div>
-                <div className="tv-player-spotlight-stat">
-                  INDEX ₹{(stats[mentionedPlayer]?.currentIndex||100).toFixed(0)}&nbsp;&nbsp;
-                  PTS {stats[mentionedPlayer]?.bestPoints||0}&nbsp;&nbsp;
-                  ROI {stats[mentionedPlayer]?.totalInvested>0?(((stats[mentionedPlayer].totalWon-stats[mentionedPlayer].totalInvested)/stats[mentionedPlayer].totalInvested)*100).toFixed(0):0}%
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="tv-progress-bar">
-            <div className="tv-progress-fill" key={`${currentIdx}-${isMuted}`} style={{ '--bar-color': cat.color, '--bar-dur': isMuted?'6s':'15s' }}/>
-          </div>
-          <div style={{fontSize:9,color:'#8899bb',marginTop:4,letterSpacing:1}}>
-            {currentIdx+1}/{headlines.length} STORIES · {newsDateLabel}
-          </div>
-        </div>
-
-        {/* RIGHT: Live Standings with player pics */}
-        <div className="tv-stats-col">
-          <div className="tv-stats-title">📊 LIVE STANDINGS</div>
-          {PLAYERS.map((p, i) => {
-            const s = stats[p];
-            const profit = s.totalWon - s.totalInvested;
-            const isUp = profit >= 0;
-            return (
-              <div key={p} className="tv-stat-row">
-                <div style={{display:'flex',alignItems:'center',gap:4}}>
-                  <img src={PLAYER_IMAGES[p]} alt={p}
-                    style={{width:16,height:16,borderRadius:'50%',objectFit:'cover',border:`1px solid ${COLORS[i]}60`,flexShrink:0}}
-                    onError={e=>{e.target.style.display='none'}}
-                  />
-                  <div className="tv-stat-name" style={{ color: COLORS[i] }}>{p}</div>
-                </div>
-                <div className="tv-stat-val" style={{ color: isUp?'#2ecc71':'#e74c3c' }}>
-                  {isUp?'▲':'▼'} ₹{Math.abs(profit).toFixed(0)}
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
 
-      <BottomTicker />
     </div>
   );
 }
