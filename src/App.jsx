@@ -1395,9 +1395,9 @@ function Leaderboard({ matches }) {
       <div className="sec-title" style={{paddingBottom:'20px'}}>
         <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%'}}>
           <span style={{fontSize:'24px',letterSpacing:'2px',fontFamily:'Bebas Neue'}}>LEADERBOARD</span>
-          <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+          {/* <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
             <span style={{fontSize:'9px',color:'var(--green)',fontWeight:800}}>LIVE</span>
-            <div className="live-dot" style={{width:'6px',height:'6px'}}/>
+            <div className="live-dot" style={{width:'6px',height:'6px'}}/> */}
           </div>
         </div>
         {/* Season Summary */}
