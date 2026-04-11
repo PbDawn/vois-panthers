@@ -10,7 +10,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 // ─── CONSTANTS  ────────────────────────────────────────────────
 const PLAYERS = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
-const COLORS  = ['#f5a623','#3498db','#2ecc71','#e74c3c','#9b59b6','#1abc9c','#e67e22']
+const COLORS  = ['#f5a623','#3498db','#2ecc71','#e74c3c','#e056fd','#00cec9','#fd9644']
 const PLAYER_IMAGES = { Ashish:'/vois-panthers/ashish.jpg', Kalpesh:'/vois-panthers/kalpesh.jpg', Nilesh:'/vois-panthers/nilesh.jpeg', Prabhat:'/vois-panthers/prabhat.jpg', Pritam:'/vois-panthers/pritam.jpeg', Sudhir:'/vois-panthers/sudhir.jpg', Swapnil:'/vois-panthers/swapnil.jpg' }
 const JSONBIN_BASE   = 'https://api.jsonbin.io/v3/b'
 const HARDCODED_BIN_ID = '69c84b985fdde574550bf9f7'
@@ -442,36 +442,21 @@ function computeHoFBadges(stats) {
   return badges
 }
 
-// ─── CHART OPTIONS ────────────────────────────────────────────
-function chartOpts(unit) {
+// ─── CHART OPTIONS — theme-aware ──────────────────────────
+function chartOpts(unit, isDark = true) {
+  const gridColor  = isDark ? '#1e2d5044' : 'rgba(100,140,220,0.12)'
+  const tickColor  = isDark ? '#8899bb'   : '#5565a0'
   return {
     responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { labels: { color:'#8899bb', font:{ family:'Rajdhani', size:12 } } }, tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${unit}${ctx.parsed.y ?? ctx.parsed}` } } },
-    scales: { x: { ticks:{ color:'#8899bb', font:{ family:'Rajdhani', size:11 } }, grid:{ color:'#1e2d5044' } }, y: { ticks:{ color:'#8899bb', font:{ family:'Rajdhani', size:11 }, callback: v => `${unit}${v}` }, grid:{ color:'#1e2d5044' } } }
+    plugins: {
+      legend: { labels: { color: tickColor, font:{ family:'Rajdhani', size:12 } } },
+      tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${unit}${ctx.parsed.y ?? ctx.parsed}` } }
+    },
+    scales: {
+      x: { ticks:{ color:tickColor, font:{ family:'Rajdhani', size:11 } }, grid:{ color:gridColor } },
+      y: { ticks:{ color:tickColor, font:{ family:'Rajdhani', size:11 }, callback: v => `${unit}${v}` }, grid:{ color:gridColor } }
+    }
   }
-}
-
-// ═══════════════════════════════════════════════════════════════
-// COMPONENTS
-// ═══════════════════════════════════════════════════════════════
-
-// ─── COUNTDOWN CELL ───────────────────────────────────────────
-function CountdownCell({ match, isNextUpcoming }) {
-  const [display, setDisplay] = useState('')
-  const done = match.teamwon && match.teamwon.trim() !== '' && match.teamwon !== '—'
-  useEffect(() => {
-    if (!isNextUpcoming || !match.matchTime || done) return
-    const target = getMatchDateTime(match)
-    if (!target) return
-    const tick = () => setDisplay(formatCountdown(target - new Date()))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [match, isNextUpcoming, done])
-  if (done) return <><div className="completed-badge">✅ Completed</div>{match.matchTime && <div className="scheduled-time">{formatMatchTimeLabel(match.matchTime)}</div>}</>
-  if (isNextUpcoming && match.matchTime) return <><div className="scheduled-time" style={{color:'var(--text2)',marginBottom:3}}>{formatMatchTimeLabel(match.matchTime)}</div><div className="time-countdown">⏱ Starts in: <span>{display || '--:--:--'}</span></div></>
-  if (match.matchTime) return <div style={{fontSize:12,fontWeight:700,color:'var(--text)'}}>{formatMatchTimeLabel(match.matchTime)}</div>
-  return <span style={{color:'var(--text2)'}}>—</span>
 }
 
 // ─── MATCH LOG COMPONENT ──────────────────────────────────────
@@ -1246,58 +1231,181 @@ function OlympicPodium({ sorted, sortBy }) {
     </div>
   );
 }
-// ─── LEADERBOARD ──────────────────────────────────────────────
-/*
-function Leaderboard({ matches }) {
-  const stats = useMemo(() => computePlayerStats(matches), [matches])
-  const sorted = useMemo(() => PLAYERS.map((p, i) => ({ name:p, color:COLORS[i], ...stats[p] }))
-    .sort((a, b) => (b.totalWon - b.totalInvested) - (a.totalWon - a.totalInvested)), [stats])
 
-  let currentRank = 1, lastProfit = null
+// ─── SPARKLINE SVG ────────────────────────────────────────
+function Sparkline({ data, color, width = 60, height = 22 }) {
+  if (!data || data.length < 2) return null
+  const min = Math.min(...data), max = Math.max(...data)
+  const range = max - min || 1
+  const pts = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * width
+    const y = height - ((v - min) / range) * (height - 4) - 2
+    return `${x},${y}`
+  }).join(' ')
+  return (
+    <svg width={width} height={height} style={{display:'inline-block',verticalAlign:'middle'}}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={pts.split(' ').pop().split(',')[0]} cy={pts.split(' ').pop().split(',')[1]} r="2.5" fill={color} />
+    </svg>
+  )
+}
+
+// ─── COMPUTE STREAK FROM paidWinStreak ───────────────────
+function computeCurrentStreak(paidWinStreak) {
+  const arr = paidWinStreak || []
+  if (!arr.length) return { type: null, count: 0 }
+  const last = arr[arr.length - 1]
+  let count = 0
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (arr[i] === last) count++
+    else break
+  }
+  return { type: last ? 'win' : 'loss', count }
+}
+
+// ─── LEADERBOARD ──────────────────────────────────────────
+function Leaderboard({ matches, isDark }) {
+  const [sortBy, setSortBy] = useState('profit')
+  const stats = useMemo(() => computePlayerStats(matches), [matches])
+
+  const sorted = useMemo(() => {
+    return PLAYERS.map((p, i) => {
+      const s = stats[p]
+      const profit    = s.totalWon - s.totalInvested
+      const winPct    = s.paidContests > 0 ? (s.wins / s.paidContests) * 100 : 0
+      const avgPoints = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0
+      const roi       = s.totalInvested > 0 ? (profit / s.totalInvested) * 100 : 0
+      const streak    = computeCurrentStreak(s.paidWinStreak)
+      return { name:p, color:COLORS[i], profit, winPct, avgPoints, roi, streak, ...s }
+    }).sort((a, b) => b[sortBy] - a[sortBy])
+  }, [stats, sortBy])
+
+  let currentRank = 1, lastVal = null
   const ranked = sorted.map(p => {
-    const profit = p.totalWon - p.totalInvested
-    if (lastProfit !== null && profit < lastProfit) currentRank++
-    lastProfit = profit
-    return { ...p, profit, rank: currentRank }
+    const val = p[sortBy]
+    if (lastVal !== null && val < lastVal) currentRank++
+    lastVal = val
+    return { ...p, rank: currentRank }
   })
+
+  const getDisplayData = (p) => {
+    const getCC = (val) => val > 0 ? 'pos-bold' : val < 0 ? 'neg' : 'neu-grey'
+    switch(sortBy) {
+      case 'winPct':    return { val:`${p.winPct.toFixed(1)}%`,       label:'Accuracy',   cls:getCC(p.winPct) }
+      case 'totalWon':  return { val:`₹${p.totalWon.toFixed(0)}`,     label:'Gross Won',  cls:getCC(p.totalWon) }
+      case 'avgPoints': return { val:p.avgPoints.toFixed(1),           label:'Avg Points', cls:getCC(p.avgPoints) }
+      case 'roi':       return { val:`${p.roi.toFixed(0)}%`,           label:'Efficiency', cls:getCC(p.roi) }
+      default: {
+        const profit = p.totalWon - p.totalInvested
+        return { val:`${profit>0?'+':''}₹${profit.toFixed(0)}`, label:'Net PnL', cls:getCC(profit) }
+      }
+    }
+  }
+
+  const filterOptions = [
+    { id:'profit',    label:'PnL',     icon:'💰' },
+    { id:'winPct',    label:'Win %',   icon:'🎯' },
+    { id:'totalWon',  label:'Won',     icon:'🏆' },
+    { id:'avgPoints', label:'Avg Pts', icon:'📊' },
+    { id:'roi',       label:'ROI',     icon:'📈' },
+  ]
+
+  // Season summary stats
+  const totalPool     = useMemo(() => matches.filter(m=>m.teamwon&&m.teamwon.trim()!==''&&m.teamwon!=='—').reduce((s,m)=>s+(calculatePrizes(m).totalPool||0),0), [matches])
+  const totalMatches  = matches.filter(m=>m.teamwon&&m.teamwon.trim()!==''&&m.teamwon!=='—').length
+  const topProfit     = Math.max(...ranked.map(p=>p.profit))
+  const topProfitPlayer = ranked.find(p=>p.profit===topProfit)
+  const highScore     = Math.max(...PLAYERS.map(p=>stats[p].bestPoints))
+  const highScorePlayer = PLAYERS.find(p=>stats[p].bestPoints===highScore)
 
   return (
     <div className="section">
-      <div className="sec-title">Leaderboard</div>
-      <OlympicPodium sorted={ranked} />
-      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:4,color:'#8899bb',marginBottom:12,paddingLeft:4}}>FULL STANDINGS</div>
-      <div className="lb-grid">
+      <div className="sec-title" style={{paddingBottom:'20px'}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%'}}>
+          <span style={{fontSize:'24px',letterSpacing:'2px',fontFamily:'Bebas Neue'}}>LEADERBOARD</span>
+          <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
+            <span style={{fontSize:'9px',color:'var(--green)',fontWeight:800}}>LIVE</span>
+            <div className="live-dot" style={{width:'6px',height:'6px'}}/>
+          </div>
+        </div>
+        {/* Season Summary */}
+        <div className="season-summary" style={{marginTop:16}}>
+          {[
+            { icon:'🏏', label:'Matches Played', val:totalMatches, sub:'completed' },
+            { icon:'💰', label:'Total Pool',      val:`₹${totalPool}`, sub:'prize money' },
+            { icon:'🏆', label:'Top Profit',      val:`₹${topProfit>0?topProfit.toFixed(0):0}`, sub:topProfitPlayer?.name||'—', accent:true },
+            { icon:'🎯', label:'Season High',     val:`${highScore} pts`, sub:highScorePlayer||'—' },
+          ].map(s=>(
+            <div key={s.label} className="ss-card" style={s.accent?{'--accent-tint':'rgba(46,204,113,0.08)'}:{}}>
+              <span className="ss-icon">{s.icon}</span>
+              <div className="ss-label">{s.label}</div>
+              <div className="ss-val" style={s.accent?{color:'var(--green)'}:{}}>{s.val}</div>
+              <div className="ss-sub">{s.sub}</div>
+            </div>
+          ))}
+        </div>
+        {/* Filter pills */}
+        <div className="filter-grid-wrap">
+          {filterOptions.map(f=>(
+            <button key={f.id} onClick={()=>setSortBy(f.id)} className={`filter-pill ${sortBy===f.id?'active':''}`}>
+              <span style={{fontSize:'16px'}}>{f.icon}</span>
+              <span>{f.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <OlympicPodium sorted={ranked} sortBy={sortBy} />
+
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:4,color:'var(--text2)',marginBottom:12,paddingLeft:4,marginTop:8}}>FULL STANDINGS</div>
+      <div className="lb-grid" style={{marginTop:'12px'}}>
         {ranked.map((p) => {
-          const winpct = p.paidContests > 0 ? ((p.wins / p.paidContests) * 100).toFixed(1) : '0.0'
-          const rankClass = p.rank===1?'rank1':p.rank===2?'rank2':p.rank===3?'rank3':''
-          const rankDisplay = p.rank===1?'🥇':p.rank===2?'🥈':p.rank===3?'🥉':p.rank
+          const rankIcon  = p.rank===1?'🥇':p.rank===2?'🥈':p.rank===3?'🥉':p.rank
+          const display   = getDisplayData(p)
+          const { type: strkType, count: strkCount } = p.streak
+          const showStreak = strkCount >= 2
+          // Mini sparkline from pnlHistory
+          const sparkData  = (p.pnlHistory || []).slice(-8)
+
           return (
-            <div key={p.name} className={`lb-card ${rankClass}`}>
-              <div className="lb-rank">{rankDisplay}</div>
-              <div>
-                <div className="lb-name" style={{color:p.color}}>{p.name}</div>
+            <div key={p.name} className={`lb-card rank${p.rank <= 3 ? p.rank : ''}`}>
+              <div className="lb-rank">{rankIcon}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                  <div className="lb-name" style={{color:p.color}}>{p.name}</div>
+                  {/* Streak badge */}
+                  {showStreak && (
+                    <span className={`streak-badge ${strkType==='win'?'streak-win':'streak-loss'}`}>
+                      {strkType==='win'?'🔥':'❄️'} {strkCount}{strkType==='win'?' WIN':' LOSS'} STREAK
+                    </span>
+                  )}
+                  {/* Sparkline */}
+                  {sparkData.length >= 2 && (
+                    <Sparkline data={sparkData} color={p.color} width={52} height={20} />
+                  )}
+                </div>
                 <div className="lb-stats">
-                  {[
-                    ['Matches', p.matchesPlayed],
-                    ['Paid', p.paidContests],
-                    ['Wins', p.wins],
-                    ['Win%', winpct + '%'],
-                    ['Invested', '₹' + p.totalInvested],
-                    ['Won', '₹' + p.totalWon.toFixed(2)],
-                    ...(p.activeDeposits > 0 ? [['Active Deposit', '₹' + p.activeDeposits]] : [])
-                  ].map(([k, v]) => (
-                    <div className="lb-stat" key={k}>
-                      {k}: <span className={k === 'Active Deposit' ? 'active-amt' : ''}>{v}</span>
-                    </div>
-                  ))}
+                  <div className="lb-stat">
+                    Wins: <span>{p.wins}</span>
+                    <span style={{fontSize:'10px',color:'var(--text2)'}}> (🥇:{p.winsRank1} 🥈:{p.winsRank2})</span>
+                  </div>
+                  <div className="lb-stat">Paid: <span>{p.paidContests}</span></div>
+                  <div className="lb-stat">Avg Pts: <span>{p.avgPoints.toFixed(1)}</span></div>
+                  <div className="lb-stat">Invested: <span>₹{p.totalInvested}</span></div>
+                  <div className="lb-stat">Total Won: <span style={{color:'var(--green)'}}>₹{p.totalWon.toFixed(0)}</span></div>
+                  <div className="lb-stat">ROI: <span className={p.roi>=0?'pos-bold':'neg'}>{p.roi.toFixed(0)}%</span></div>
+                  {p.activeDeposits > 0 && (
+                    <div className="lb-stat">Active Deposit: <span className="active-amt">₹{p.activeDeposits}</span></div>
+                  )}
                   {p.carryFwd > 0 && (
                     <div className="lb-stat">Carry Fwd: <span className="cf-tag">₹{p.carryFwd.toFixed(2)}</span></div>
                   )}
                 </div>
               </div>
-              <div>
-                <div className={`lb-profit ${p.profit>0?'pos':p.profit<0?'neg':'neu'}`}>{p.profit>=0?'+':''}₹{p.profit.toFixed(2)}</div>
-                <div className="lb-wins">{p.wins} win{p.wins!==1?'s':''}</div>
+              {/* Dynamic right side */}
+              <div style={{textAlign:'right',minWidth:'90px',flexShrink:0}}>
+                <div className={`lb-val-big ${display.cls}`}>{display.val}</div>
+                <div className="lb-label-small">{display.label}</div>
               </div>
             </div>
           )
@@ -1305,138 +1413,6 @@ function Leaderboard({ matches }) {
       </div>
     </div>
   )
-} */
-
-function Leaderboard({ matches }) {
-  const [sortBy, setSortBy] = useState('profit'); 
-  const stats = useMemo(() => computePlayerStats(matches), [matches]);
-
-  // Compute stats and ranks based on the active filter
-  const sorted = useMemo(() => {
-    return PLAYERS.map((p, i) => {
-      const s = stats[p];
-      const profit = s.totalWon - s.totalInvested;
-      const winPct = s.paidContests > 0 ? (s.wins / s.paidContests) * 100 : 0;
-      const avgPoints = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0;
-      const roi = s.totalInvested > 0 ? (profit / s.totalInvested) * 100 : 0;
-      
-      return { name: p, color: COLORS[i], profit, winPct, avgPoints, roi, ...s };
-    }).sort((a, b) => b[sortBy] - a[sortBy]);
-  }, [stats, sortBy]);
-
-  // Handle ties in ranking
-  let currentRank = 1, lastVal = null;
-  const ranked = sorted.map(p => {
-    const val = p[sortBy];
-    if (lastVal !== null && val < lastVal) currentRank++;
-    lastVal = val;
-    return { ...p, rank: currentRank };
-  });
-
-  // Dynamic values for the right-hand side of the card
-   const getDisplayData = (p) => {
-    // Helper to determine color class based on value
-    const getColorClass = (val) => {
-      if (val > 0) return 'pos-bold'; // New class for bold green
-      if (val < 0) return 'neg';      // Standard red
-      return 'neu-grey';             // Greyed out for zero
-    };
-  
-    switch(sortBy) {
-      case 'winPct': 
-        return { val: `${p.winPct.toFixed(1)}%`, label: 'Accuracy', cls: getColorClass(p.winPct) };
-      case 'totalWon': 
-        return { val: `₹${p.totalWon.toFixed(0)}`, label: 'Gross Won', cls: getColorClass(p.totalWon) };
-      case 'avgPoints': 
-        return { val: p.avgPoints.toFixed(1), label: 'Avg Points', cls: getColorClass(p.avgPoints) };
-      case 'roi': 
-        return { val: `${p.roi.toFixed(0)}%`, label: 'Efficiency', cls: getColorClass(p.roi) };
-      default: 
-        const profit = p.totalWon - p.totalInvested;
-        return { 
-          val: `${profit > 0 ? '+' : ''}₹${profit.toFixed(0)}`, 
-          label: 'Net PnL', 
-          cls: getColorClass(profit) 
-        };
-    }
-  };
-
-  const filterOptions = [
-    { id: 'profit',    label: 'PnL',    icon: '💰' },
-    { id: 'winPct',    label: 'Win %',  icon: '🎯' },
-    { id: 'totalWon',  label: 'Won',    icon: '🏆' },
-    { id: 'avgPoints', label: 'Avg Pts',icon: '📊' },
-    { id: 'roi',       label: 'ROI',    icon: '📈' }
-  ];
-
-  return (
-    <div className="section">
-      <div className="sec-title" style={{ paddingBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-          <span style={{ fontSize: '24px', letterSpacing: '2px', fontFamily: 'Bebas Neue' }}>LEADERBOARD</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-             <span style={{ fontSize: '9px', color: '#2ecc71', fontWeight: 800 }}>LIVE</span>
-             <div className="live-dot" style={{ width: '6px', height: '6px', background: '#2ecc71', borderRadius: '50%' }} />
-          </div>
-        </div>
-
-        {/* Filter Grid - Stacks on mobile */}
-        <div className="filter-grid-wrap">
-          {filterOptions.map(f => (
-            <button 
-              key={f.id} 
-              onClick={() => setSortBy(f.id)} 
-              className={`filter-pill ${sortBy === f.id ? 'active' : ''}`}
-            >
-              <span style={{ fontSize: '16px' }}>{f.icon}</span>
-              <span>{f.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Syncing Podium with current sortBy */}
-      <OlympicPodium sorted={ranked} sortBy={sortBy} />
-
-      <div className="lb-grid" style={{ marginTop: '20px' }}>
-        {ranked.map((p) => {
-          const rankIcon = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : p.rank === 3 ? '🥉' : p.rank;
-          const display = getDisplayData(p);
-          
-          return (
-            <div key={p.name} className={`lb-card rank${p.rank}`}>
-              <div className="lb-rank">{rankIcon}</div>
-              <div style={{ flex: 1 }}>
-                <div className="lb-name" style={{ color: p.color }}>{p.name}</div>
-                <div className="lb-stats">
-                    <div className="lb-stat">
-                      Wins: <span>{p.wins} </span>
-                      <span style={{ fontSize: '10px', color: 'var(--text2)' }}>
-                        (🥇:{p.winsRank1} 🥈:{p.winsRank2})
-                      </span>
-                    </div>
-                  <div className="lb-stat">Paid: <span>{p.paidContests}</span></div>
-                  <div className="lb-stat">Avg Pts: <span>{p.avgPoints.toFixed(1)}</span></div>
-                  <div className="lb-stat">Invested: <span>₹{p.totalInvested}</span></div>
-                  <div className="lb-stat">ROI: <span className={p.roi >= 0 ? 'pos' : 'neg'}>{p.roi.toFixed(0)}%</span></div>
-                </div>
-              </div>
-
-              {/* Dynamic Right Side */}
-              <div style={{ textAlign: 'right', minWidth: '90px' }}>
-                <div className={`lb-val-big ${display.cls}`}>
-                  {display.val}
-                </div>
-                <div className="lb-label-small">
-                  {display.label}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 // ─── GRAPHS ───────────────────────────────────────────────────
@@ -1657,14 +1633,14 @@ function Graphs({ matches }) {
   const labels = useMemo(() => matches.map(m => `M${m.matchno}`), [matches])
   const completedLabels = useMemo(() => completedMatches.map(m => `M${m.matchno}`), [completedMatches])
 
+  // Fix: Only use completed matches for cumulative PnL graph, use diamond points
   const pnlDatasets = useMemo(() => PLAYERS.map((p, i) => {
     let cum = 0
-    const data = matches.map(m => {
+    const data = completedMatches.map(m => {
       const pd = m.players[p]; if (!pd || !pd.joined) return cum
-      const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
       if (m.contest === 'yes') {
         if (pd.paid) cum -= m.fee
-        if (done && pd.paid) {
+        if (pd.paid) {
           const prizes = calculatePrizes(m)
           const paidRanks = prizes._paidRanks || {}
           const pRank = paidRanks[p]
@@ -1679,8 +1655,8 @@ function Graphs({ matches }) {
       }
       return parseFloat(cum.toFixed(2))
     })
-    return { label:p, data, borderColor:COLORS[i], backgroundColor:COLORS[i]+'22', fill:false, tension:0.3, pointRadius:5, pointHoverRadius:7, borderWidth:2 }
-  }), [matches])
+    return { label:p, data, borderColor:COLORS[i], backgroundColor:COLORS[i]+'22', fill:false, tension:0.3, pointRadius:4, pointHoverRadius:7, pointStyle:'rectRot', borderWidth:2 }
+  }), [completedMatches])
 
   const invWinData = useMemo(() => ({ labels: PLAYERS, datasets: [
     { label:'Invested', data: PLAYERS.map(p=>stats[p].totalInvested), backgroundColor: COLORS.map(c=>c+'99'), borderColor: COLORS, borderWidth:1 },
@@ -1715,12 +1691,40 @@ function Graphs({ matches }) {
       <div className="sec-title">Graphs &amp; Analytics</div>
       <div className="graph-grid">
         <MarketSentimentChart matches={matches} />
-        <div className="chart-card" style={{gridColumn:'1/-1'}}><div className="chart-title">📈 Cumulative Profit/Loss per Player (Season)</div><div className="chart-wrap"><Line data={{labels,datasets:pnlDatasets}} options={chartOpts('₹')} /></div></div>
+        <div className="chart-card" style={{gridColumn:'1/-1'}}>
+          <div className="chart-title">📈 Cumulative Profit/Loss per Player (Season)
+            <span style={{fontSize:10,color:'#8899bb',fontWeight:400,display:'block',marginTop:3,letterSpacing:0.5}}>
+              💡 <b>Tip:</b> Click a player's name in the legend to show/hide their line on the graph
+            </span>
+          </div>
+          <div className="chart-wrap" style={{height:320}}>
+            <Line data={{labels:completedLabels, datasets:pnlDatasets}} options={{
+              ...chartOpts('₹'),
+              interaction:{mode:'index',intersect:false},
+              plugins:{
+                ...chartOpts('₹').plugins,
+                legend:{
+                  labels:{
+                    color:'#8899bb',
+                    font:{family:'Rajdhani',size:12},
+                    usePointStyle:true,
+                    pointStyle:'rectRot'
+                  }
+                }
+              }
+            }} />
+          </div>
+        </div>
         <div className="chart-card"><div className="chart-title">💰 Investment vs Winnings (Total)</div><div className="chart-wrap"><Bar data={invWinData} options={chartOpts('₹')} /></div></div>
         <div className="chart-card"><div className="chart-title">🏅 Wins Count by Player</div><div className="chart-wrap"><Doughnut data={winsData} options={doughnutOpts} /></div></div>
         {/* Feature 3: uses completedLabels + filtered pointsDatasets */}
         <div className="chart-card" style={{gridColumn:'1/-1'}}>
-          <div className="chart-title">📊 Per Match Points Comparison <span style={{fontSize:11,color:'#8899bb',fontWeight:400}}>(Completed matches · paid players with points only)</span></div>
+          <div className="chart-title">📊 Per Match Points Comparison
+            <span style={{fontSize:11,color:'#8899bb',fontWeight:400}}> (Completed matches · paid players with points only)</span>
+            <span style={{fontSize:10,color:'#8899bb',fontWeight:400,display:'block',marginTop:3,letterSpacing:0.5}}>
+              💡 <b>Tip:</b> Click a player's name in the legend to toggle their data on/off
+            </span>
+          </div>
           <div className="chart-wrap" style={{height:320}}>
             {pointsDatasets.length > 0
               ? <Line data={{labels:completedLabels, datasets:pointsDatasets}} options={chartOpts('pts')} />
@@ -1734,7 +1738,6 @@ function Graphs({ matches }) {
     </div>
   )
 }
-
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
@@ -2292,7 +2295,7 @@ function TVNewsBulletin({ matches }) {
             </div>
           )}
         </div>
-        {/* Scrolling headline text */}
+        {/* Scrolling headline text — marquee on mobile if text overflows */}
         <div style={{overflow:'hidden', flex:1, display:'flex', alignItems:'center', padding:'0 10px'}}>
           <div className={`mini-headline ${visible?'mini-in':'mini-out'}`} style={{
             fontFamily:"'Bebas Neue',sans-serif",
@@ -2301,10 +2304,10 @@ function TVNewsBulletin({ matches }) {
             color:'#fff',
             whiteSpace:'nowrap',
             overflow:'hidden',
-            textOverflow:'ellipsis',
-            maxWidth:'100%'
+            maxWidth:'100%',
+            display:'block'
           }}>
-            {cleanBody}
+            <span className="mini-headline-scroll">{cleanBody}</span>
           </div>
         </div>
       </div>
@@ -2415,9 +2418,10 @@ function MarketSentimentTicker({ matches }) {
   );
 }
 
+
 export default function App() {
   const [matches, setMatches]         = useState([])
-  const [h2hPlayers, setH2hPlayers] = useState({ p1: null, p2: null })
+  const [h2hPlayers, setH2hPlayers]   = useState({ p1: null, p2: null })
   const [loading, setLoading]         = useState(false)
   const [activeSection, setActiveSection] = useState('matchlog')
   const [liveState, setLiveState]     = useState({ dot:'', label:'CONNECTING...', info:'Connecting to cloud...' })
@@ -2426,6 +2430,20 @@ export default function App() {
   const [isCooldown, setIsCooldown]   = useState(false)
   const [btnText, setBtnText]         = useState('⟳ Refresh')
   const lastVersionRef = useRef(null)
+
+  // ─── DARK / LIGHT MODE ───────────────────────────────────
+  const [isDark, setIsDark] = useState(() => {
+    try { return localStorage.getItem('vois_theme') !== 'light' } catch { return true }
+  })
+  useEffect(() => {
+    if (isDark) {
+      document.body.classList.remove('light-mode')
+      try { localStorage.setItem('vois_theme','dark') } catch {}
+    } else {
+      document.body.classList.add('light-mode')
+      try { localStorage.setItem('vois_theme','light') } catch {}
+    }
+  }, [isDark])
 
   const [adminView, setAdminView] = useState(() => {
     try {
@@ -2459,15 +2477,10 @@ export default function App() {
       if (newVersion !== lastVersionRef.current) {
         lastVersionRef.current = newVersion
         setMatches(newMatches)
-
-        const options = { 
-          day: '2-digit', month: 'short', year: 'numeric', 
-          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true 
-        }
-        const updatedAt = data.updatedAt 
+        const options = { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true }
+        const updatedAt = data.updatedAt
           ? new Date(data.updatedAt).toLocaleString('en-IN', options).replace(/,/g, '')
           : new Date().toLocaleString('en-IN', options).replace(/,/g, '')
-        
         setLiveState({ dot:'', label:'🟢 LIVE', info:`Last Updated: ${updatedAt} · Click Refresh for latest scores` })
       } else {
         setLiveState({ dot:'', label:'🟢 LIVE', info:`No changes · Last check: ${new Date().toLocaleTimeString('en-IN')}` })
@@ -2506,94 +2519,86 @@ export default function App() {
   return (
     <>
       {adminView === 'login' && (
-        <AdminLogin
-          onLoginSuccess={() => setAdminView('admin')}
-          onBack={() => setAdminView('public')}
-        />
+        <AdminLogin onLoginSuccess={() => setAdminView('admin')} onBack={() => setAdminView('public')} />
       )}
       {adminView === 'admin' && (
         <AdminPage onLogout={() => setAdminView('public')} />
       )}
 
       <div style={adminView !== 'public' ? { display:'none' } : {}}>
-      <div className="watermark">#PbDawn</div>
-      {loading && <div className="loading-overlay"><div className="spinner"/><div className="loading-text">Loading live data...</div></div>}
+        <div className="watermark">#PbDawn</div>
+        {loading && <div className="loading-overlay"><div className="spinner"/><div className="loading-text">Loading live data...</div></div>}
 
-      {/* HEADER — compact mobile-first */}
-      <header>
-        <div className="header-inner">
-          <div className="logo-area">
-            <div className="logo-icon">🏏</div>
-            <div>
-              <div className="title-main">VOIS Panthers IPL 2026</div>
-              <div className="title-sub"><span className="title-live-dot"/>&nbsp;Fantasy League · MyCircle11</div>
+        {/* HEADER */}
+        <header>
+          <div className="header-inner">
+            <div className="logo-area">
+              <div className="logo-icon">🏏</div>
+              <div>
+                <div className="title-main">VOIS Panthers IPL 2026</div>
+                <div className="title-sub"><span className="title-live-dot"/>&nbsp;Fantasy League · MyCircle11</div>
+              </div>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:6}}>
+              <div className="season-badge">IPL 2026</div>
+              {/* Dark/Light Mode Toggle */}
+              <button
+                className="theme-toggle-btn"
+                onClick={() => setIsDark(d => !d)}
+                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {isDark ? '☀️ Light' : '🌙 Dark'}
+              </button>
+              <button
+                onClick={() => setAdminView('login')}
+                title="Admin Login"
+                style={{
+                  fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:11,letterSpacing:1,
+                  padding:'4px 10px',borderRadius:16,border:'1px solid rgba(231,76,60,0.5)',
+                  background:'rgba(231,76,60,0.1)',color:'#e74c3c',cursor:'pointer',
+                  textTransform:'uppercase',transition:'all 0.2s',whiteSpace:'nowrap'
+                }}
+              >🔐 Admin</button>
             </div>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <div className="season-badge">IPL 2026</div>
-            <button
-              onClick={() => setAdminView('login')}
-              title="Admin Login"
-              style={{
-                fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:11,letterSpacing:1,
-                padding:'4px 10px',borderRadius:16,border:'1px solid rgba(231,76,60,0.5)',
-                background:'rgba(231,76,60,0.1)',color:'#e74c3c',cursor:'pointer',
-                textTransform:'uppercase',transition:'all 0.2s',whiteSpace:'nowrap'
-              }}
-            >🔐 Admin</button>
+        </header>
+
+        {/* TICKER */}
+        <div className="ticker-bar">
+          <div className="ticker-left">
+            <div className="live-pill">
+              <span className={`live-dot${liveState.dot?' '+liveState.dot:''}`}/>
+              <span>{liveState.label}</span>
+            </div>
+            <span className="ticker-info">{liveState.info}</span>
+          </div>
+          <div style={{display:'flex',alignItems:'center',gap:10}}>
+            <span className="ticker-time">{clock}</span>
           </div>
         </div>
-      </header>
 
-      {/* TICKER */}
-      <div className="ticker-bar">
-        <div className="ticker-left">
-          <div className="live-pill">
-            <span className={`live-dot${liveState.dot?' '+liveState.dot:''}`}/>
-            <span>{liveState.label}</span>
+        <MarketSentimentTicker matches={matches} />
+        <TVNewsBulletin matches={matches} />
+
+        {/* NAV */}
+        <nav>
+          <div className="nav-inner">
+            {navItems.map(n => (
+              <button key={n.id} className={`nav-btn${activeSection===n.id?' active':''}`} onClick={() => setActiveSection(n.id)}>{n.label}</button>
+            ))}
           </div>
-          <span className="ticker-info">{liveState.info}</span>
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:10}}>
-          <span className="ticker-time">{clock}</span>
-          {/* REFRESH BUTTON COMMENTED OUT
-          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end'}}>
-            <button className="refresh-btn" onClick={manualRefresh} style={isCooldown?{opacity:0.5}:{}}>{btnText}</button>
-            <span className="refresh-counter">{refreshLeft} left today</span>
-          </div>
-          */}
-        </div>
-      </div>
+        </nav>
 
-        {/* <MarketTicker matches={matches} /> */}
-      <MarketSentimentTicker matches={matches} />
-      {/* TV NEWS BULLETIN — replaces old BreakingNewsTicker */}
-      <TVNewsBulletin matches={matches} />
+        {/* SECTIONS — use CSS display:none instead of unmounting for speed */}
+        <div style={activeSection==='matchlog'    ? {} : {display:'none'}}><MatchLog    matches={matches} /></div>
+        <div style={activeSection==='playerstats' ? {} : {display:'none'}}><PlayerStats matches={matches} h2hPlayers={h2hPlayers} setH2hPlayers={setH2hPlayers} /></div>
+        <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} isDark={isDark} /></div>
+        <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
 
-      {/* NAV */}
-      <nav>
-        <div className="nav-inner">
-          {navItems.map(n => (
-            <button key={n.id} className={`nav-btn${activeSection===n.id?' active':''}`} onClick={() => setActiveSection(n.id)}>{n.label}</button>
-          ))}
-        </div>
-      </nav>
-
-      {/* SECTIONS — use CSS display:none instead of unmounting for speed */}
-      <div style={activeSection==='matchlog'    ? {} : {display:'none'}}><MatchLog    matches={matches} /></div>
-      <div style={activeSection==='playerstats' ? {} : {display:'none'}}><PlayerStats matches={matches} h2hPlayers={h2hPlayers} setH2hPlayers={setH2hPlayers} /></div>
-      <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} /></div>
-      <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
-
-      <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
-      {h2hPlayers.p1 && h2hPlayers.p2 && (
-        <H2HModal 
-          p1={h2hPlayers.p1} 
-          p2={h2hPlayers.p2} 
-          matches={matches} 
-          onClose={() => setH2hPlayers({ p1: null, p2: null })} 
-        />
-      )}
+        <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
+        {h2hPlayers.p1 && h2hPlayers.p2 && (
+          <H2HModal p1={h2hPlayers.p1} p2={h2hPlayers.p2} matches={matches} onClose={() => setH2hPlayers({ p1: null, p2: null })} />
+        )}
       </div>
     </>
   )
