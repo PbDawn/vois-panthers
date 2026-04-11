@@ -1161,6 +1161,7 @@ function OlympicPodium({ sorted, sortBy }) {
 
   const getDynamicStat = (p) => {
     switch(sortBy) {
+      case 'wins':      return `${p.wins} Wins (🥇${p.winsRank1} 🥈${p.winsRank2})`;
       case 'winPct': return `${p.winPct.toFixed(1)}% Win`;
       case 'totalWon': return `₹${p.totalWon.toFixed(0)} Won`;
       case 'avgPoints': return `${p.avgPoints.toFixed(1)} Pts`;
@@ -1180,7 +1181,7 @@ function OlympicPodium({ sorted, sortBy }) {
       <div className="pd-confetti-layer"><div id="pd-confetti-inner" /></div>
       
       {/* DYNAMIC TITLE BASED ON SORT */}
-      <div className="pd-title">🏆 {sortBy === 'profit' ? 'PnL' : sortBy.toUpperCase()} LEADERS 🏆</div>
+      <div className="pd-title">🏆 {sortBy === 'profit' ? 'PnL' : sortBy === 'wins' ? 'WINS' : sortBy.toUpperCase()} LEADERS 🏆</div>
       <div className="pd-subtitle">VOIS Panthers · IPL 2026 · Current Top Warriors</div>
       
       <div className="pd-stage">
@@ -1298,20 +1299,29 @@ function Leaderboard({ matches }) {
       const roi       = s.totalInvested > 0 ? (profit / s.totalInvested) * 100 : 0
       const streak    = computeCurrentStreak(s.paidWinStreak)
       return { ...s, name:p, color:COLORS[i], profit, winPct, avgPoints, roi, streak }
-    }).sort((a, b) => b[sortBy] - a[sortBy])
+    }).sort((a, b) => {
+      // Primary sort
+      const diff = b[sortBy] - a[sortBy]
+      if (diff !== 0) return diff
+      // Tie-breaking: fewer matches played wins → better win% → higher avg points
+      if (a.paidContests !== b.paidContests) return a.paidContests - b.paidContests
+      if (b.winPct !== a.winPct) return b.winPct - a.winPct
+      return b.avgPoints - a.avgPoints
+    })
   }, [stats, sortBy])
 
   let _rank = 1, _lastVal = null
-  const ranked = sorted.map(p => {
+  const ranked = sorted.map((p, idx) => {
     const val = p[sortBy]
-    if (_lastVal !== null && val < _lastVal) _rank++
-    _lastVal = val
+    if (idx === 0) { _lastVal = val; _rank = 1 }
+    else if (val < _lastVal) { _rank++; _lastVal = val }
     return { ...p, rank: _rank }
   })
 
   const getDisplayData = (p) => {
     const getCC = (val) => val > 0 ? 'pos-bold' : val < 0 ? 'neg' : 'neu-grey'
     switch(sortBy) {
+      case 'wins':      return { val:`${p.wins}`,                           label:'Wins',       cls:getCC(p.wins) }
       case 'winPct':    return { val:`${p.winPct.toFixed(1)}%`,       label:'Accuracy',   cls:getCC(p.winPct) }
       case 'totalWon':  return { val:`₹${p.totalWon.toFixed(0)}`,     label:'Gross Won',  cls:getCC(p.totalWon) }
       case 'avgPoints': return { val:p.avgPoints.toFixed(1),           label:'Avg Points', cls:getCC(p.avgPoints) }
@@ -1325,6 +1335,7 @@ function Leaderboard({ matches }) {
 
   const filterOptions = [
     { id:'profit',    label:'PnL',     icon:'💰' },
+    { id:'wins',      label:'Wins',    icon:'🏅' },
     { id:'winPct',    label:'Win %',   icon:'🎯' },
     { id:'totalWon',  label:'Won',     icon:'🏆' },
     { id:'avgPoints', label:'Avg Pts', icon:'📊' },
@@ -1422,6 +1433,34 @@ function Leaderboard({ matches }) {
                     <div className="lb-stat">Carry Fwd: <span className="cf-tag">₹{p.carryFwd.toFixed(2)}</span></div>
                   )}
                 </div>
+                {/* Win Frequency / Probability */}
+                {(() => {
+                  const streak = p.paidWinStreak || []
+                  if (streak.length < 2) return null
+                  const wins2 = streak.length >= 2 ? streak.reduce((acc, v, i) => (i > 0 && v && streak[i-1] ? acc+1 : acc), 0) : 0
+                  const wins3 = streak.length >= 3 ? streak.reduce((acc, v, i) => (i > 1 && v && streak[i-1] && streak[i-2] ? acc+1 : acc), 0) : 0
+                  const totalWindows2 = Math.max(1, streak.length - 1)
+                  const totalWindows3 = Math.max(1, streak.length - 2)
+                  const pct2 = ((wins2 / totalWindows2) * 100).toFixed(0)
+                  const pct3 = ((wins3 / totalWindows3) * 100).toFixed(0)
+                  const every2 = wins2 > 0 ? (totalWindows2 / wins2).toFixed(1) : '—'
+                  const every3 = wins3 > 0 ? (totalWindows3 / wins3).toFixed(1) : '—'
+                  return (
+                    <div style={{marginTop:6,padding:'6px 10px',background:'rgba(255,255,255,0.03)',borderRadius:8,border:'1px solid rgba(255,255,255,0.06)'}}>
+                      <div style={{fontSize:10,color:'var(--text2)',letterSpacing:1,textTransform:'uppercase',marginBottom:4,fontWeight:700}}>📊 Win Frequency</div>
+                      <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                        <span style={{fontSize:11,color:'#8899bb'}}>
+                          Back-to-back wins: <span style={{color: wins2>0?'#2ecc71':'var(--text2)', fontWeight:700}}>{wins2}x</span>
+                          <span style={{fontSize:10,color:'var(--text2)'}}> (~1 in every {every2} matches, {pct2}% chance)</span>
+                        </span>
+                        <span style={{fontSize:11,color:'#8899bb'}}>
+                          3-in-a-row wins: <span style={{color: wins3>0?'#f5a623':'var(--text2)', fontWeight:700}}>{wins3}x</span>
+                          <span style={{fontSize:10,color:'var(--text2)'}}> (~1 in every {every3} matches, {pct3}% chance)</span>
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
               {/* Dynamic right side */}
               <div style={{textAlign:'right',minWidth:'90px',flexShrink:0}}>
@@ -1860,6 +1899,323 @@ function Graphs({ matches }) {
           />
         </div>
 
+      </div>
+    </div>
+  )
+}
+
+// ─── PLAYER STOCK PRICE INDEX (CANDLESTICK) ───────────────────
+
+// Pure SVG candlestick chart — no external lib needed
+function CandlestickChart({ candles, color, width = 600, height = 260 }) {
+  if (!candles || candles.length === 0) return <div style={{color:'#8899bb',textAlign:'center',padding:40}}>No match data yet.</div>
+
+  const PAD = { top:16, right:16, bottom:36, left:58 }
+  const chartW = width - PAD.left - PAD.right
+  const chartH = height - PAD.top - PAD.bottom
+
+  const allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]).filter(v => v != null)
+  const minP = Math.min(...allPrices)
+  const maxP = Math.max(...allPrices)
+  const range = maxP - minP || 1
+
+  const toY  = v => PAD.top  + chartH - ((v - minP) / range) * chartH
+  const toX  = i => PAD.left + (i / Math.max(candles.length - 1, 1)) * chartW
+
+  const candleW = Math.max(6, Math.min(22, (chartW / candles.length) * 0.55))
+
+  // Y grid lines (5 lines)
+  const yTicks = Array.from({length:6}, (_, i) => minP + (range / 5) * i)
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{display:'block',maxWidth:width,margin:'0 auto'}}>
+      {/* Grid lines */}
+      {yTicks.map((val, i) => (
+        <g key={i}>
+          <line x1={PAD.left} y1={toY(val)} x2={PAD.left+chartW} y2={toY(val)} stroke="#1e2d50" strokeWidth="1" strokeDasharray="3,4"/>
+          <text x={PAD.left - 6} y={toY(val)+4} textAnchor="end" fontSize="9" fill="#8899bb">
+            {val < 10 ? val.toFixed(1) : Math.round(val)}
+          </text>
+        </g>
+      ))}
+
+      {/* Zero base line if in range */}
+      {minP <= 0 && maxP >= 0 && (
+        <line x1={PAD.left} y1={toY(0)} x2={PAD.left+chartW} y2={toY(0)} stroke="#f5a62360" strokeWidth="1" strokeDasharray="6,3"/>
+      )}
+
+      {/* Candles */}
+      {candles.map((c, i) => {
+        const cx   = toX(i)
+        const isUp = c.close >= c.open
+        const isSame = c.close === c.open
+        const fill = isSame ? '#888888' : isUp ? '#2ecc71' : '#e74c3c'
+        const bodyTop    = toY(Math.max(c.open, c.close))
+        const bodyBottom = toY(Math.min(c.open, c.close))
+        const bodyH      = Math.max(2, bodyBottom - bodyTop)
+
+        return (
+          <g key={i}>
+            {/* Wick */}
+            <line x1={cx} y1={toY(c.high)} x2={cx} y2={toY(c.low)} stroke={fill} strokeWidth="1.5"/>
+            {/* Body */}
+            <rect
+              x={cx - candleW/2} y={bodyTop}
+              width={candleW} height={bodyH}
+              fill={fill} rx="2"
+              opacity="0.92"
+            />
+            {/* Match label */}
+            <text x={cx} y={height - PAD.bottom + 14} textAnchor="middle" fontSize="9" fill="#8899bb">
+              {c.label}
+            </text>
+            {/* Tooltip on hover via title */}
+            <title>{c.label}: O={c.open?.toFixed(1)} H={c.high?.toFixed(1)} L={c.low?.toFixed(1)} C={c.close?.toFixed(1)}</title>
+          </g>
+        )
+      })}
+
+      {/* Connect close prices with thin line */}
+      {candles.length > 1 && (
+        <polyline
+          points={candles.map((c,i) => `${toX(i)},${toY(c.close)}`).join(' ')}
+          fill="none" stroke={color+'88'} strokeWidth="1" strokeDasharray="3,3"
+        />
+      )}
+
+      {/* Current price label on last candle */}
+      {candles.length > 0 && (
+        <text x={toX(candles.length-1)} y={toY(candles[candles.length-1].close) - 6}
+          textAnchor="middle" fontSize="10" fontWeight="700" fill={color}>
+          ₹{candles[candles.length-1].close?.toFixed(0)}
+        </text>
+      )}
+    </svg>
+  )
+}
+
+function PlayerStockIndex({ matches }) {
+  const completedMatches = useMemo(() =>
+    matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'),
+  [matches])
+
+  const [selectedPlayer, setSelectedPlayer] = useState(PLAYERS[0])
+
+  // Build OHLC candle data per player, one candle per match
+  const allPlayerCandles = useMemo(() => {
+    const result = {}
+    PLAYERS.forEach((p, pi) => {
+      let runningPrice = 100
+      const candles = []
+
+      completedMatches.forEach((m, idx) => {
+        const pd = m.players[p]
+        const open = runningPrice
+
+        if (pd && pd.joined) {
+          const eligible = PLAYERS
+            .filter(pl => m.players?.[pl]?.paid && m.players?.[pl]?.points > 0)
+            .map(pl => ({ name:pl, points:m.players[pl].points }))
+            .sort((a,b) => b.points - a.points)
+          let matchRank = 0, currentR = 1
+          eligible.forEach((player, i) => {
+            if (i > 0 && player.points < eligible[i-1].points) currentR++
+            if (player.name === p) matchRank = currentR
+          })
+          const pts = pd.points || 0
+          let multiplier = 1.0
+          if      (matchRank === 1) multiplier = 1.20
+          else if (matchRank === 2) multiplier = 1.10
+          else if (matchRank === 3) multiplier = 1.05
+          else if (matchRank === 6) multiplier = 0.95
+          else if (matchRank === 7) multiplier = 0.90
+          runningPrice = parseFloat((((pts * 0.4) + (open * 0.6)) * multiplier).toFixed(2))
+        }
+        // For the candle: open = price before match, close = price after
+        // High = max(open, close) * slight intra-match volatility factor
+        // Low  = min(open, close) * slight intra-match volatility factor
+        const close = runningPrice
+        const change = Math.abs(close - open)
+        const high = parseFloat(Math.max(open, close, open + change * 0.15).toFixed(2))
+        const low  = parseFloat(Math.min(open, close, open - change * 0.15).toFixed(2))
+
+        candles.push({ label:`M${m.matchno}`, open, high, low, close, matchno: m.matchno })
+      })
+      result[p] = candles
+    })
+    return result
+  }, [completedMatches])
+
+  const playerCandles = allPlayerCandles[selectedPlayer] || []
+  const lastCandle    = playerCandles[playerCandles.length - 1]
+  const prevCandle    = playerCandles[playerCandles.length - 2]
+  const change        = lastCandle && prevCandle ? lastCandle.close - prevCandle.close : 0
+  const changePct     = prevCandle && prevCandle.close > 0 ? ((change / prevCandle.close) * 100).toFixed(2) : '0.00'
+  const isUp          = change > 0
+  const isSame        = change === 0
+  const playerColor   = COLORS[PLAYERS.indexOf(selectedPlayer)]
+
+  // ATH / ATL
+  const allCloses = playerCandles.map(c => c.close)
+  const ath = allCloses.length ? Math.max(...allCloses) : 100
+  const atl = allCloses.length ? Math.min(...allCloses) : 100
+
+  return (
+    <div className="section">
+      <div className="sec-title" style={{paddingBottom:16}}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',width:'100%',flexWrap:'wrap',gap:8}}>
+          <span style={{fontSize:'22px',letterSpacing:'2px',fontFamily:'Bebas Neue'}}>📈 PLAYER STOCK PRICE INDEX</span>
+          <span style={{fontSize:'10px',color:'var(--green)',fontWeight:800,letterSpacing:2}}>LIVE</span>
+        </div>
+        <div style={{fontSize:11,color:'#8899bb',marginTop:4,letterSpacing:0.5}}>
+          One candlestick per match · Green = Index rose · Red = Index fell · Grey = No change
+        </div>
+      </div>
+
+      {/* Player Selector Tabs */}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:20}}>
+        {PLAYERS.map((p, i) => {
+          const candles = allPlayerCandles[p] || []
+          const last = candles[candles.length-1]
+          const prev = candles[candles.length-2]
+          const chg = last && prev ? last.close - prev.close : 0
+          const isActive = p === selectedPlayer
+          return (
+            <button
+              key={p}
+              onClick={() => setSelectedPlayer(p)}
+              style={{
+                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12, padding:'7px 14px',
+                borderRadius:20, cursor:'pointer', transition:'all 0.2s',
+                border: isActive ? `2px solid ${COLORS[i]}` : '1px solid rgba(255,255,255,0.1)',
+                background: isActive ? `${COLORS[i]}22` : 'rgba(255,255,255,0.04)',
+                color: isActive ? COLORS[i] : '#8899bb',
+                display:'flex', alignItems:'center', gap:6
+              }}
+            >
+              <span>{p}</span>
+              {last && <span style={{fontSize:10,color: chg>0?'#2ecc71':chg<0?'#e74c3c':'#888'}}>
+                {chg>0?'▲':chg<0?'▼':'─'} ₹{last.close.toFixed(0)}
+              </span>}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Selected Player Header */}
+      <div style={{
+        background:`linear-gradient(135deg,${playerColor}15,transparent)`,
+        border:`1px solid ${playerColor}44`, borderRadius:16,
+        padding:'16px 20px', marginBottom:20,
+        display:'flex', alignItems:'center', gap:20, flexWrap:'wrap'
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <img
+            src={PLAYER_IMAGES[selectedPlayer]}
+            alt={selectedPlayer}
+            onError={e=>{e.target.style.display='none'}}
+            style={{width:52,height:52,borderRadius:'50%',objectFit:'cover',objectPosition:'center top',border:`3px solid ${playerColor}`}}
+          />
+          <div>
+            <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:3,color:playerColor}}>{selectedPlayer}</div>
+            <div style={{fontSize:10,color:'#8899bb',letterSpacing:1}}>PLAYER STOCK INDEX</div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:16,flexWrap:'wrap',flex:1}}>
+          {lastCandle && [
+            { label:'CURRENT', val:`₹${lastCandle.close.toFixed(2)}`, color: playerColor },
+            { label:'CHANGE', val:`${isUp?'▲':isSame?'─':'▼'} ${change>=0?'+':''}₹${change.toFixed(2)} (${changePct}%)`, color: isUp?'#2ecc71':isSame?'#888':'#e74c3c' },
+            { label:'ATH 🚀', val:`₹${ath.toFixed(2)}`, color:'#2ecc71' },
+            { label:'ATL 📉', val:`₹${atl.toFixed(2)}`, color:'#e74c3c' },
+            { label:'MATCHES', val:playerCandles.length, color:'#8899bb' },
+          ].map(({label,val,color}) => (
+            <div key={label} style={{textAlign:'center',minWidth:64}}>
+              <div style={{fontSize:9,color:'#8899bb',letterSpacing:2,textTransform:'uppercase'}}>{label}</div>
+              <div style={{fontSize:13,fontWeight:800,color,fontFamily:"'Orbitron',sans-serif",marginTop:2}}>{val}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Candlestick Chart */}
+      <div style={{
+        background:'#05080f', borderRadius:16, padding:'16px 8px',
+        border:`1px solid ${playerColor}33`, marginBottom:20, overflowX:'auto'
+      }}>
+        <CandlestickChart
+          candles={playerCandles}
+          color={playerColor}
+          width={Math.max(600, playerCandles.length * 55 + 80)}
+          height={280}
+        />
+      </div>
+
+      {/* Legend */}
+      <div style={{display:'flex',gap:16,flexWrap:'wrap',marginBottom:20,fontSize:11,color:'#8899bb'}}>
+        {[
+          {color:'#2ecc71', label:'Green Candle — Index rose from previous match'},
+          {color:'#e74c3c', label:'Red Candle — Index fell from previous match'},
+          {color:'#888888', label:'Grey Candle — Index unchanged'},
+        ].map(({color,label})=>(
+          <span key={label} style={{display:'flex',alignItems:'center',gap:6}}>
+            <span style={{display:'inline-block',width:12,height:12,background:color,borderRadius:2}}/>
+            {label}
+          </span>
+        ))}
+      </div>
+
+      {/* All Players Summary Grid */}
+      <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:4,color:'var(--text2)',marginBottom:12}}>ALL PLAYERS — MINI CHARTS</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))',gap:16}}>
+        {PLAYERS.map((p, pi) => {
+          const candles = allPlayerCandles[p] || []
+          const last = candles[candles.length-1]
+          const prev = candles[candles.length-2]
+          const chg = last && prev ? last.close - prev.close : 0
+          const chgPct = prev && prev.close > 0 ? ((chg/prev.close)*100).toFixed(1) : '0.0'
+          const pColor = COLORS[pi]
+          const pAth = candles.length ? Math.max(...candles.map(c=>c.close)) : 100
+          const pAtl = candles.length ? Math.min(...candles.map(c=>c.close)) : 100
+          return (
+            <div
+              key={p}
+              onClick={() => setSelectedPlayer(p)}
+              style={{
+                background: p===selectedPlayer?`${pColor}15`:'#0d1525',
+                border: `1px solid ${p===selectedPlayer?pColor:'#1e2d50'}`,
+                borderRadius:14, padding:'14px 14px 10px', cursor:'pointer',
+                transition:'all 0.2s'
+              }}
+            >
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
+                <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:16,letterSpacing:2,color:pColor}}>{p}</div>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:14,fontWeight:800,color:pColor,fontFamily:"'Orbitron',sans-serif"}}>
+                    {last ? `₹${last.close.toFixed(0)}` : '₹100'}
+                  </div>
+                  <div style={{fontSize:10,color:chg>0?'#2ecc71':chg<0?'#e74c3c':'#888'}}>
+                    {chg>0?'▲':chg<0?'▼':'─'} {chg>=0?'+':''}{chg.toFixed(1)} ({chgPct}%)
+                  </div>
+                </div>
+              </div>
+              <CandlestickChart candles={candles} color={pColor} width={320} height={110} />
+              <div style={{display:'flex',justifyContent:'space-between',marginTop:6,fontSize:9,color:'#8899bb'}}>
+                <span>ATH: <span style={{color:'#2ecc71'}}>₹{pAth.toFixed(0)}</span></span>
+                <span>ATL: <span style={{color:'#e74c3c'}}>₹{pAtl.toFixed(0)}</span></span>
+                <span>{candles.length} matches</span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Formula note */}
+      <div style={{padding:'12px 16px',fontSize:'11px',color:'#8899bb',background:'rgba(0,0,0,0.2)',borderRadius:12,marginTop:16,border:'1px solid #1e2d50'}}>
+        <b style={{color:'#f5a623'}}>Candle formula:</b> Open = previous match closing price · Close = new index price after match ·
+        High/Low = intra-match price range estimation &nbsp;·&nbsp;
+        <b style={{color:'#f5a623'}}>Index formula:</b> (40% Match Pts + 60% Prev Index) × Rank Multiplier &nbsp;·&nbsp;
+        <b style={{color:'#f5a623'}}>Multipliers:</b> 1st +20% · 2nd +10% · 3rd +5% · 6th -5% · 7th -10%
+        <div style={{marginTop:4,fontStyle:'italic',opacity:0.7}}>*Skipped matches = price frozen (flat open=close candle)</div>
       </div>
     </div>
   )
@@ -2627,6 +2983,7 @@ export default function App() {
     { id:'playerstats', label:'👤 Player Stats' },
     { id:'leaderboard', label:'🏆 Leaderboard' },
     { id:'graphs',      label:'📊 Graphs' },
+    { id:'stockindex',  label:'📈 Stock Index' },
   ]
 
   return (
@@ -2699,6 +3056,7 @@ export default function App() {
         <div style={activeSection==='playerstats' ? {} : {display:'none'}}><PlayerStats matches={matches} h2hPlayers={h2hPlayers} setH2hPlayers={setH2hPlayers} /></div>
         <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} /></div>
         <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
+        <div style={activeSection==='stockindex'  ? {} : {display:'none'}}><PlayerStockIndex matches={matches} /></div>
 
         <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
         {h2hPlayers.p1 && h2hPlayers.p2 && (
