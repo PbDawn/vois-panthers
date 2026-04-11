@@ -1320,7 +1320,7 @@ function useCountUp(target, duration = 2000, active = true) {
   return value
 }
 
-function AnimatedNumber({ value, prefix = '', suffix = '', decimals = 0, duration = 2000 }) {
+function AnimatedNumber({ value, prefix = '', suffix = '', decimals = 0, duration = 6000 }) {
   const animated = useCountUp(value, duration)
   return <>{prefix}{animated.toFixed(decimals)}{suffix}</>
 }
