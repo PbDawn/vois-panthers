@@ -794,25 +794,6 @@ function MatchLog({ matches }) {
   )
 }
 
-// ─── COUNTDOWN CELL ───────────────────────────────────────────
-function CountdownCell({ match, isNextUpcoming }) {
-  const [display, setDisplay] = useState('')
-  const done = match.teamwon && match.teamwon.trim() !== '' && match.teamwon !== '—'
-  useEffect(() => {
-    if (!isNextUpcoming || !match.matchTime || done) return
-    const target = getMatchDateTime(match)
-    if (!target) return
-    const tick = () => setDisplay(formatCountdown(target - new Date()))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [match, isNextUpcoming, done])
-  if (done) return <><div className="completed-badge">✅ Completed</div>{match.matchTime && <div className="scheduled-time">{formatMatchTimeLabel(match.matchTime)}</div>}</>
-  if (isNextUpcoming && match.matchTime) return <><div className="scheduled-time" style={{color:'var(--text2)',marginBottom:3}}>{formatMatchTimeLabel(match.matchTime)}</div><div className="time-countdown">⏱ Starts in: <span>{display || '--:--:--'}</span></div></>
-  if (match.matchTime) return <div style={{fontSize:12,fontWeight:700,color:'var(--text)'}}>{formatMatchTimeLabel(match.matchTime)}</div>
-  return <span style={{color:'var(--text2)'}}>—</span>
-}
-
 // Pagination styles
 const paginationStyle = {
   wrap: {
@@ -1285,7 +1266,7 @@ function computeCurrentStreak(paidWinStreak) {
 }
 
 // ─── LEADERBOARD ──────────────────────────────────────────
-function Leaderboard({ matches, isDark }) {
+function Leaderboard({ matches }) {
   const [sortBy, setSortBy] = useState('profit')
   const stats = useMemo(() => computePlayerStats(matches), [matches])
 
@@ -1438,139 +1419,97 @@ function Leaderboard({ matches, isDark }) {
 
 // ─── GRAPHS ───────────────────────────────────────────────────
 
-function MarketSentimentChart({ matches }) {
-  const completedMatches = useMemo(() => 
-    matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'), 
-  [matches]);
+function PaginatedMarketSentimentChart({ matches }) {
+  const completedMatches = useMemo(() =>
+    matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'),
+  [matches])
 
-  const marketData = useMemo(() => {
-    const labels = completedMatches.map(m => `M${m.matchno}`);
+  // Build full history arrays for all players
+  const { allLabels, allDatasets } = useMemo(() => {
+    const labels = completedMatches.map(m => `M${m.matchno}`)
     const datasets = PLAYERS.map((p, i) => {
-      let runningPrice = 100; 
-      let prevPriceSnapshot = 100;
-      
+      let runningPrice = 100
+      let prevPriceSnapshot = 100
       const history = completedMatches.map((m, idx) => {
-        const pd = m.players[p];
-        
+        const pd = m.players[p]
         if (pd && pd.joined) {
           const eligible = PLAYERS
             .filter(pl => m.players?.[pl]?.paid && m.players?.[pl]?.points > 0)
-            .map(pl => ({ name: pl, points: m.players[pl].points }))
-            .sort((a, b) => b.points - a.points);
-          
-          let matchRank = 0;
-          let currentR = 1;
+            .map(pl => ({ name:pl, points:m.players[pl].points }))
+            .sort((a,b) => b.points - a.points)
+          let matchRank = 0, currentR = 1
           eligible.forEach((player, i) => {
-            if (i > 0 && player.points < eligible[i - 1].points) currentR++;
-            if (player.name === p) matchRank = currentR;
-          });
-
-          if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice;
-          
-          const pts = pd.points || 0;
-          let multiplier = 1.0;
-          if (matchRank === 1) multiplier = 1.20;      
-          else if (matchRank === 2) multiplier = 1.10; 
-          else if (matchRank === 3) multiplier = 1.05; 
-          else if (matchRank === 6) multiplier = 0.95; 
-          else if (matchRank === 7) multiplier = 0.90; 
-
-          runningPrice = ((pts * 0.4) + (runningPrice * 0.6)) * multiplier;
+            if (i > 0 && player.points < eligible[i-1].points) currentR++
+            if (player.name === p) matchRank = currentR
+          })
+          if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice
+          const pts = pd.points || 0
+          let multiplier = 1.0
+          if      (matchRank === 1) multiplier = 1.20
+          else if (matchRank === 2) multiplier = 1.10
+          else if (matchRank === 3) multiplier = 1.05
+          else if (matchRank === 6) multiplier = 0.95
+          else if (matchRank === 7) multiplier = 0.90
+          runningPrice = ((pts * 0.4) + (runningPrice * 0.6)) * multiplier
         } else {
-          if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice;
+          if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice
         }
-        
-        return parseFloat(runningPrice.toFixed(2));
-      });
+        return parseFloat(runningPrice.toFixed(2))
+      })
+      const currentVal    = runningPrice
+      const lastJoined    = completedMatches[completedMatches.length-1]?.players[p]?.joined
+      const change        = lastJoined ? (currentVal - prevPriceSnapshot) : 0
+      const isUp          = change > 0
+      const changePct     = (lastJoined && prevPriceSnapshot > 0) ? ((change/prevPriceSnapshot)*100).toFixed(1) : '0.0'
+      const dynamicLabel  = `${p}: ₹${currentVal.toFixed(0)} ${change===0?'—':isUp?'▲':'▼'}${Math.abs(change).toFixed(0)} (${isUp&&change!==0?'+':''}${changePct}%)`
+      return { label:dynamicLabel, data:history, borderColor:COLORS[i], backgroundColor:COLORS[i]+'15',
+        fill:true, tension:0.4, pointRadius:3, pointHitRadius:10 }
+    })
+    return { allLabels:labels, allDatasets:datasets }
+  }, [completedMatches])
 
-      const currentVal = runningPrice;
-      const lastMatchJoined = completedMatches[completedMatches.length - 1]?.players[p]?.joined;
-      const change = lastMatchJoined ? (currentVal - prevPriceSnapshot) : 0;
-      
-      const isUp = change > 0;
-      const changePercent = (lastMatchJoined && prevPriceSnapshot > 0) ? ((change / prevPriceSnapshot) * 100).toFixed(1) : '0.0';
-      
-      const dynamicLabel = `${p}: ₹${currentVal.toFixed(0)} ${change === 0 ? '—' : isUp ? '▲' : '▼'}${Math.abs(change).toFixed(0)} (${isUp && change !== 0 ? '+' : ''}${changePercent}%)`;
-
-      return {
-        label: dynamicLabel,
-        data: history,
-        borderColor: COLORS[i],
-        backgroundColor: COLORS[i] + '15',
-        fill: true,
-        tension: 0.4,
-        pointRadius: 3,
-        pointHitRadius: 10
-      };
-    });
-    return { labels, datasets };
-  }, [completedMatches]);
+  const chartOptions = {
+    ...chartOpts('₹'),
+    interaction:{ mode:'index', intersect:false },
+    plugins:{
+      ...chartOpts('₹').plugins,
+      legend:{ labels:{ color:'#8899bb', font:{ family:'Rajdhani', size:11, weight:'700' }, padding:15, usePointStyle:true } },
+      tooltip:{ callbacks:{ label:(ctx) => {
+        const playerName = ctx.dataset.label.split(':')[0]
+        const cur = ctx.parsed.y, idx = ctx.dataIndex
+        const ds  = ctx.dataset.data
+        if (idx > 0) {
+          const prev = ds[idx-1], diff = cur - prev
+          const pct  = ((diff/prev)*100).toFixed(1)
+          const icon = diff>0?'▲':diff<0?'▼':'—'
+          return `${playerName}: ₹${cur.toFixed(0)} (${icon}${Math.abs(diff).toFixed(0)} / ${diff>0?'+':''}${pct}%)`
+        }
+        return `${playerName}: ₹${cur.toFixed(0)} (Listing)`
+      }}}
+    }
+  }
 
   return (
-    <div className="chart-card" style={{ gridColumn: '1/-1', border: '1px solid #f5a623' }}>
-      <div className="chart-title">📊 PLAYER MOMENTUM INDEX (FORM-BASED)</div>
-      <div className="chart-wrap" style={{ height: 350 }}>
-        <Line 
-          data={marketData} 
-          options={{
-            ...chartOpts('₹'),
-            interaction: {
-              mode: 'index',
-              intersect: false,
-            },
-            plugins: {
-              ...chartOpts('₹').plugins,
-              legend: {
-                labels: {
-                  color: '#8899bb',
-                  font: { family: 'Rajdhani', size: 11, weight: '700' },
-                  padding: 15,
-                  usePointStyle: true 
-                }
-              },
-              tooltip: {
-                callbacks: {
-                  label: (ctx) => {
-                    const playerName = ctx.dataset.label.split(':')[0];
-                    const currentPoint = ctx.parsed.y;
-                    const index = ctx.dataIndex;
-                    const dataset = ctx.dataset.data;
-                    
-                    let changeText = "";
-                    if (index > 0) {
-                      const prevPoint = dataset[index - 1];
-                      const diff = currentPoint - prevPoint;
-                      const pct = ((diff / prevPoint) * 100).toFixed(1);
-                      const icon = diff > 0 ? "▲" : diff < 0 ? "▼" : "—";
-                      changeText = ` (${icon}${Math.abs(diff).toFixed(0)} / ${diff > 0 ? '+' : ''}${pct}%)`;
-                    } else {
-                      changeText = " (Listing)";
-                    }
-                    
-                    return `${playerName}: ₹${currentPoint.toFixed(0)}${changeText}`;
-                  }
-                }
-              }
-            }
-          }} 
-        />
+    <div className="chart-card" style={{gridColumn:'1/-1', border:'1px solid #f5a623'}}>
+      <div className="chart-title">📊 PLAYER MOMENTUM INDEX (FORM-BASED)
+        <span style={{fontSize:10,color:'#8899bb',fontWeight:400,display:'block',marginTop:3,letterSpacing:0.5}}>
+          💡 Click a player's name in the legend to toggle · Use Prev/Next to navigate matches
+        </span>
       </div>
-      <div style={{ padding: '12px', fontSize: '11px', color: '#8899bb', background: 'rgba(0,0,0,0.2)', borderRadius: '0 0 12px 12px', borderTop: '1px solid #1e2d50' }}>
-        <div style={{ fontWeight: 'bold', color: '#f5a623', marginBottom: '4px' }}>📊 PLAYER MOMENTUM INDEX v2.0</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-          <div>
-            <b>Formula:</b> (40% Current Match Pts + 60% Prev Index) × Rank Multiplier
-          </div>
-          <div>
-            <b>Rank Multipliers:</b> 1st(+20%) | 2nd(+10%) | 3rd(+5%) | 4th(+0%) | 5th(+0%) | 6th(-5%) | 7th(-10%)
-          </div>
-        </div>
-        <div style={{ marginTop: '5px', fontStyle: 'italic', opacity: 0.8 }}>
-          *Skipped matches result in a "Frozen" price (Flat Line).
-        </div>
+      <PaginatedLineChart
+        allLabels={allLabels}
+        allDatasets={allDatasets}
+        chartOptions={chartOptions}
+        height={300}
+        defaultPage="last"
+      />
+      <div style={{padding:'10px 12px',fontSize:'11px',color:'#8899bb',background:'rgba(0,0,0,0.2)',borderRadius:'0 0 12px 12px',borderTop:'1px solid #1e2d50',marginTop:8}}>
+        <b style={{color:'#f5a623'}}>Formula:</b> (40% Match Pts + 60% Prev Index) × Rank Multiplier &nbsp;·&nbsp;
+        <b style={{color:'#f5a623'}}>Multipliers:</b> 1st +20% · 2nd +10% · 3rd +5% · 6th -5% · 7th -10%
+        <div style={{marginTop:4,fontStyle:'italic',opacity:0.7}}>*Skipped matches = Frozen price (flat line)</div>
       </div>
     </div>
-  );
+  )
 }
 
 function MarketCandleChart({ matches }) {
@@ -1643,18 +1582,112 @@ function MarketCandleChart({ matches }) {
   );
 }
 
+// ─── PAGINATED CHART WRAPPER ──────────────────────────────
+// Shows MATCHES_PER_PAGE matches at a time with Prev/Next controls
+const MATCHES_PER_PAGE_MOBILE = 7
+const MATCHES_PER_PAGE_DESKTOP = 10
+
+function usePaginatedData(allLabels, allDatasets, defaultPage) {
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768
+  const perPage  = isMobile ? MATCHES_PER_PAGE_MOBILE : MATCHES_PER_PAGE_DESKTOP
+  const total    = allLabels.length
+  const totalPages = Math.max(1, Math.ceil(total / perPage))
+
+  const [page, setPage] = useState(() => defaultPage === 'last' ? totalPages : 1)
+
+  // When total changes (data loads), jump to last page so latest matches show
+  useEffect(() => {
+    if (defaultPage === 'last') setPage(Math.max(1, Math.ceil(total / perPage)))
+  }, [total, perPage, defaultPage])
+
+  const start = (page - 1) * perPage
+  const end   = Math.min(start + perPage, total)
+
+  const slicedLabels   = allLabels.slice(start, end)
+  const slicedDatasets = allDatasets.map(ds => ({ ...ds, data: ds.data.slice(start, end) }))
+
+  return { slicedLabels, slicedDatasets, page, setPage, totalPages, perPage, start, end, total }
+}
+
+function ChartPageControls({ page, totalPages, setPage, start, end, total, label }) {
+  if (totalPages <= 1) return null
+  return (
+    <div style={{
+      display:'flex', alignItems:'center', justifyContent:'space-between',
+      flexWrap:'wrap', gap:8, marginTop:10, padding:'8px 2px'
+    }}>
+      <div style={{fontSize:11,color:'#8899bb',letterSpacing:0.5}}>
+        {label && <span style={{color:'#f5a623',fontWeight:700,marginRight:6}}>{label}</span>}
+        Showing matches <b style={{color:'#e8eaf6'}}>{start+1}–{end}</b> of <b style={{color:'#e8eaf6'}}>{total}</b>
+      </div>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        <button onClick={()=>setPage(1)} disabled={page===1} style={pgBtnStyle(page===1)}>«</button>
+        <button onClick={()=>setPage(p=>p-1)} disabled={page===1} style={pgBtnStyle(page===1)}>‹ Prev</button>
+        {Array.from({length:totalPages},(_,i)=>i+1).map(pg=>(
+          <button key={pg} onClick={()=>setPage(pg)} style={pgBtnStyle(false, pg===page)}>{pg}</button>
+        ))}
+        <button onClick={()=>setPage(p=>p+1)} disabled={page===totalPages} style={pgBtnStyle(page===totalPages)}>Next ›</button>
+        <button onClick={()=>setPage(totalPages)} disabled={page===totalPages} style={pgBtnStyle(page===totalPages)}>»</button>
+      </div>
+    </div>
+  )
+}
+
+function pgBtnStyle(disabled, active=false) {
+  return {
+    fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+    padding:'5px 11px', borderRadius:8, cursor: disabled ? 'default' : 'pointer',
+    border: active ? '1px solid #f5a623' : '1px solid rgba(255,255,255,0.12)',
+    background: active ? 'rgba(245,166,35,0.2)' : 'rgba(255,255,255,0.05)',
+    color: active ? '#f5a623' : disabled ? 'rgba(136,153,187,0.4)' : '#8899bb',
+    opacity: disabled ? 0.5 : 1,
+    transition:'all 0.15s'
+  }
+}
+
+// ─── PAGINATED LINE CHART ─────────────────────────────────
+function PaginatedLineChart({ allLabels, allDatasets, chartOptions, height=280, defaultPage='last' }) {
+  const { slicedLabels, slicedDatasets, page, setPage, totalPages, start, end, total } =
+    usePaginatedData(allLabels, allDatasets, defaultPage)
+
+  return (
+    <>
+      <ChartPageControls page={page} totalPages={totalPages} setPage={setPage} start={start} end={end} total={total} />
+      <div style={{position:'relative', height}}>
+        <Line data={{labels:slicedLabels, datasets:slicedDatasets}} options={chartOptions} />
+      </div>
+      <ChartPageControls page={page} totalPages={totalPages} setPage={setPage} start={start} end={end} total={total} />
+    </>
+  )
+}
+
+// ─── PAGINATED BAR CHART ──────────────────────────────────
+function PaginatedBarChart({ allLabels, allDatasets, chartOptions, height=280, defaultPage='last' }) {
+  const { slicedLabels, slicedDatasets, page, setPage, totalPages, start, end, total } =
+    usePaginatedData(allLabels, allDatasets, defaultPage)
+
+  return (
+    <>
+      <ChartPageControls page={page} totalPages={totalPages} setPage={setPage} start={start} end={end} total={total} />
+      <div style={{position:'relative', height}}>
+        <Bar data={{labels:slicedLabels, datasets:slicedDatasets}} options={chartOptions} />
+      </div>
+      <ChartPageControls page={page} totalPages={totalPages} setPage={setPage} start={start} end={end} total={total} />
+    </>
+  )
+}
+
 function Graphs({ matches }) {
   const stats = useMemo(() => computePlayerStats(matches), [matches])
 
-  // Feature 3: Only completed matches for Per Match Points Comparison
   const completedMatches = useMemo(() =>
     matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'),
   [matches])
 
-  const labels = useMemo(() => matches.map(m => `M${m.matchno}`), [matches])
   const completedLabels = useMemo(() => completedMatches.map(m => `M${m.matchno}`), [completedMatches])
+  const allLabels       = useMemo(() => matches.map(m => `M${m.matchno}`), [matches])
 
-  // Fix: Only use completed matches for cumulative PnL graph, use diamond points
+  // Cumulative PnL — completed matches only, diamond points
   const pnlDatasets = useMemo(() => PLAYERS.map((p, i) => {
     let cum = 0
     const data = completedMatches.map(m => {
@@ -1662,12 +1695,11 @@ function Graphs({ matches }) {
       if (m.contest === 'yes') {
         if (pd.paid) cum -= m.fee
         if (pd.paid) {
-          const prizes = calculatePrizes(m)
+          const prizes   = calculatePrizes(m)
           const paidRanks = prizes._paidRanks || {}
-          const pRank = paidRanks[p]
-          const isDone = (m.transferred && typeof m.transferred === 'object')
-            ? m.transferred[p] === true
-            : m.transferred === true
+          const pRank    = paidRanks[p]
+          const isDone   = (m.transferred && typeof m.transferred === 'object')
+            ? m.transferred[p] === true : m.transferred === true
           if (isDone) {
             if (pRank === 1) cum += prizes[1]
             else if (pRank === 2 && prizes.winnerCountLimit === 2) cum += prizes[2]
@@ -1676,17 +1708,11 @@ function Graphs({ matches }) {
       }
       return parseFloat(cum.toFixed(2))
     })
-    return { label:p, data, borderColor:COLORS[i], backgroundColor:COLORS[i]+'22', fill:false, tension:0.3, pointRadius:4, pointHoverRadius:7, pointStyle:'rectRot', borderWidth:2 }
+    return { label:p, data, borderColor:COLORS[i], backgroundColor:COLORS[i]+'22',
+      fill:false, tension:0.3, pointRadius:4, pointHoverRadius:7, pointStyle:'rectRot', borderWidth:2 }
   }), [completedMatches])
 
-  const invWinData = useMemo(() => ({ labels: PLAYERS, datasets: [
-    { label:'Invested', data: PLAYERS.map(p=>stats[p].totalInvested), backgroundColor: COLORS.map(c=>c+'99'), borderColor: COLORS, borderWidth:1 },
-    { label:'Won', data: PLAYERS.map(p=>parseFloat(stats[p].totalWon.toFixed(2))), backgroundColor: COLORS.map(c=>c+'44'), borderColor: COLORS, borderWidth:2 }
-  ]}), [stats])
-
-  const winsData = useMemo(() => ({ labels: PLAYERS, datasets: [{ data: PLAYERS.map(p=>stats[p].wins), backgroundColor: COLORS, borderColor:'#1b2540', borderWidth:2 }] }), [stats])
-
-  // Feature 3: Filter pointsDatasets — only players with >0 points in completed matches
+  // Per-match points — completed only
   const pointsDatasets = useMemo(() => PLAYERS
     .map((p, i) => {
       const data = completedMatches.map(m => {
@@ -1694,71 +1720,132 @@ function Graphs({ matches }) {
         if (!pd?.joined || !pd?.paid) return null
         return pd.points > 0 ? pd.points : null
       })
-      const hasAnyPoints = data.some(v => v !== null && v > 0)
-      if (!hasAnyPoints) return null
-      return { label:p, data, borderColor: COLORS[i], backgroundColor: COLORS[i]+'33', spanGaps:false, tension:0.3, pointRadius:5, borderWidth:2 }
+      if (!data.some(v => v !== null && v > 0)) return null
+      return { label:p, data, borderColor:COLORS[i], backgroundColor:COLORS[i]+'33',
+        spanGaps:false, tension:0.3, pointRadius:5, pointStyle:'rectRot', borderWidth:2 }
     })
     .filter(Boolean),
   [completedMatches])
 
-  const winPctData = useMemo(() => ({ labels: PLAYERS, datasets: [{ data: PLAYERS.map(p => stats[p].paidContests>0 ? parseFloat(((stats[p].wins/stats[p].paidContests)*100).toFixed(1)) : 0), backgroundColor: COLORS.map(c=>c+'99'), borderColor: COLORS, borderWidth:1 }] }), [stats])
-  const poolData = useMemo(() => ({ labels, datasets: [{ label:'Pool (₹)', data: matches.map(m => calculatePrizes(m).totalPool || m.pool || 0), backgroundColor: matches.map(m=>(calculatePrizes(m).totalPool||m.pool||0)>0?'rgba(245,166,35,0.5)':'rgba(100,100,100,0.3)'), borderColor: matches.map(m=>(calculatePrizes(m).totalPool||m.pool||0)>0?'#f5a623':'#555'), borderWidth:1 }] }), [matches, labels])
+  // Pool money — all matches
+  const poolDatasets = useMemo(() => [{
+    label:'Pool (₹)',
+    data: matches.map(m => calculatePrizes(m).totalPool || m.pool || 0),
+    backgroundColor: matches.map(m => (calculatePrizes(m).totalPool||m.pool||0)>0
+      ? 'rgba(245,166,35,0.5)' : 'rgba(100,100,100,0.3)'),
+    borderColor: matches.map(m => (calculatePrizes(m).totalPool||m.pool||0)>0 ? '#f5a623' : '#555'),
+    borderWidth:1
+  }], [matches])
+
+  // Per-player inv vs win — player-indexed (no pagination needed, always 7 players)
+  const invWinData = useMemo(() => ({ labels: PLAYERS, datasets: [
+    { label:'Invested', data:PLAYERS.map(p=>stats[p].totalInvested), backgroundColor:COLORS.map(c=>c+'99'), borderColor:COLORS, borderWidth:1 },
+    { label:'Won',      data:PLAYERS.map(p=>parseFloat(stats[p].totalWon.toFixed(2))), backgroundColor:COLORS.map(c=>c+'44'), borderColor:COLORS, borderWidth:2 }
+  ]}), [stats])
+
+  const winsData    = useMemo(() => ({ labels:PLAYERS, datasets:[{ data:PLAYERS.map(p=>stats[p].wins), backgroundColor:COLORS, borderColor:'#1b2540', borderWidth:2 }] }), [stats])
+  const winPctData  = useMemo(() => ({ labels:PLAYERS, datasets:[{ data:PLAYERS.map(p=>stats[p].paidContests>0?parseFloat(((stats[p].wins/stats[p].paidContests)*100).toFixed(1)):0), backgroundColor:COLORS.map(c=>c+'99'), borderColor:COLORS, borderWidth:1 }] }), [stats])
 
   const doughnutOpts = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'#8899bb', font:{ family:'Rajdhani', size:13 } } } } }
-  const polarOpts = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'#8899bb', font:{ family:'Rajdhani', size:12 } } } }, scales:{ r:{ ticks:{ color:'#8899bb' }, grid:{ color:'#1e2d50' } } } }
+  const polarOpts    = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'#8899bb', font:{ family:'Rajdhani', size:12 } } } }, scales:{ r:{ ticks:{ color:'#8899bb' }, grid:{ color:'#1e2d50' } } } }
+
+  const pnlOpts = {
+    ...chartOpts('₹'),
+    interaction:{ mode:'index', intersect:false },
+    plugins:{
+      ...chartOpts('₹').plugins,
+      legend:{ labels:{ color:'#8899bb', font:{ family:'Rajdhani', size:12 }, usePointStyle:true, pointStyle:'rectRot' } }
+    }
+  }
+
+  const ptsOpts = {
+    ...chartOpts('pts'),
+    interaction:{ mode:'index', intersect:false },
+    plugins:{
+      ...chartOpts('pts').plugins,
+      legend:{ labels:{ color:'#8899bb', font:{ family:'Rajdhani', size:12 }, usePointStyle:true, pointStyle:'rectRot' } }
+    }
+  }
 
   return (
     <div className="section">
       <div className="sec-title">Graphs &amp; Analytics</div>
       <div className="graph-grid">
-        <MarketSentimentChart matches={matches} />
+
+        {/* Player Momentum Index — paginated */}
+        <PaginatedMarketSentimentChart matches={matches} />
+
+        {/* Cumulative PnL — paginated, show latest page first */}
         <div className="chart-card" style={{gridColumn:'1/-1'}}>
           <div className="chart-title">📈 Cumulative Profit/Loss per Player (Season)
             <span style={{fontSize:10,color:'#8899bb',fontWeight:400,display:'block',marginTop:3,letterSpacing:0.5}}>
-              💡 <b>Tip:</b> Click a player's name in the legend to show/hide their line on the graph
+              💡 Click a player's name in the legend to toggle · Use Prev/Next to navigate matches
             </span>
           </div>
-          <div className="chart-wrap" style={{height:320}}>
-            <Line data={{labels:completedLabels, datasets:pnlDatasets}} options={{
-              ...chartOpts('₹'),
-              interaction:{mode:'index',intersect:false},
-              plugins:{
-                ...chartOpts('₹').plugins,
-                legend:{
-                  labels:{
-                    color:'#8899bb',
-                    font:{family:'Rajdhani',size:12},
-                    usePointStyle:true,
-                    pointStyle:'rectRot'
-                  }
-                }
-              }
-            }} />
-          </div>
+          <PaginatedLineChart
+            allLabels={completedLabels}
+            allDatasets={pnlDatasets}
+            chartOptions={pnlOpts}
+            height={300}
+            defaultPage="last"
+          />
         </div>
-        <div className="chart-card"><div className="chart-title">💰 Investment vs Winnings (Total)</div><div className="chart-wrap"><Bar data={invWinData} options={chartOpts('₹')} /></div></div>
-        <div className="chart-card"><div className="chart-title">🏅 Wins Count by Player</div><div className="chart-wrap"><Doughnut data={winsData} options={doughnutOpts} /></div></div>
-        {/* Feature 3: uses completedLabels + filtered pointsDatasets */}
+
+        {/* Investment vs Winnings — player-indexed, no pagination */}
+        <div className="chart-card">
+          <div className="chart-title">💰 Investment vs Winnings (Total)</div>
+          <div className="chart-wrap"><Bar data={invWinData} options={chartOpts('₹')} /></div>
+        </div>
+
+        {/* Wins count — doughnut, no pagination */}
+        <div className="chart-card">
+          <div className="chart-title">🏅 Wins Count by Player</div>
+          <div className="chart-wrap"><Doughnut data={winsData} options={doughnutOpts} /></div>
+        </div>
+
+        {/* Per Match Points — paginated */}
         <div className="chart-card" style={{gridColumn:'1/-1'}}>
           <div className="chart-title">📊 Per Match Points Comparison
-            <span style={{fontSize:11,color:'#8899bb',fontWeight:400}}> (Completed matches · paid players with points only)</span>
+            <span style={{fontSize:11,color:'#8899bb',fontWeight:400}}> (Completed · paid players with points only)</span>
             <span style={{fontSize:10,color:'#8899bb',fontWeight:400,display:'block',marginTop:3,letterSpacing:0.5}}>
-              💡 <b>Tip:</b> Click a player's name in the legend to toggle their data on/off
+              💡 Click a player's name in the legend to toggle · Use Prev/Next to navigate matches
             </span>
           </div>
-          <div className="chart-wrap" style={{height:320}}>
-            {pointsDatasets.length > 0
-              ? <Line data={{labels:completedLabels, datasets:pointsDatasets}} options={chartOpts('pts')} />
-              : <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#8899bb',fontSize:13}}>No completed match data yet.</div>
-            }
-          </div>
+          {pointsDatasets.length > 0
+            ? <PaginatedLineChart
+                allLabels={completedLabels}
+                allDatasets={pointsDatasets}
+                chartOptions={ptsOpts}
+                height={300}
+                defaultPage="last"
+              />
+            : <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:200,color:'#8899bb',fontSize:13}}>No completed match data yet.</div>
+          }
         </div>
-        <div className="chart-card"><div className="chart-title">🎯 Win % (among paid contestants)</div><div className="chart-wrap"><PolarArea data={winPctData} options={polarOpts} /></div></div>
-        <div className="chart-card"><div className="chart-title">📦 Pool Money per Match</div><div className="chart-wrap"><Bar data={poolData} options={chartOpts('₹')} /></div></div>
+
+        {/* Win % — polar, no pagination */}
+        <div className="chart-card">
+          <div className="chart-title">🎯 Win % (among paid contestants)</div>
+          <div className="chart-wrap"><PolarArea data={winPctData} options={polarOpts} /></div>
+        </div>
+
+        {/* Pool Money — paginated */}
+        <div className="chart-card">
+          <div className="chart-title">📦 Pool Money per Match</div>
+          <PaginatedBarChart
+            allLabels={allLabels}
+            allDatasets={poolDatasets}
+            chartOptions={chartOpts('₹')}
+            height={240}
+            defaultPage="last"
+          />
+        </div>
+
       </div>
     </div>
   )
 }
+
 // ═══════════════════════════════════════════════════════════════
 // MAIN APP
 // ═══════════════════════════════════════════════════════════════
@@ -2452,20 +2539,6 @@ export default function App() {
   const [btnText, setBtnText]         = useState('⟳ Refresh')
   const lastVersionRef = useRef(null)
 
-  // ─── DARK / LIGHT MODE ───────────────────────────────────
-  const [isDark, setIsDark] = useState(() => {
-    try { return localStorage.getItem('vois_theme') !== 'light' } catch { return true }
-  })
-  useEffect(() => {
-    if (isDark) {
-      document.body.classList.remove('light-mode')
-      try { localStorage.setItem('vois_theme','dark') } catch {}
-    } else {
-      document.body.classList.add('light-mode')
-      try { localStorage.setItem('vois_theme','light') } catch {}
-    }
-  }, [isDark])
-
   const [adminView, setAdminView] = useState(() => {
     try {
       const raw = sessionStorage.getItem('vois_admin_session')
@@ -2562,14 +2635,6 @@ export default function App() {
             </div>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <div className="season-badge">IPL 2026</div>
-              {/* Dark/Light Mode Toggle */}
-              <button
-                className="theme-toggle-btn"
-                onClick={() => setIsDark(d => !d)}
-                title={isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              >
-                {isDark ? '☀️ Light' : '🌙 Dark'}
-              </button>
               <button
                 onClick={() => setAdminView('login')}
                 title="Admin Login"
@@ -2613,7 +2678,7 @@ export default function App() {
         {/* SECTIONS — use CSS display:none instead of unmounting for speed */}
         <div style={activeSection==='matchlog'    ? {} : {display:'none'}}><MatchLog    matches={matches} /></div>
         <div style={activeSection==='playerstats' ? {} : {display:'none'}}><PlayerStats matches={matches} h2hPlayers={h2hPlayers} setH2hPlayers={setH2hPlayers} /></div>
-        <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} isDark={isDark} /></div>
+        <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} /></div>
         <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
 
         <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
