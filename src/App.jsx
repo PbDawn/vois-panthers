@@ -1417,7 +1417,12 @@ function Leaderboard({ matches }) {
           ))}
         </div> */}
         {/* Filter pills */}
-        <div className="filter-grid-wrap">
+        
+      </div>
+
+      <OlympicPodium sorted={ranked} sortBy={sortBy} />
+
+      <div className="filter-grid-wrap">
           {filterOptions.map(f=>(
             <button key={f.id} onClick={()=>setSortBy(f.id)} className={`filter-pill ${sortBy===f.id?'active':''}`}>
               <span style={{fontSize:'16px'}}>{f.icon}</span>
@@ -1425,9 +1430,6 @@ function Leaderboard({ matches }) {
             </button>
           ))}
         </div>
-      </div>
-
-      <OlympicPodium sorted={ranked} sortBy={sortBy} />
 
       <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:14,letterSpacing:4,color:'var(--text2)',marginBottom:12,paddingLeft:4,marginTop:8}}>FULL STANDINGS</div>
       <div className="lb-grid" style={{marginTop:'12px'}}>
