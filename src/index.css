@@ -6,7 +6,7 @@
 /* ─── GOOGLE FONTS (already loaded in index.html) ─────────── */
 /* Bebas Neue, Rajdhani, Orbitron */
 
-/* ─── DARK MODE VARIABLES (default)──────────────────────── */
+/* ─── DARK MODE VARIABLES (default) ──────────────────────── */
 :root {
   --bg:      #080d1a;
   --bg2:     #0b1225;
@@ -29,24 +29,6 @@
   --glass-border: rgba(255,255,255,0.07);
   --shadow:  0 8px 32px rgba(0,0,0,0.5);
   --shadow2: 0 2px 12px rgba(0,0,0,0.3);
-}
-
-/* ─── LIGHT MODE VARIABLES ───────────────────────────────── */
-body.light-mode {
-  --bg:      #f0f4ff;
-  --bg2:     #e8edf8;
-  --bg3:     #dde4f5;
-  --card:    rgba(255,255,255,0.82);
-  --card2:   rgba(245,248,255,0.9);
-  --card-solid: #ffffff;
-  --text:    #1a2340;
-  --text2:   #5565a0;
-  --border:  rgba(180,200,240,0.7);
-  --border2: rgba(0,0,0,0.08);
-  --glass-bg:    rgba(255,255,255,0.7);
-  --glass-border: rgba(0,0,0,0.1);
-  --shadow:  0 8px 32px rgba(100,120,200,0.15);
-  --shadow2: 0 2px 12px rgba(100,120,200,0.1);
 }
 
 /* ─── RESET & BASE ───────────────────────────────────────── */
@@ -72,11 +54,6 @@ body::before {
     radial-gradient(ellipse 100% 60% at 50% 50%,  rgba(245,166,35,0.03) 0%, transparent 70%);
   pointer-events: none; z-index: 0;
   transition: opacity 0.3s ease;
-}
-body.light-mode::before {
-  background:
-    radial-gradient(ellipse 80% 50% at 20% 0%,   rgba(52,152,219,0.08) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%,  rgba(245,166,35,0.06) 0%, transparent 60%);
 }
 
 /* Scrollbar */
@@ -150,9 +127,7 @@ header {
   box-shadow: 0 4px 30px rgba(245,166,35,0.2);
   transition: background 0.3s ease;
 }
-body.light-mode header {
-  background: linear-gradient(135deg, #ffffff 0%, #fff8f0 50%, #ffffff 100%);
-}
+
 .header-inner {
   max-width: 1400px; margin: 0 auto;
   display: flex; align-items: center; justify-content: space-between;
@@ -178,22 +153,6 @@ body.light-mode header {
   padding: 4px 12px; border-radius: 20px;
 }
 
-/* Dark/Light Toggle */
-.theme-toggle-btn {
-  display: flex; align-items: center; gap: 5px;
-  font-family: 'Rajdhani', sans-serif; font-weight: 800; font-size: 11px;
-  letter-spacing: 1px; text-transform: uppercase;
-  padding: 5px 11px; border-radius: 20px;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.06); color: var(--text2);
-  cursor: pointer; transition: all 0.25s;
-  white-space: nowrap;
-}
-.theme-toggle-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(245,166,35,0.1); }
-body.light-mode .theme-toggle-btn {
-  border-color: rgba(0,0,0,0.15); background: rgba(0,0,0,0.05); color: var(--text2);
-}
-
 /* ─── TICKER BAR ─────────────────────────────────────────── */
 .ticker-bar {
   position: sticky; top: 0; z-index: 200;
@@ -204,7 +163,7 @@ body.light-mode .theme-toggle-btn {
   backdrop-filter: blur(10px);
   transition: background 0.3s;
 }
-body.light-mode .ticker-bar { background: rgba(240,244,255,0.97); }
+
 .ticker-left { display: flex; align-items: center; gap: 10px; }
 .live-pill {
   display: flex; align-items: center; gap: 6px;
@@ -240,7 +199,7 @@ nav {
   backdrop-filter: blur(10px);
   transition: background 0.3s, top 0.3s;
 }
-body.light-mode nav { background: rgba(240,244,255,0.97); }
+
 .nav-inner {
   max-width: 1400px; margin: 0 auto;
   display: flex; align-items: center; gap: 4px;
@@ -456,7 +415,7 @@ tr:hover td      { background: rgba(245,166,35,0.04); }
 }
 .p-card:hover { transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
 .p-card-header { background:linear-gradient(135deg,rgba(16,24,48,0.9),rgba(22,31,56,0.8)); padding:16px 18px; border-bottom:1px solid var(--glass-border); display:flex; align-items:center; gap:12px; }
-body.light-mode .p-card-header { background: linear-gradient(135deg,rgba(230,238,255,0.9),rgba(240,245,255,0.8)); }
+
 .p-avatar { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Bebas Neue',sans-serif; font-size:20px; border:2px solid var(--accent); color:var(--accent); background:rgba(245,166,35,0.08); flex-shrink:0; }
 .p-name     { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:2px; }
 .p-winpct   { font-size:12px; color:var(--text2); }
@@ -542,7 +501,7 @@ body.light-mode .p-card-header { background: linear-gradient(135deg,rgba(230,238
 
 /* ─── FOOTER ─────────────────────────────────────────────── */
 .pb-footer { position:fixed; bottom:0; left:0; width:100%; background:rgba(8,13,26,0.93); border-top:1px solid var(--border); backdrop-filter:blur(8px); color:var(--text2); text-align:center; padding:8px 10px; font-family:'Rajdhani',sans-serif; font-size:12px; letter-spacing:2px; z-index:900; transition:background 0.3s; }
-body.light-mode .pb-footer { background:rgba(240,244,255,0.93); }
+
 .pb-footer span { color:var(--accent); font-weight:700; }
 .no-data { text-align:center; color:var(--text2); padding:40px; font-size:16px; letter-spacing:1px; }
 
@@ -745,18 +704,46 @@ body.light-mode .pb-footer { background:rgba(240,244,255,0.93); }
 tr.clickable-match-row:hover td:first-child .match-no-badge { box-shadow:0 0 10px rgba(245,166,35,0.5); }
 
 /* ─── LIGHT MODE OVERRIDES ───────────────────────────────── */
-body.light-mode .tv-news-bulletin { background:linear-gradient(180deg,#f5f8ff,#edf1ff); border-top-color:#c0392b; }
-body.light-mode .tv-news-col      { background:linear-gradient(135deg,#f0f4ff,#e8eeff); }
-body.light-mode .tv-bulletin-body { background:#edf1ff; }
-body.light-mode .tv-stats-col     { background:rgba(240,244,255,0.95); }
-body.light-mode .tv-bottom-ticker { background:#fff0f0; }
-body.light-mode .table-wrap       { background:rgba(255,255,255,0.85); }
-body.light-mode table             { background:transparent; }
-body.light-mode th                { background:rgba(230,238,255,0.9); color:#c0392b; }
-body.light-mode td                { color:var(--text); }
-body.light-mode .p-card-body      { background:rgba(255,255,255,0.6); }
-body.light-mode .team-tag         { background:rgba(230,238,255,0.9); color:var(--text); border-color:rgba(100,140,220,0.3); }
-body.light-mode .market-ticker-wrap { background:#f0f4ff; border-color:rgba(100,140,220,0.3); }
-body.light-mode .ticker-stock-item  { color:var(--text); }
-body.light-mode .badge-notes        { background:rgba(255,255,255,0.7); }
-body.light-mode .watermark          { color:rgba(0,0,0,0.03); }
+
+
+/* ─── CHART PAGINATION ──────────────────────────────────── */
+.chart-page-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 2px;
+}
+
+.chart-page-info {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 11px;
+  color: var(--text2);
+  letter-spacing: 0.4px;
+}
+
+.chart-page-btns {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* On mobile make chart-wrap fill the card cleanly */
+@media (max-width: 640px) {
+  .chart-card {
+    padding: 14px 10px;
+  }
+  .chart-title {
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  /* Remove fixed height on chart-wrap so paginated charts size naturally */
+  .chart-wrap {
+    height: 200px !important;
+  }
+  .graph-grid {
+    gap: 14px;
+  }
+}
