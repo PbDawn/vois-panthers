@@ -1397,8 +1397,8 @@ function Leaderboard({ matches }) {
           <span style={{fontSize:'24px',letterSpacing:'2px',fontFamily:'Bebas Neue'}}>LEADERBOARD</span>
           {/* <div style={{display:'flex',alignItems:'center',gap:'6px'}}>
             <span style={{fontSize:'9px',color:'var(--green)',fontWeight:800}}>LIVE</span>
-            <div className="live-dot" style={{width:'6px',height:'6px'}}/> */}
-          </div>
+            <div className="live-dot" style={{width:'6px',height:'6px'}}/>
+          </div> */}
         </div>
         {/* Season Summary */}
         {/* <div className="season-summary" style={{marginTop:16}}>
