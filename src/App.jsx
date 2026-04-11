@@ -1401,7 +1401,7 @@ function Leaderboard({ matches }) {
           </div>
         </div>
         {/* Season Summary */}
-        <div className="season-summary" style={{marginTop:16}}>
+        {/* <div className="season-summary" style={{marginTop:16}}>
           {[
             { icon:'🏏', label:'Matches Played', rawVal: totalMatches,  display: <AnimatedNumber value={totalMatches} />, sub:'completed' },
             { icon:'💰', label:'Total Pool',      rawVal: totalPool,     display: <><span>₹</span><AnimatedNumber value={totalPool} /></>, sub:'prize money' },
@@ -1415,7 +1415,7 @@ function Leaderboard({ matches }) {
               <div className="ss-sub">{s.sub}</div>
             </div>
           ))}
-        </div>
+        </div> */}
         {/* Filter pills */}
         <div className="filter-grid-wrap">
           {filterOptions.map(f=>(
