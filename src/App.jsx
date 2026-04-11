@@ -794,6 +794,25 @@ function MatchLog({ matches }) {
   )
 }
 
+// ─── COUNTDOWN CELL ───────────────────────────────────────────
+function CountdownCell({ match, isNextUpcoming }) {
+  const [display, setDisplay] = useState('')
+  const done = match.teamwon && match.teamwon.trim() !== '' && match.teamwon !== '—'
+  useEffect(() => {
+    if (!isNextUpcoming || !match.matchTime || done) return
+    const target = getMatchDateTime(match)
+    if (!target) return
+    const tick = () => setDisplay(formatCountdown(target - new Date()))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [match, isNextUpcoming, done])
+  if (done) return <><div className="completed-badge">✅ Completed</div>{match.matchTime && <div className="scheduled-time">{formatMatchTimeLabel(match.matchTime)}</div>}</>
+  if (isNextUpcoming && match.matchTime) return <><div className="scheduled-time" style={{color:'var(--text2)',marginBottom:3}}>{formatMatchTimeLabel(match.matchTime)}</div><div className="time-countdown">⏱ Starts in: <span>{display || '--:--:--'}</span></div></>
+  if (match.matchTime) return <div style={{fontSize:12,fontWeight:700,color:'var(--text)'}}>{formatMatchTimeLabel(match.matchTime)}</div>
+  return <span style={{color:'var(--text2)'}}>—</span>
+}
+
 // Pagination styles
 const paginationStyle = {
   wrap: {
