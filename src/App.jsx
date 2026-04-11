@@ -1114,18 +1114,16 @@ const RANK_MEDALS = { 1:'🥇', 2:'🥈', 3:'🥉' }
 
 function OlympicPodium({ sorted, sortBy }) {
   const top3 = sorted.slice(0, 3);
-  if (top3.length < 1) return null;
 
-  // 1. ADD EFFECT TO CLEAN UP CONFETTI ON RE-SORT
+  // ── Hooks MUST come before any early return ──────────────
   useEffect(() => {
+    if (top3.length < 1) return;
     if (!document.getElementById('podium-styles')) {
       const s = document.createElement('style');
       s.id = 'podium-styles';
       s.textContent = PODIUM_CSS;
       document.head.appendChild(s);
     }
-    
-    // Clear and re-add confetti only if the container is empty
     const wrap = document.getElementById('pd-confetti-inner');
     if (wrap && wrap.children.length === 0) {
       const colors = ['#f5a623','#2ecc71','#3498db','#e74c3c','#9b59b6','#C0C0C0','#FFD700','#1abc9c','#e67e22','#fff'];
@@ -1137,9 +1135,11 @@ function OlympicPodium({ sorted, sortBy }) {
         wrap.appendChild(d);
       }
     }
-  }, []);
+  }, [top3.length]);
 
-  // 2. DYNAMIC LABEL GENERATOR
+  // 2. DYNAMIC LABEL GENERATOR — early return AFTER hooks
+  if (top3.length < 1) return null;
+
   const getDynamicStat = (p) => {
     switch(sortBy) {
       case 'winPct': return `${p.winPct.toFixed(1)}% Win`;
@@ -1237,15 +1237,17 @@ function Sparkline({ data, color, width = 60, height = 22 }) {
   if (!data || data.length < 2) return null
   const min = Math.min(...data), max = Math.max(...data)
   const range = max - min || 1
-  const pts = data.map((v, i) => {
+  const points = data.map((v, i) => {
     const x = (i / (data.length - 1)) * width
     const y = height - ((v - min) / range) * (height - 4) - 2
-    return `${x},${y}`
-  }).join(' ')
+    return [parseFloat(x.toFixed(2)), parseFloat(y.toFixed(2))]
+  })
+  const pts = points.map(([x,y]) => `${x},${y}`).join(' ')
+  const [lastX, lastY] = points[points.length - 1]
   return (
-    <svg width={width} height={height} style={{display:'inline-block',verticalAlign:'middle'}}>
+    <svg width={width} height={height} style={{display:'inline-block',verticalAlign:'middle',flexShrink:0}}>
       <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={pts.split(' ').pop().split(',')[0]} cy={pts.split(' ').pop().split(',')[1]} r="2.5" fill={color} />
+      <circle cx={lastX} cy={lastY} r="2.5" fill={color} />
     </svg>
   )
 }
@@ -1276,16 +1278,16 @@ function Leaderboard({ matches, isDark }) {
       const avgPoints = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0
       const roi       = s.totalInvested > 0 ? (profit / s.totalInvested) * 100 : 0
       const streak    = computeCurrentStreak(s.paidWinStreak)
-      return { name:p, color:COLORS[i], profit, winPct, avgPoints, roi, streak, ...s }
+      return { ...s, name:p, color:COLORS[i], profit, winPct, avgPoints, roi, streak }
     }).sort((a, b) => b[sortBy] - a[sortBy])
   }, [stats, sortBy])
 
-  let currentRank = 1, lastVal = null
+  let _rank = 1, _lastVal = null
   const ranked = sorted.map(p => {
     const val = p[sortBy]
-    if (lastVal !== null && val < lastVal) currentRank++
-    lastVal = val
-    return { ...p, rank: currentRank }
+    if (_lastVal !== null && val < _lastVal) _rank++
+    _lastVal = val
+    return { ...p, rank: _rank }
   })
 
   const getDisplayData = (p) => {
@@ -1310,13 +1312,13 @@ function Leaderboard({ matches, isDark }) {
     { id:'roi',       label:'ROI',     icon:'📈' },
   ]
 
-  // Season summary stats
-  const totalPool     = useMemo(() => matches.filter(m=>m.teamwon&&m.teamwon.trim()!==''&&m.teamwon!=='—').reduce((s,m)=>s+(calculatePrizes(m).totalPool||0),0), [matches])
-  const totalMatches  = matches.filter(m=>m.teamwon&&m.teamwon.trim()!==''&&m.teamwon!=='—').length
-  const topProfit     = Math.max(...ranked.map(p=>p.profit))
+  // Season summary stats — safe against empty data
+  const totalPool       = useMemo(() => matches.filter(m=>m.teamwon&&m.teamwon.trim()!==''&&m.teamwon!=='—').reduce((s,m)=>s+(calculatePrizes(m).totalPool||0),0), [matches])
+  const totalMatches    = matches.filter(m=>m.teamwon&&m.teamwon.trim()!==''&&m.teamwon!=='—').length
+  const topProfit       = ranked.length > 0 ? ranked.reduce((best,p) => p.profit > best ? p.profit : best, ranked[0].profit) : 0
   const topProfitPlayer = ranked.find(p=>p.profit===topProfit)
-  const highScore     = Math.max(...PLAYERS.map(p=>stats[p].bestPoints))
-  const highScorePlayer = PLAYERS.find(p=>stats[p].bestPoints===highScore)
+  const highScore       = PLAYERS.reduce((best,p) => stats[p].bestPoints > best ? stats[p].bestPoints : best, 0)
+  const highScorePlayer = PLAYERS.find(p=>stats[p].bestPoints===highScore) || '—'
 
   return (
     <div className="section">
@@ -1333,8 +1335,8 @@ function Leaderboard({ matches, isDark }) {
           {[
             { icon:'🏏', label:'Matches Played', val:totalMatches, sub:'completed' },
             { icon:'💰', label:'Total Pool',      val:`₹${totalPool}`, sub:'prize money' },
-            { icon:'🏆', label:'Top Profit',      val:`₹${topProfit>0?topProfit.toFixed(0):0}`, sub:topProfitPlayer?.name||'—', accent:true },
-            { icon:'🎯', label:'Season High',     val:`${highScore} pts`, sub:highScorePlayer||'—' },
+            { icon:'🏆', label:'Top Profit',      val: topProfit > 0 ? `+₹${topProfit.toFixed(0)}` : '₹0', sub:topProfitPlayer?.name||'—', accent:true },
+            { icon:'🎯', label:'Season High',     val:`${highScore > 0 ? highScore : '—'} pts`, sub:highScorePlayer },
           ].map(s=>(
             <div key={s.label} className="ss-card" style={s.accent?{'--accent-tint':'rgba(46,204,113,0.08)'}:{}}>
               <span className="ss-icon">{s.icon}</span>
@@ -2053,7 +2055,7 @@ function TVNewsBulletin({ matches }) {
   const [isSpeaking, setIsSpeaking]   = useState(false);
   const [time, setTime]               = useState('');
   const isFirstRef = useRef(true);
-  const synthRef   = useRef(window.speechSynthesis);
+  const synthRef   = useRef(typeof window !== 'undefined' ? window.speechSynthesis : null);
   const mutedRef   = useRef(true);
 
   useEffect(() => {
