@@ -1219,7 +1219,19 @@ function OlympicPodium({ sorted, sortBy }) {
               
               {/* DYNAMIC PRIZE BOX */}
               <div className={`pd-prize ${isPos ? 'pd-profit-pos' : 'pd-profit-neg'}`}>
-                {getDynamicStat(p)}
+                {(() => {
+                  switch(sortBy) {
+                    case 'wins':      return <><AnimatedNumber value={p.wins} /> Wins</>
+                    case 'winPct':    return <><AnimatedNumber value={p.winPct} decimals={1} />% Win</>
+                    case 'totalWon':  return <>₹<AnimatedNumber value={p.totalWon} /></>
+                    case 'avgPoints': return <><AnimatedNumber value={p.avgPoints} decimals={1} /> Pts</>
+                    case 'roi':       return <><AnimatedNumber value={p.roi} />% ROI</>
+                    default: {
+                      const profit = p.totalWon - p.totalInvested
+                      return <>{profit>=0?'+':'-'}₹<AnimatedNumber value={Math.abs(profit)} decimals={2} /></>
+                    }
+                  }
+                })()}
               </div>
 
               <div className="pd-wintag">🏏 {p.wins} wins · {p.paidContests} paid</div>
@@ -1283,6 +1295,34 @@ function computeCurrentStreak(paidWinStreak) {
     else break
   }
   return { type: last ? 'win' : 'loss', count }
+}
+
+// ─── COUNT-UP ANIMATION HOOK ──────────────────────────────────
+function useCountUp(target, duration = 2000, active = true) {
+  const [value, setValue] = useState(0)
+  const frameRef = useRef(null)
+  useEffect(() => {
+    if (!active) { setValue(target); return }
+    const start = performance.now()
+    const from = 0
+    const to = typeof target === 'number' ? target : parseFloat(target) || 0
+    const tick = (now) => {
+      const elapsed = now - start
+      const progress = Math.min(elapsed / duration, 1)
+      // Ease out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setValue(from + (to - from) * eased)
+      if (progress < 1) frameRef.current = requestAnimationFrame(tick)
+    }
+    frameRef.current = requestAnimationFrame(tick)
+    return () => { if (frameRef.current) cancelAnimationFrame(frameRef.current) }
+  }, [target, duration, active])
+  return value
+}
+
+function AnimatedNumber({ value, prefix = '', suffix = '', decimals = 0, duration = 2000 }) {
+  const animated = useCountUp(value, duration)
+  return <>{prefix}{animated.toFixed(decimals)}{suffix}</>
 }
 
 // ─── LEADERBOARD ──────────────────────────────────────────
@@ -1363,15 +1403,15 @@ function Leaderboard({ matches }) {
         {/* Season Summary */}
         <div className="season-summary" style={{marginTop:16}}>
           {[
-            { icon:'🏏', label:'Matches Played', val:totalMatches, sub:'completed' },
-            { icon:'💰', label:'Total Pool',      val:`₹${totalPool}`, sub:'prize money' },
-            { icon:'🏆', label:'Top Profit',      val: topProfit > 0 ? `+₹${topProfit.toFixed(0)}` : '₹0', sub:topProfitPlayer?.name||'—', accent:true },
-            { icon:'🎯', label:'Season High',     val:`${highScore > 0 ? highScore : '—'} pts`, sub:highScorePlayer },
+            { icon:'🏏', label:'Matches Played', rawVal: totalMatches,  display: <AnimatedNumber value={totalMatches} />, sub:'completed' },
+            { icon:'💰', label:'Total Pool',      rawVal: totalPool,     display: <><span>₹</span><AnimatedNumber value={totalPool} /></>, sub:'prize money' },
+            { icon:'🏆', label:'Top Profit',      rawVal: topProfit,     display: topProfit > 0 ? <><span>+₹</span><AnimatedNumber value={topProfit} /></> : '₹0', sub:topProfitPlayer?.name||'—', accent:true },
+            { icon:'🎯', label:'Season High',     rawVal: highScore,     display: highScore > 0 ? <><AnimatedNumber value={highScore} /><span> pts</span></> : '— pts', sub:highScorePlayer },
           ].map(s=>(
             <div key={s.label} className="ss-card" style={s.accent?{'--accent-tint':'rgba(46,204,113,0.08)'}:{}}>
               <span className="ss-icon">{s.icon}</span>
               <div className="ss-label">{s.label}</div>
-              <div className="ss-val" style={s.accent?{color:'var(--green)'}:{}}>{s.val}</div>
+              <div className="ss-val" style={s.accent?{color:'var(--green)'}:{}}>{s.display}</div>
               <div className="ss-sub">{s.sub}</div>
             </div>
           ))}
@@ -1433,38 +1473,42 @@ function Leaderboard({ matches }) {
                     <div className="lb-stat">Carry Fwd: <span className="cf-tag">₹{p.carryFwd.toFixed(2)}</span></div>
                   )}
                 </div>
-                {/* Win Frequency / Probability */}
+                {/* Win Probability */}
                 {(() => {
-                  const streak = p.paidWinStreak || []
-                  if (streak.length < 2) return null
-                  const wins2 = streak.length >= 2 ? streak.reduce((acc, v, i) => (i > 0 && v && streak[i-1] ? acc+1 : acc), 0) : 0
-                  const wins3 = streak.length >= 3 ? streak.reduce((acc, v, i) => (i > 1 && v && streak[i-1] && streak[i-2] ? acc+1 : acc), 0) : 0
-                  const totalWindows2 = Math.max(1, streak.length - 1)
-                  const totalWindows3 = Math.max(1, streak.length - 2)
-                  const pct2 = ((wins2 / totalWindows2) * 100).toFixed(0)
-                  const pct3 = ((wins3 / totalWindows3) * 100).toFixed(0)
-                  const every2 = wins2 > 0 ? (totalWindows2 / wins2).toFixed(1) : '—'
-                  const every3 = wins3 > 0 ? (totalWindows3 / wins3).toFixed(1) : '—'
+                  const totalPaid = p.paidContests || 0
+                  const totalWins = p.wins || 0
+                  if (totalPaid < 2 || totalWins === 0) return null
+                  const everyN = Math.round(totalPaid / totalWins)
+                  const winColor = everyN <= 2 ? '#2ecc71' : everyN <= 4 ? '#f5a623' : '#e74c3c'
                   return (
-                    <div style={{marginTop:6,padding:'6px 10px',background:'rgba(255,255,255,0.03)',borderRadius:8,border:'1px solid rgba(255,255,255,0.06)'}}>
-                      <div style={{fontSize:10,color:'var(--text2)',letterSpacing:1,textTransform:'uppercase',marginBottom:4,fontWeight:700}}>📊 Win Frequency</div>
-                      <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-                        <span style={{fontSize:11,color:'#8899bb'}}>
-                          Back-to-back wins: <span style={{color: wins2>0?'#2ecc71':'var(--text2)', fontWeight:700}}>{wins2}x</span>
-                          <span style={{fontSize:10,color:'var(--text2)'}}> (~1 in every {every2} matches, {pct2}% chance)</span>
-                        </span>
-                        <span style={{fontSize:11,color:'#8899bb'}}>
-                          3-in-a-row wins: <span style={{color: wins3>0?'#f5a623':'var(--text2)', fontWeight:700}}>{wins3}x</span>
-                          <span style={{fontSize:10,color:'var(--text2)'}}> (~1 in every {every3} matches, {pct3}% chance)</span>
-                        </span>
-                      </div>
+                    <div style={{marginTop:6,padding:'6px 10px',background:'rgba(255,255,255,0.03)',borderRadius:8,border:'1px solid rgba(255,255,255,0.06)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                      <span style={{fontSize:10,color:'var(--text2)',letterSpacing:1,textTransform:'uppercase',fontWeight:700}}>🎯 Win Probability:</span>
+                      <span style={{fontSize:12,color:'#8899bb'}}>
+                        Wins once every&nbsp;
+                        <span style={{color:winColor,fontWeight:800,fontSize:14}}>{everyN}</span>
+                        &nbsp;{everyN === 1 ? 'match' : 'matches'}
+                        <span style={{fontSize:10,color:'var(--text2)',marginLeft:6}}>({totalWins}W / {totalPaid} played)</span>
+                      </span>
                     </div>
                   )
                 })()}
               </div>
               {/* Dynamic right side */}
               <div style={{textAlign:'right',minWidth:'90px',flexShrink:0}}>
-                <div className={`lb-val-big ${display.cls}`}>{display.val}</div>
+                <div className={`lb-val-big ${display.cls}`}>
+                  {(() => {
+                    // Extract numeric part for animation
+                    const raw = display.val
+                    if (sortBy === 'wins') return <AnimatedNumber value={p.wins} />
+                    if (sortBy === 'winPct') return <><AnimatedNumber value={p.winPct} decimals={1} />%</>
+                    if (sortBy === 'totalWon') return <>₹<AnimatedNumber value={p.totalWon} /></>
+                    if (sortBy === 'avgPoints') return <AnimatedNumber value={p.avgPoints} decimals={1} />
+                    if (sortBy === 'roi') return <><AnimatedNumber value={p.roi} />%</>
+                    // profit (default)
+                    const profit = p.totalWon - p.totalInvested
+                    return <>{profit>=0?'+':'-'}₹<AnimatedNumber value={Math.abs(profit)} /></>
+                  })()}
+                </div>
                 <div className="lb-label-small">{display.label}</div>
               </div>
             </div>
@@ -1907,49 +1951,63 @@ function Graphs({ matches }) {
 // ─── PLAYER STOCK PRICE INDEX (CANDLESTICK) ───────────────────
 
 // Pure SVG candlestick chart — no external lib needed
-function CandlestickChart({ candles, color, width = 600, height = 260 }) {
+function CandlestickChart({ candles, color, width = 600, height = 260, mini = false }) {
   if (!candles || candles.length === 0) return <div style={{color:'#8899bb',textAlign:'center',padding:40}}>No match data yet.</div>
 
-  const PAD = { top:16, right:16, bottom:36, left:58 }
+  const PAD = mini
+    ? { top:10, right:10, bottom:28, left:36 }
+    : { top:20, right:20, bottom:48, left:68 }
   const chartW = width - PAD.left - PAD.right
   const chartH = height - PAD.top - PAD.bottom
 
   const allPrices = candles.flatMap(c => [c.open, c.close, c.high, c.low]).filter(v => v != null)
   const minP = Math.min(...allPrices)
   const maxP = Math.max(...allPrices)
-  const range = maxP - minP || 1
+  // Add 5% padding top/bottom so candles don't touch edges
+  const rawRange = maxP - minP || 10
+  const padded = rawRange * 0.1
+  const minPP = minP - padded
+  const maxPP = maxP + padded
+  const range = maxPP - minPP
 
-  const toY  = v => PAD.top  + chartH - ((v - minP) / range) * chartH
-  const toX  = i => PAD.left + (i / Math.max(candles.length - 1, 1)) * chartW
+  const toY = v => PAD.top + chartH - ((v - minPP) / range) * chartH
 
-  const candleW = Math.max(6, Math.min(22, (chartW / candles.length) * 0.55))
+  // TIGHTER spacing: fixed slot width per candle, candle fills 60% of slot
+  const slotW    = chartW / candles.length
+  const candleW  = Math.max(mini ? 4 : 8, Math.min(mini ? 14 : 28, slotW * 0.62))
+  const toX      = i => PAD.left + slotW * i + slotW / 2
 
-  // Y grid lines (5 lines)
-  const yTicks = Array.from({length:6}, (_, i) => minP + (range / 5) * i)
+  // Y grid lines
+  const yTickCount = mini ? 4 : 6
+  const yTicks = Array.from({length: yTickCount}, (_, i) => minPP + (range / (yTickCount - 1)) * i)
+  const axisFontSize = mini ? 9 : 13
 
   return (
     <svg viewBox={`0 0 ${width} ${height}`} width="100%" style={{display:'block',maxWidth:width,margin:'0 auto'}}>
-      {/* Grid lines */}
+      {/* Y axis grid + labels */}
       {yTicks.map((val, i) => (
         <g key={i}>
-          <line x1={PAD.left} y1={toY(val)} x2={PAD.left+chartW} y2={toY(val)} stroke="#1e2d50" strokeWidth="1" strokeDasharray="3,4"/>
-          <text x={PAD.left - 6} y={toY(val)+4} textAnchor="end" fontSize="9" fill="#8899bb">
-            {val < 10 ? val.toFixed(1) : Math.round(val)}
+          <line x1={PAD.left} y1={toY(val)} x2={PAD.left+chartW} y2={toY(val)}
+            stroke="#1e2d50" strokeWidth="1" strokeDasharray="3,5"/>
+          <text x={PAD.left - 8} y={toY(val) + axisFontSize * 0.38}
+            textAnchor="end" fontSize={axisFontSize} fill="#8899bb" fontFamily="Rajdhani,sans-serif" fontWeight="600">
+            {Math.round(val)}
           </text>
         </g>
       ))}
 
-      {/* Zero base line if in range */}
-      {minP <= 0 && maxP >= 0 && (
-        <line x1={PAD.left} y1={toY(0)} x2={PAD.left+chartW} y2={toY(0)} stroke="#f5a62360" strokeWidth="1" strokeDasharray="6,3"/>
+      {/* Zero base line */}
+      {minPP <= 0 && maxPP >= 0 && (
+        <line x1={PAD.left} y1={toY(0)} x2={PAD.left+chartW} y2={toY(0)}
+          stroke="#f5a62350" strokeWidth="1" strokeDasharray="6,3"/>
       )}
 
       {/* Candles */}
       {candles.map((c, i) => {
-        const cx   = toX(i)
-        const isUp = c.close >= c.open
-        const isSame = c.close === c.open
-        const fill = isSame ? '#888888' : isUp ? '#2ecc71' : '#e74c3c'
+        const cx     = toX(i)
+        const isSame = Math.abs(c.close - c.open) < 0.01
+        const isUp   = c.close >= c.open
+        const fill   = isSame ? '#888888' : isUp ? '#2ecc71' : '#e74c3c'
         const bodyTop    = toY(Math.max(c.open, c.close))
         const bodyBottom = toY(Math.min(c.open, c.close))
         const bodyH      = Math.max(2, bodyBottom - bodyTop)
@@ -1957,36 +2015,32 @@ function CandlestickChart({ candles, color, width = 600, height = 260 }) {
         return (
           <g key={i}>
             {/* Wick */}
-            <line x1={cx} y1={toY(c.high)} x2={cx} y2={toY(c.low)} stroke={fill} strokeWidth="1.5"/>
+            <line x1={cx} y1={toY(c.high)} x2={cx} y2={toY(c.low)} stroke={fill} strokeWidth={mini?1:1.5}/>
             {/* Body */}
-            <rect
-              x={cx - candleW/2} y={bodyTop}
-              width={candleW} height={bodyH}
-              fill={fill} rx="2"
-              opacity="0.92"
-            />
-            {/* Match label */}
-            <text x={cx} y={height - PAD.bottom + 14} textAnchor="middle" fontSize="9" fill="#8899bb">
+            <rect x={cx - candleW/2} y={bodyTop} width={candleW} height={bodyH}
+              fill={fill} rx="2" opacity="0.9"/>
+            {/* X axis label */}
+            <text x={cx} y={height - (mini ? 6 : 10)} textAnchor="middle"
+              fontSize={axisFontSize} fill="#8899bb" fontFamily="Rajdhani,sans-serif" fontWeight="600">
               {c.label}
             </text>
-            {/* Tooltip on hover via title */}
             <title>{c.label}: O={c.open?.toFixed(1)} H={c.high?.toFixed(1)} L={c.low?.toFixed(1)} C={c.close?.toFixed(1)}</title>
           </g>
         )
       })}
 
-      {/* Connect close prices with thin line */}
+      {/* Dashed close-price trail */}
       {candles.length > 1 && (
         <polyline
           points={candles.map((c,i) => `${toX(i)},${toY(c.close)}`).join(' ')}
-          fill="none" stroke={color+'88'} strokeWidth="1" strokeDasharray="3,3"
+          fill="none" stroke={color+'66'} strokeWidth="1" strokeDasharray="3,4"
         />
       )}
 
-      {/* Current price label on last candle */}
-      {candles.length > 0 && (
-        <text x={toX(candles.length-1)} y={toY(candles[candles.length-1].close) - 6}
-          textAnchor="middle" fontSize="10" fontWeight="700" fill={color}>
+      {/* Current price tag on last candle */}
+      {!mini && candles.length > 0 && (
+        <text x={toX(candles.length-1)} y={toY(candles[candles.length-1].close) - 10}
+          textAnchor="middle" fontSize="12" fontWeight="700" fill={color} fontFamily="Orbitron,sans-serif">
           ₹{candles[candles.length-1].close?.toFixed(0)}
         </text>
       )}
@@ -2145,8 +2199,9 @@ function PlayerStockIndex({ matches }) {
         <CandlestickChart
           candles={playerCandles}
           color={playerColor}
-          width={Math.max(600, playerCandles.length * 55 + 80)}
-          height={280}
+          width={Math.max(520, playerCandles.length * 48 + 100)}
+          height={300}
+          mini={false}
         />
       </div>
 
@@ -2198,7 +2253,7 @@ function PlayerStockIndex({ matches }) {
                   </div>
                 </div>
               </div>
-              <CandlestickChart candles={candles} color={pColor} width={320} height={110} />
+              <CandlestickChart candles={candles} color={pColor} width={320} height={110} mini={true} />
               <div style={{display:'flex',justifyContent:'space-between',marginTop:6,fontSize:9,color:'#8899bb'}}>
                 <span>ATH: <span style={{color:'#2ecc71'}}>₹{pAth.toFixed(0)}</span></span>
                 <span>ATL: <span style={{color:'#e74c3c'}}>₹{pAtl.toFixed(0)}</span></span>
