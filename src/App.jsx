@@ -3214,11 +3214,81 @@ function FantasySuggestions({ matches, fantasyData }) {
   )
 }
 // ─── MATCH HIGHLIGHTS (Public View) ─────────────────────────
-function getInstagramEmbedCode(url) {
+function getInstagramShortcode(url) {
   if (!url) return null
-  // Extract shortcode from various IG URL formats
-  const match = url.match(/instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)
+  // Strip query params, extract shortcode from /p/, /reel/, /reels/, /tv/
+  const clean = url.split('?')[0].replace(/\/$/, '')
+  const match = clean.match(/instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)
   return match ? match[1] : null
+}
+
+// Renders an official Instagram embed using blockquote + embed.js
+// This is the ONLY reliable method — iframe /embed/ URLs are blocked by Instagram
+function InstagramEmbedPost({ url, label }) {
+  const containerRef = useRef(null)
+  const shortcode = getInstagramShortcode(url)
+  // Canonical permalink always uses /p/ — works for reels, posts, tv
+  const permalink = shortcode ? `https://www.instagram.com/p/${shortcode}/` : url
+
+  useEffect(() => {
+    if (!containerRef.current || !shortcode) return
+
+    // Build the official blockquote HTML
+    containerRef.current.innerHTML = `
+      <blockquote
+        class="instagram-media"
+        data-instgrm-permalink="${permalink}?utm_source=ig_embed&utm_campaign=loading"
+        data-instgrm-version="14"
+        style="background:#FFF;border:0;border-radius:12px;box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15);margin:0 auto;max-width:400px;min-width:280px;padding:0;width:100%;">
+      </blockquote>`
+
+    // If embed.js is already loaded, just re-process
+    if (window.instgrm?.Embeds) {
+      window.instgrm.Embeds.process()
+      return
+    }
+
+    // Otherwise load it fresh
+    const existing = document.getElementById('ig-embed-script')
+    if (existing) existing.remove()
+
+    const script = document.createElement('script')
+    script.id = 'ig-embed-script'
+    script.src = 'https://www.instagram.com/embed.js'
+    script.async = true
+    script.onload = () => { window.instgrm?.Embeds?.process() }
+    document.body.appendChild(script)
+  }, [shortcode, permalink])
+
+  if (!shortcode) {
+    return (
+      <div style={{ color: 'var(--text2)', fontSize: 12, padding: 16, textAlign: 'center' }}>
+        ⚠️ Could not parse Instagram URL.{' '}
+        <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Open link ↗</a>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+      <div
+        ref={containerRef}
+        style={{ width: '100%', maxWidth: 400 }}
+      />
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        style={{
+          fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 12,
+          padding: '7px 16px', borderRadius: 8, textDecoration: 'none',
+          background: 'linear-gradient(45deg,rgba(240,148,51,0.15),rgba(188,24,136,0.15))',
+          border: '1px solid rgba(240,148,51,0.35)',
+          color: '#f09433', display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}
+      >↗ Open on Instagram</a>
+    </div>
+  )
 }
 
 function getYouTubeShortsId(url) {
@@ -3239,7 +3309,6 @@ function detectMediaType(url) {
 function HighlightCard({ item, index }) {
   const [expanded, setExpanded] = useState(false)
   const type = item.type || detectMediaType(item.url)
-  const igCode = type === 'instagram' ? getInstagramEmbedCode(item.url) : null
   const ytId = (type === 'youtube' || type === 'youtube_shorts') ? getYouTubeShortsId(item.url) : null
   const isShorts = type === 'youtube_shorts'
 
@@ -3284,35 +3353,8 @@ function HighlightCard({ item, index }) {
       {/* Embed */}
       {expanded && (
         <div style={{ padding: '12px 14px 14px' }}>
-          {type === 'instagram' && igCode ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-              <div style={{
-                width: '100%', maxWidth: 400,
-                borderRadius: 12, overflow: 'hidden',
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: '#000',
-              }}>
-                <iframe
-                  src={`https://www.instagram.com/reel/${igCode}/embed/`}
-                  style={{ width: '100%', height: 560, border: 'none', display: 'block' }}
-                  allowFullScreen
-                  scrolling="no"
-                  title={item.label || 'Instagram Reel'}
-                />
-              </div>
-              <a
-                href={item.url}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 12,
-                  padding: '7px 16px', borderRadius: 8, textDecoration: 'none',
-                  background: 'linear-gradient(45deg,rgba(240,148,51,0.15),rgba(188,24,136,0.15))',
-                  border: '1px solid rgba(240,148,51,0.35)',
-                  color: '#f09433', display: 'inline-flex', alignItems: 'center', gap: 6,
-                }}
-              >↗ Open on Instagram</a>
-            </div>
+          {type === 'instagram' ? (
+            <InstagramEmbedPost url={item.url} label={item.label} />
           ) : (type === 'youtube' || type === 'youtube_shorts') && ytId ? (
             <div style={{
               position: 'relative', width: '100%',
