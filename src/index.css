@@ -747,3 +747,21 @@ tr.clickable-match-row:hover td:first-child .match-no-badge { box-shadow:0 0 10p
     gap: 14px;
   }
 }
+
+/* ─── FANTASY TIPS TAB ──────────────────────────────────────── */
+.fantasy-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 700px) {
+  .fantasy-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Scrollbar inside AI notes box */
+.fantasy-notes-scroll::-webkit-scrollbar { width: 4px; }
+.fantasy-notes-scroll::-webkit-scrollbar-track { background: transparent; }
+.fantasy-notes-scroll::-webkit-scrollbar-thumb { background: rgba(245,166,35,0.3); border-radius: 2px; }
