@@ -2985,46 +2985,104 @@ function FantasySuggestions({ matches }) {
     const keys = Object.keys(MATCH_FANTASY_DATA).map(Number).sort((a,b) => b - a)
     return keys[0] || null
   })
-  const [aiSummary, setAiSummary]     = useState({})   // { matchNo: summaryText }
-  const [loadingAI, setLoadingAI]     = useState({})   // { matchNo: bool }
-  const [aiError, setAiError]         = useState({})   // { matchNo: errorMsg }
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [aiSummary, setAiSummary]         = useState({})
+  const [loadingAI, setLoadingAI]         = useState({})
+  const [aiError, setAiError]             = useState({})
+  const [isFullscreen, setIsFullscreen]   = useState(false)
+  const [manualMode, setManualMode]       = useState({})   // { matchNo: bool }
+  const [manualText, setManualText]       = useState({})   // { matchNo: string }
+  const [transcriptStatus, setTranscriptStatus] = useState({}) // { matchNo: string }
 
-  // Find the match from store, or just use static data
-  const matchData = selectedMatchNo ? MATCH_FANTASY_DATA[selectedMatchNo] : null
+  const matchData   = selectedMatchNo ? MATCH_FANTASY_DATA[selectedMatchNo] : null
   const matchRecord = matches.find(m => parseInt(m.matchno) === selectedMatchNo)
-  const embedId = matchData ? getYouTubeEmbedId(matchData.youtubeUrl) : null
+  const embedId     = matchData ? getYouTubeEmbedId(matchData.youtubeUrl) : null
+  const teamsLabel  = matchRecord?.teams || matchData?.teams || `Match ${selectedMatchNo}`
 
-  const teamsLabel = matchRecord?.teams || matchData?.teams || `Match ${selectedMatchNo}`
+  const OPENROUTER_API_KEY = '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'  // ← paste your OpenRouter key here
 
-  const generateSummary = async (matchNo) => {
+  const fetchTranscript = async (videoId) => {
+    // Try multiple free transcript proxy services
+    const proxies = [
+      `https://yt-transcript-api.vercel.app/api/transcript?videoId=${videoId}`,
+      `https://api.kome.ai/api/tools/youtube-transcripts?video_id=${videoId}`,
+    ]
+    for (const url of proxies) {
+      try {
+        const res = await fetch(url)
+        if (!res.ok) continue
+        const data = await res.json()
+        // Handle different response shapes
+        const items = data?.transcript || data?.transcripts?.[0]?.transcript || data
+        if (Array.isArray(items) && items.length > 0) {
+          return items.map(i => i.text || i.content || '').join(' ').slice(0, 12000)
+        }
+      } catch { continue }
+    }
+    return null
+  }
+
+  const generateSummary = async (matchNo, manualTranscript = null) => {
     const md = MATCH_FANTASY_DATA[matchNo]
     if (!md) return
 
-   setLoadingAI(prev => ({...prev, [matchNo]: true}))
-    setAiError(prev => ({...prev, [matchNo]: null}))
-
-    const OPENROUTER_API_KEY = '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'  // ← paste your OpenRouter key
+    setLoadingAI(prev => ({ ...prev, [matchNo]: true }))
+    setAiError(prev => ({ ...prev, [matchNo]: null }))
+    setTranscriptStatus(prev => ({ ...prev, [matchNo]: 'Fetching transcript...' }))
 
     try {
       const matchLabel = matches.find(m => parseInt(m.matchno) === matchNo)?.teams || md.teams || `Match ${matchNo}`
-      const prompt = `You are an expert IPL fantasy cricket analyst for IPL 2026.
+      const videoId = getYouTubeEmbedId(md.youtubeUrl)
 
-The match is: ${matchLabel} (Match #${matchNo}).
-Reference video: ${md.youtubeUrl}
+      // Step 1: Try to get transcript
+      let transcript = manualTranscript
+      if (!transcript && videoId) {
+        transcript = await fetchTranscript(videoId)
+      }
 
-Based on your knowledge of IPL 2026, current player form, recent performances, pitch/venue data, and head-to-head records, provide detailed fantasy cricket notes covering ALL 8 sections:
+      // Step 2: Build prompt — with transcript if available, otherwise best-effort
+      let prompt
+      if (transcript) {
+        setTranscriptStatus(prev => ({ ...prev, [matchNo]: '✅ Transcript fetched! Generating AI notes...' }))
+        prompt = `You are an expert IPL fantasy cricket analyst for IPL 2026.
+
+Match: ${matchLabel} (Match #${matchNo})
+YouTube Video Transcript (auto-generated, may have minor errors):
+"""
+${transcript}
+"""
+
+Based STRICTLY on this transcript above, extract and provide detailed fantasy cricket notes covering ALL 8 sections. Quote specific things the analyst said where relevant:
+
+1. 🏟️ PITCH & CONDITIONS — What did the analyst say about pitch type, surface, weather, dew factor, dimensions, expected score?
+2. 📊 PLAYING 11 & TEAM NEWS — Which players were mentioned as confirmed/doubtful? Any injury news mentioned?
+3. 🔥 KEY PLAYERS TO PICK — Which players did the analyst specifically recommend? List top 6–7 with the analyst's exact reasons.
+4. ⚡ DIFFERENTIAL PICKS — Any under-the-radar or surprise picks mentioned? Low-ownership suggestions?
+5. 🚫 PLAYERS TO AVOID — Who did the analyst say to avoid or bench? What reasons were given?
+6. 👑 CAPTAIN & VICE-CAPTAIN — Who did the analyst recommend as C and VC? What was the logic given?
+7. 🧠 TEAM COMPOSITION — What WK/BAT/AR/BOWL split or team combination did the analyst suggest?
+8. 🏆 MATCH PREDICTION — What was the analyst's predicted winner, score, and key factors?
+
+Be specific with player full names. Use emojis for section headers. If any section wasn't covered in the transcript, use your own IPL 2026 knowledge to fill it in and mark it as "(AI estimate)".`
+      } else {
+        setTranscriptStatus(prev => ({ ...prev, [matchNo]: '⚠️ Transcript unavailable — using AI knowledge' }))
+        prompt = `You are an expert IPL fantasy cricket analyst for IPL 2026.
+
+Match: ${matchLabel} (Match #${matchNo})
+Note: The YouTube transcript could not be fetched automatically. Use your best IPL 2026 knowledge for this match.
+
+Provide detailed fantasy cricket notes covering ALL 8 sections:
 
 1. 🏟️ PITCH & CONDITIONS — Pitch type, surface behavior, weather, dew factor, ground dimensions, historical avg first innings score at this venue in IPL 2026.
-2. 📊 CURRENT FORM & STATS (IPL 2026) — Top run-scorers & wicket-takers from both teams with recent scores and economy rates. Players on hot streaks.
-3. 🔥 KEY PLAYERS TO PICK — Top 6–7 must-pick players with specific reasons (form, H2H record, pitch suitability, recent scores).
-4. ⚡ DIFFERENTIAL PICKS — 3–4 under-the-radar low-ownership players who could be surprise match-winners.
-5. 🚫 PLAYERS TO AVOID — 2–3 players to bench (injury concern, poor form, bad matchup).
-6. 👑 CAPTAIN & VICE-CAPTAIN — Best C and VC with detailed logic. Include 1 risky differential captain.
-7. 🧠 TEAM COMPOSITION — Recommended WK/BAT/AR/BOWL split. Small league vs Grand League differences.
-8. 🏆 MATCH PREDICTION — Likely winner, margin, predicted top scorer, top wicket-taker, 3 key deciding factors.
+2. 📊 CURRENT FORM & STATS (IPL 2026) — Top run-scorers & wicket-takers from both teams with recent scores and economy rates.
+3. 🔥 KEY PLAYERS TO PICK — Top 6–7 must-pick players with specific reasons (form, H2H record, pitch suitability).
+4. ⚡ DIFFERENTIAL PICKS — 3–4 low-ownership players who could surprise.
+5. 🚫 PLAYERS TO AVOID — 2–3 players to bench with clear reasons.
+6. 👑 CAPTAIN & VICE-CAPTAIN — Best C and VC with detailed logic. Include 1 risky differential.
+7. 🧠 TEAM COMPOSITION — Recommended WK/BAT/AR/BOWL split with names. Small vs Grand League differences.
+8. 🏆 MATCH PREDICTION — Likely winner, margin, top scorer, top wicket-taker, 3 deciding factors.
 
 Use emojis for all section headers. Use full player names. Keep it actionable for Dream11/MyCircle11 players.`
+      }
 
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -3034,8 +3092,9 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
           'HTTP-Referer': window.location.origin,
         },
         body: JSON.stringify({
-          model: 'meta-llama/llama-4-maverick:free',  // 100% free model, no quota
-          messages: [{ role: 'user', content: prompt }]
+          model: 'meta-llama/llama-4-maverick:free',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 2000,
         })
       })
 
@@ -3046,12 +3105,19 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
 
       const data = await response.json()
       const text = data.choices?.[0]?.message?.content || 'No summary generated.'
-      setAiSummary(prev => ({...prev, [matchNo]: text}))
+      setAiSummary(prev => ({ ...prev, [matchNo]: text }))
     } catch (err) {
-      setAiError(prev => ({...prev, [matchNo]: `Failed to generate summary: ${err.message}`}))
+      setAiError(prev => ({ ...prev, [matchNo]: `Failed to generate summary: ${err.message}` }))
     } finally {
-      setLoadingAI(prev => ({...prev, [matchNo]: false}))
+      setLoadingAI(prev => ({ ...prev, [matchNo]: false }))
     }
+  }
+
+  const submitManual = (matchNo) => {
+    const text = manualText[matchNo] || ''
+    if (!text.trim()) return
+    setManualMode(prev => ({ ...prev, [matchNo]: false }))
+    generateSummary(matchNo, text.trim())
   }
 
   const matchNos = Object.keys(MATCH_FANTASY_DATA).map(Number).sort((a,b) => a - b)
@@ -3064,7 +3130,6 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
 
   return (
     <div className="section">
-      {/* Header */}
       <div className="sec-title" style={{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8}}>
         <span>🎯 Fantasy Tips & Match Preview</span>
         <span style={{fontSize:11, color:'var(--text2)', fontFamily:"'Rajdhani',sans-serif", letterSpacing:1, fontWeight:400}}>
@@ -3072,14 +3137,13 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
         </span>
       </div>
 
-      {/* Info banner */}
       <div style={{
         background:'linear-gradient(90deg, rgba(52,152,219,0.12), rgba(46,204,113,0.08))',
         border:'1px solid rgba(52,152,219,0.3)', borderRadius:10,
         padding:'10px 14px', marginBottom:16, fontSize:12,
         color:'#8899bb', lineHeight:1.6
       }}>
-        📺 <b style={{color:'var(--text)'}}>How to use:</b> Select a match below to watch the YouTube preview video (no redirect — plays inline!) and click <b style={{color:'var(--accent)'}}>Generate AI Notes</b> to get detailed fantasy team suggestions powered by AI.
+        📺 <b style={{color:'var(--text)'}}>How to use:</b> Select a match → AI will auto-fetch the YouTube transcript and generate real notes from the video. Or paste the transcript manually for best results.
       </div>
 
       {/* Match Selector */}
@@ -3089,19 +3153,15 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
           const label = mr?.teams || MATCH_FANTASY_DATA[mn]?.teams || `Match ${mn}`
           const isActive = selectedMatchNo === mn
           return (
-            <button
-              key={mn}
-              onClick={() => setSelectedMatchNo(mn)}
-              style={{
-                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
-                padding:'7px 14px', borderRadius:20, cursor:'pointer',
-                border: isActive ? '1.5px solid var(--accent)' : '1px solid rgba(255,255,255,0.1)',
-                background: isActive ? 'rgba(245,166,35,0.18)' : 'rgba(255,255,255,0.04)',
-                color: isActive ? 'var(--accent)' : 'var(--text2)',
-                transition:'all 0.2s', whiteSpace:'nowrap',
-                boxShadow: isActive ? '0 0 12px rgba(245,166,35,0.2)' : 'none'
-              }}
-            >
+            <button key={mn} onClick={() => setSelectedMatchNo(mn)} style={{
+              fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+              padding:'7px 14px', borderRadius:20, cursor:'pointer',
+              border: isActive ? '1.5px solid var(--accent)' : '1px solid rgba(255,255,255,0.1)',
+              background: isActive ? 'rgba(245,166,35,0.18)' : 'rgba(255,255,255,0.04)',
+              color: isActive ? 'var(--accent)' : 'var(--text2)',
+              transition:'all 0.2s', whiteSpace:'nowrap',
+              boxShadow: isActive ? '0 0 12px rgba(245,166,35,0.2)' : 'none'
+            }}>
               #{mn} · {label}
             </button>
           )
@@ -3133,67 +3193,42 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
                 </div>
               )}
             </div>
-            <div style={{display:'flex', gap:8}}>
-              <span style={{fontSize:11, background:'rgba(46,204,113,0.15)', color:'#2ecc71', border:'1px solid rgba(46,204,113,0.3)', borderRadius:6, padding:'4px 10px'}}>
-                📺 Video Available
-              </span>
-            </div>
+            <span style={{fontSize:11, background:'rgba(46,204,113,0.15)', color:'#2ecc71', border:'1px solid rgba(46,204,113,0.3)', borderRadius:6, padding:'4px 10px'}}>
+              📺 Video Available
+            </span>
           </div>
 
-          {/* Main 2-col layout */}
-          <div style={{
-            display:'grid',
-            gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr)',
-            gap:16,
-          }}
-          className="fantasy-grid"
-          >
-            {/* LEFT: YouTube Embed */}
+          {/* 2-col layout */}
+          <div style={{display:'grid', gridTemplateColumns:'minmax(0,1.2fr) minmax(0,1fr)', gap:16}} className="fantasy-grid">
+
+            {/* LEFT: YouTube */}
             <div style={{display:'flex', flexDirection:'column', gap:8}}>
-              <div style={{
-                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
-                color:'var(--text2)', letterSpacing:1, textTransform:'uppercase',
-                display:'flex', alignItems:'center', gap:6
-              }}>
-                <span style={{
-                  background:'#e74c3c', color:'#fff', fontSize:9, padding:'2px 6px',
-                  borderRadius:4, fontWeight:900, letterSpacing:2
-                }}>YOUTUBE</span>
+              <div style={{fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13, color:'var(--text2)', letterSpacing:1, textTransform:'uppercase', display:'flex', alignItems:'center', gap:6}}>
+                <span style={{background:'#e74c3c', color:'#fff', fontSize:9, padding:'2px 6px', borderRadius:4, fontWeight:900, letterSpacing:2}}>YOUTUBE</span>
                 Pre-Match Analysis Video
               </div>
 
               {embedId ? (
                 <div style={{
                   ...iframeStyle,
-                  position:'relative',
-                  width:'100%',
+                  position:'relative', width:'100%',
                   paddingBottom: isFullscreen ? '0' : '56.25%',
                   height: isFullscreen ? '100%' : '0',
                   borderRadius: isFullscreen ? 0 : 12,
-                  overflow:'hidden',
-                  background:'#000',
+                  overflow:'hidden', background:'#000',
                   border:'1px solid rgba(231,76,60,0.3)',
                   boxShadow:'0 4px 24px rgba(0,0,0,0.5)'
                 }}>
                   {isFullscreen && (
-                    <button
-                      onClick={() => setIsFullscreen(false)}
-                      style={{
-                        position:'absolute', top:12, right:12, zIndex:10000,
-                        background:'rgba(0,0,0,0.7)', color:'#fff', border:'none',
-                        borderRadius:8, padding:'8px 14px', cursor:'pointer',
-                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13
-                      }}
-                    >✕ Exit Fullscreen</button>
+                    <button onClick={() => setIsFullscreen(false)} style={{
+                      position:'absolute', top:12, right:12, zIndex:10000,
+                      background:'rgba(0,0,0,0.7)', color:'#fff', border:'none',
+                      borderRadius:8, padding:'8px 14px', cursor:'pointer',
+                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13
+                    }}>✕ Exit Fullscreen</button>
                   )}
                   <iframe
-                    style={{
-                      position: isFullscreen ? 'static' : 'absolute',
-                      top:0, left:0,
-                      width:'100%',
-                      height: isFullscreen ? '100%' : '100%',
-                      border:'none'
-                    }}
+                    style={{position: isFullscreen ? 'static' : 'absolute', top:0, left:0, width:'100%', height: isFullscreen ? '100%' : '100%', border:'none'}}
                     src={`https://www.youtube.com/embed/${embedId}?rel=0&modestbranding=1`}
                     title={`Match ${selectedMatchNo} Preview`}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
@@ -3201,54 +3236,98 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
                   />
                 </div>
               ) : (
-                <div style={{
-                  background:'rgba(255,255,255,0.03)', border:'1px dashed rgba(255,255,255,0.12)',
-                  borderRadius:12, padding:30, textAlign:'center', color:'var(--text2)', fontSize:13
-                }}>
-                  ⚠️ Invalid YouTube URL. Please check the MATCH_FANTASY_DATA config.
+                <div style={{background:'rgba(255,255,255,0.03)', border:'1px dashed rgba(255,255,255,0.12)', borderRadius:12, padding:30, textAlign:'center', color:'var(--text2)', fontSize:13}}>
+                  ⚠️ Invalid YouTube URL.
                 </div>
               )}
 
               {embedId && !isFullscreen && (
                 <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
-                  <button
-                    onClick={() => setIsFullscreen(true)}
-                    style={{
-                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
-                      padding:'7px 14px', borderRadius:8, cursor:'pointer',
-                      border:'1px solid rgba(231,76,60,0.4)',
-                      background:'rgba(231,76,60,0.12)', color:'#e74c3c',
-                      display:'flex', alignItems:'center', gap:6, transition:'all 0.2s'
-                    }}
-                  >
-                    ⛶ Fullscreen
-                  </button>
-                  <a
-                    href={matchData.youtubeUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{
-                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
-                      padding:'7px 14px', borderRadius:8,
-                      border:'1px solid rgba(255,255,255,0.1)',
-                      background:'rgba(255,255,255,0.04)', color:'var(--text2)',
-                      display:'flex', alignItems:'center', gap:6,
-                      textDecoration:'none', transition:'all 0.2s'
-                    }}
-                  >
-                    ↗ Open on YouTube
-                  </a>
+                  <button onClick={() => setIsFullscreen(true)} style={{
+                    fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                    padding:'7px 14px', borderRadius:8, cursor:'pointer',
+                    border:'1px solid rgba(231,76,60,0.4)',
+                    background:'rgba(231,76,60,0.12)', color:'#e74c3c',
+                    display:'flex', alignItems:'center', gap:6, transition:'all 0.2s'
+                  }}>⛶ Fullscreen</button>
+                  <a href={matchData.youtubeUrl} target="_blank" rel="noreferrer" style={{
+                    fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                    padding:'7px 14px', borderRadius:8,
+                    border:'1px solid rgba(255,255,255,0.1)',
+                    background:'rgba(255,255,255,0.04)', color:'var(--text2)',
+                    display:'flex', alignItems:'center', gap:6,
+                    textDecoration:'none', transition:'all 0.2s'
+                  }}>↗ Open on YouTube</a>
                 </div>
               )}
 
-              {/* Video tips */}
+              {/* Manual Transcript Box */}
               <div style={{
-                background:'rgba(46,204,113,0.06)', border:'1px solid rgba(46,204,113,0.2)',
-                borderRadius:8, padding:'10px 12px', fontSize:11, color:'#8899bb', lineHeight:1.7
+                background:'rgba(245,166,35,0.05)', border:'1px solid rgba(245,166,35,0.2)',
+                borderRadius:10, padding:'12px 14px'
               }}>
+                <div style={{
+                  fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                  color:'var(--accent)', marginBottom:8, display:'flex', alignItems:'center', gap:6
+                }}>
+                  📋 PASTE TRANSCRIPT MANUALLY (Best Results)
+                </div>
+                <div style={{fontSize:11, color:'var(--text2)', marginBottom:8, lineHeight:1.6}}>
+                  On YouTube → click <b style={{color:'var(--text)'}}>⋯ More → Show transcript</b> → Select All → Copy → Paste below:
+                </div>
+                {manualMode[selectedMatchNo] ? (
+                  <div style={{display:'flex', flexDirection:'column', gap:8}}>
+                    <textarea
+                      value={manualText[selectedMatchNo] || ''}
+                      onChange={e => setManualText(prev => ({...prev, [selectedMatchNo]: e.target.value}))}
+                      placeholder="Paste the full YouTube transcript here..."
+                      style={{
+                        width:'100%', minHeight:120, background:'rgba(0,0,0,0.4)',
+                        border:'1px solid rgba(245,166,35,0.3)', borderRadius:8,
+                        color:'var(--text)', fontSize:11, padding:'8px 10px',
+                        fontFamily:'monospace', resize:'vertical', boxSizing:'border-box'
+                      }}
+                    />
+                    <div style={{display:'flex', gap:8}}>
+                      <button
+                        onClick={() => submitManual(selectedMatchNo)}
+                        disabled={!manualText[selectedMatchNo]?.trim()}
+                        style={{
+                          fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:13,
+                          padding:'9px 18px', borderRadius:8, cursor:'pointer',
+                          border:'1.5px solid rgba(46,204,113,0.5)',
+                          background:'rgba(46,204,113,0.15)', color:'#2ecc71',
+                          opacity: manualText[selectedMatchNo]?.trim() ? 1 : 0.4
+                        }}
+                      >✅ Generate from Transcript</button>
+                      <button
+                        onClick={() => setManualMode(prev => ({...prev, [selectedMatchNo]: false}))}
+                        style={{
+                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                          padding:'9px 14px', borderRadius:8, cursor:'pointer',
+                          border:'1px solid rgba(255,255,255,0.1)',
+                          background:'rgba(255,255,255,0.04)', color:'var(--text2)'
+                        }}
+                      >✕ Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setManualMode(prev => ({...prev, [selectedMatchNo]: true}))}
+                    style={{
+                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                      padding:'7px 16px', borderRadius:8, cursor:'pointer',
+                      border:'1px solid rgba(245,166,35,0.35)',
+                      background:'rgba(245,166,35,0.1)', color:'var(--accent)'
+                    }}
+                  >📋 Paste Transcript</button>
+                )}
+              </div>
+
+              <div style={{background:'rgba(46,204,113,0.06)', border:'1px solid rgba(46,204,113,0.2)', borderRadius:8, padding:'10px 12px', fontSize:11, color:'#8899bb', lineHeight:1.7}}>
                 <div style={{color:'#2ecc71', fontWeight:700, marginBottom:4}}>💡 Pro Tips for Team Building</div>
                 <div>• Watch the full video for pitch report and expert picks</div>
-                <div>• Use AI Notes alongside the video for the best strategy</div>
+                <div>• Paste transcript for AI notes based on the actual video content</div>
                 <div>• Focus on players in good form and against this specific opposition</div>
                 <div>• Tap ⛶ Fullscreen for immersive mobile viewing</div>
               </div>
@@ -3256,182 +3335,78 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
 
             {/* RIGHT: AI Summary */}
             <div style={{display:'flex', flexDirection:'column', gap:8}}>
-              <div style={{
-                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
-                color:'var(--text2)', letterSpacing:1, textTransform:'uppercase',
-                display:'flex', alignItems:'center', gap:6
-              }}>
-                <span style={{
-                  background:'linear-gradient(90deg,#f5a623,#e8531a)', color:'#000', fontSize:9,
-                  padding:'2px 6px', borderRadius:4, fontWeight:900, letterSpacing:2
-                }}>AI</span>
+              <div style={{fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13, color:'var(--text2)', letterSpacing:1, textTransform:'uppercase', display:'flex', alignItems:'center', gap:6}}>
+                <span style={{background:'linear-gradient(90deg,#f5a623,#e8531a)', color:'#000', fontSize:9, padding:'2px 6px', borderRadius:4, fontWeight:900, letterSpacing:2}}>AI</span>
                 Fantasy Notes & Player Tips
               </div>
 
-              <div style={{
-                background:'rgba(16,24,48,0.85)', border:'1px solid rgba(255,255,255,0.08)',
-                borderRadius:12, padding:14, minHeight:300, position:'relative',
-                display:'flex', flexDirection:'column', gap:10,
-                boxShadow:'inset 0 0 40px rgba(0,0,0,0.3)'
-              }}>
+              <div style={{background:'rgba(16,24,48,0.85)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:14, minHeight:300, position:'relative', display:'flex', flexDirection:'column', gap:10, boxShadow:'inset 0 0 40px rgba(0,0,0,0.3)'}}>
+
                 {!aiSummary[selectedMatchNo] && !loadingAI[selectedMatchNo] && !aiError[selectedMatchNo] && (
-                  <div style={{
-                    flex:1, display:'flex', flexDirection:'column',
-                    alignItems:'center', justifyContent:'center', gap:14, padding:20, textAlign:'center'
-                  }}>
+                  <div style={{flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:14, padding:20, textAlign:'center'}}>
                     <div style={{fontSize:40}}>🤖</div>
                     <div style={{fontSize:13, color:'var(--text2)', lineHeight:1.6}}>
-                      Click the button below to generate AI-powered detailed fantasy notes for this match — player picks, captain choices, pitch analysis, and more!
+                      Click below to auto-fetch the YouTube transcript and generate AI-powered fantasy notes.<br/>
+                      <span style={{fontSize:11, color:'var(--text2)', opacity:0.7}}>Or paste the transcript manually on the left for guaranteed results.</span>
                     </div>
-                    <button
-                      onClick={() => generateSummary(selectedMatchNo)}
-                      style={{
-                        fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:14,
-                        padding:'12px 24px', borderRadius:10, cursor:'pointer',
-                        border:'1.5px solid rgba(245,166,35,0.5)',
-                        background:'linear-gradient(135deg,rgba(245,166,35,0.2),rgba(232,83,26,0.15))',
-                        color:'var(--accent)', letterSpacing:1, textTransform:'uppercase',
-                        boxShadow:'0 0 20px rgba(245,166,35,0.15)', transition:'all 0.2s'
-                      }}
-                    >
-                      ✨ Generate AI Fantasy Notes
-                    </button>
+                    <button onClick={() => generateSummary(selectedMatchNo)} style={{
+                      fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:14,
+                      padding:'12px 24px', borderRadius:10, cursor:'pointer',
+                      border:'1.5px solid rgba(245,166,35,0.5)',
+                      background:'linear-gradient(135deg,rgba(245,166,35,0.2),rgba(232,83,26,0.15))',
+                      color:'var(--accent)', letterSpacing:1, textTransform:'uppercase',
+                      boxShadow:'0 0 20px rgba(245,166,35,0.15)', transition:'all 0.2s'
+                    }}>✨ Auto-Generate AI Notes</button>
                   </div>
                 )}
 
                 {loadingAI[selectedMatchNo] && (
-                  <div style={{
-                    flex:1, display:'flex', flexDirection:'column',
-                    alignItems:'center', justifyContent:'center', gap:12, padding:20, textAlign:'center'
-                  }}>
-                    <div style={{
-                      width:40, height:40, borderRadius:'50%',
-                      border:'3px solid rgba(245,166,35,0.2)',
-                      borderTop:'3px solid var(--accent)',
-                      animation:'spin 0.8s linear infinite'
-                    }}/>
+                  <div style={{flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:20, textAlign:'center'}}>
+                    <div style={{width:40, height:40, borderRadius:'50%', border:'3px solid rgba(245,166,35,0.2)', borderTop:'3px solid var(--accent)', animation:'spin 0.8s linear infinite'}}/>
                     <div style={{fontSize:13, color:'var(--text2)'}}>
-                      🤖 AI is analyzing the match...<br/>
-                      <span style={{fontSize:11}}>Generating your fantasy tips</span>
+                      🤖 {transcriptStatus[selectedMatchNo] || 'Generating AI notes...'}<br/>
+                      <span style={{fontSize:11}}>This may take 10–20 seconds</span>
                     </div>
                   </div>
                 )}
 
-                {aiError[selectedMatchNo] && (
+                {aiError[selectedMatchNo] && !loadingAI[selectedMatchNo] && (
                   <div style={{flex:1, display:'flex', flexDirection:'column', gap:10}}>
-                    {/* Error message */}
-                    <div style={{
-                      background:'rgba(231,76,60,0.1)', border:'1px solid rgba(231,76,60,0.3)',
-                      borderRadius:8, padding:'10px 12px', fontSize:12, color:'#e74c3c', lineHeight:1.6
-                    }}>
+                    <div style={{background:'rgba(231,76,60,0.1)', border:'1px solid rgba(231,76,60,0.3)', borderRadius:8, padding:'10px 12px', fontSize:12, color:'#e74c3c'}}>
                       ⚠️ {aiError[selectedMatchNo]}
                     </div>
-
-                    {/* Setup guide — shown when not yet configured */}
-                    {(aiError[selectedMatchNo].includes('Setup required') || aiError[selectedMatchNo].includes('Failed to fetch') || aiError[selectedMatchNo].includes('CORS') || aiError[selectedMatchNo].includes('fetch')) && (
-                      <div style={{
-                        background:'rgba(52,152,219,0.08)', border:'1px solid rgba(52,152,219,0.25)',
-                        borderRadius:10, padding:'12px 14px', fontSize:11.5, color:'var(--text2)', lineHeight:1.8
-                      }}>
-                        <div style={{color:'#3498db', fontWeight:700, fontSize:13, marginBottom:8}}>
-                          🛠️ One-Time Setup Required (Free · 3 min)
-                        </div>
-
-                        <div style={{marginBottom:10}}>
-                          The AI button needs a free <b style={{color:'var(--text)'}}>Cloudflare Worker</b> proxy
-                          because browsers block direct API calls (CORS restriction).
-                        </div>
-
-                        <div style={{display:'flex', flexDirection:'column', gap:6}}>
-                          {[
-                            ['1', '🔑', 'Get free Anthropic API key', 'https://console.anthropic.com', 'console.anthropic.com →'],
-                            ['2', '☁️', 'Deploy free Cloudflare Worker', 'https://dash.cloudflare.com', 'dash.cloudflare.com →'],
-                          ].map(([num, icon, label, href, linkText]) => (
-                            <div key={num} style={{
-                              display:'flex', alignItems:'center', gap:8,
-                              background:'rgba(255,255,255,0.03)', borderRadius:6, padding:'6px 10px'
-                            }}>
-                              <span style={{
-                                background:'rgba(52,152,219,0.25)', color:'#3498db',
-                                borderRadius:'50%', width:18, height:18, fontSize:10,
-                                display:'flex', alignItems:'center', justifyContent:'center',
-                                fontWeight:900, flexShrink:0
-                              }}>{num}</span>
-                              <span style={{flex:1}}>{icon} {label}</span>
-                              <a href={href} target="_blank" rel="noreferrer" style={{
-                                color:'var(--accent)', fontSize:10, textDecoration:'none',
-                                border:'1px solid rgba(245,166,35,0.3)', borderRadius:4,
-                                padding:'2px 7px', whiteSpace:'nowrap'
-                              }}>{linkText}</a>
-                            </div>
-                          ))}
-                          <div style={{
-                            background:'rgba(255,255,255,0.03)', borderRadius:6, padding:'6px 10px',
-                            display:'flex', alignItems:'flex-start', gap:8
-                          }}>
-                            <span style={{
-                              background:'rgba(52,152,219,0.25)', color:'#3498db',
-                              borderRadius:'50%', width:18, height:18, fontSize:10,
-                              display:'flex', alignItems:'center', justifyContent:'center',
-                              fontWeight:900, flexShrink:0, marginTop:1
-                            }}>3</span>
-                            <div>
-                              <div>📋 Paste <code style={{background:'rgba(245,166,35,0.1)',color:'var(--accent)',padding:'1px 5px',borderRadius:3}}>worker.js</code> code into the Worker, add your API key as a secret env var</div>
-                              <div style={{marginTop:4}}>Then in <code style={{background:'rgba(245,166,35,0.1)',color:'var(--accent)',padding:'1px 5px',borderRadius:3}}>App.jsx</code>, set:
-                                <pre style={{
-                                  background:'rgba(0,0,0,0.3)', padding:'5px 8px', borderRadius:4,
-                                  marginTop:4, fontSize:10, color:'#8899bb', overflowX:'auto'
-                                }}>{'const WORKER_URL = \'https://your-worker.workers.dev\''}</pre>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div style={{
-                          marginTop:10, padding:'6px 10px', borderRadius:6,
-                          background:'rgba(46,204,113,0.08)', border:'1px solid rgba(46,204,113,0.2)',
-                          fontSize:11, color:'#2ecc71'
-                        }}>
-                          ✅ The included <b>worker.js</b> file has full step-by-step instructions inside.
-                        </div>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => generateSummary(selectedMatchNo)}
-                      style={{
-                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
-                        padding:'8px 16px', borderRadius:8, cursor:'pointer',
-                        border:'1px solid rgba(245,166,35,0.4)',
-                        background:'rgba(245,166,35,0.1)', color:'var(--accent)',
-                        alignSelf:'flex-start'
-                      }}
-                    >🔄 Retry</button>
+                    <div style={{background:'rgba(52,152,219,0.08)', border:'1px solid rgba(52,152,219,0.2)', borderRadius:8, padding:'10px 12px', fontSize:11, color:'var(--text2)', lineHeight:1.7}}>
+                      💡 <b style={{color:'#3498db'}}>Try this instead:</b> Open the YouTube video → click <b style={{color:'var(--text)'}}>⋯ More → Show transcript</b> → Copy all text → Use the <b style={{color:'var(--accent)'}}>📋 Paste Transcript</b> button on the left for guaranteed AI notes from the actual video.
+                    </div>
+                    <button onClick={() => generateSummary(selectedMatchNo)} style={{
+                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                      padding:'8px 16px', borderRadius:8, cursor:'pointer',
+                      border:'1px solid rgba(245,166,35,0.4)',
+                      background:'rgba(245,166,35,0.1)', color:'var(--accent)',
+                      alignSelf:'flex-start'
+                    }}>🔄 Retry Auto-Fetch</button>
                   </div>
                 )}
 
                 {aiSummary[selectedMatchNo] && (
                   <div style={{flex:1, display:'flex', flexDirection:'column', gap:10}}>
-                    <div style={{
-                      fontSize:11.5, color:'var(--text)', lineHeight:1.75,
-                      whiteSpace:'pre-wrap', overflowY:'auto',
-                      maxHeight:460, paddingRight:4,
-                      fontFamily:"'Rajdhani',sans-serif"
-                    }}>
+                    {transcriptStatus[selectedMatchNo] && (
+                      <div style={{fontSize:10, color: transcriptStatus[selectedMatchNo].includes('✅') ? '#2ecc71' : '#f5a623', background:'rgba(255,255,255,0.04)', borderRadius:6, padding:'4px 8px'}}>
+                        {transcriptStatus[selectedMatchNo]}
+                      </div>
+                    )}
+                    <div style={{fontSize:11.5, color:'var(--text)', lineHeight:1.75, whiteSpace:'pre-wrap', overflowY:'auto', maxHeight:460, paddingRight:4, fontFamily:"'Rajdhani',sans-serif"}}>
                       {aiSummary[selectedMatchNo]}
                     </div>
                     <div style={{borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:8, display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
                       <span style={{fontSize:10, color:'var(--text2)'}}>⚠️ AI analysis — use as a guide, not guaranteed picks</span>
-                      <button
-                        onClick={() => generateSummary(selectedMatchNo)}
-                        style={{
-                          marginLeft:'auto',
-                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
-                          padding:'5px 12px', borderRadius:6, cursor:'pointer',
-                          border:'1px solid rgba(255,255,255,0.1)',
-                          background:'rgba(255,255,255,0.04)', color:'var(--text2)'
-                        }}
-                      >🔄 Regenerate</button>
+                      <button onClick={() => generateSummary(selectedMatchNo)} style={{
+                        marginLeft:'auto',
+                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
+                        padding:'5px 12px', borderRadius:6, cursor:'pointer',
+                        border:'1px solid rgba(255,255,255,0.1)',
+                        background:'rgba(255,255,255,0.04)', color:'var(--text2)'
+                      }}>🔄 Regenerate</button>
                     </div>
                   </div>
                 )}
@@ -3439,39 +3414,26 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
             </div>
           </div>
 
-          {/* How to add more matches guide */}
-          <div style={{
-            background:'rgba(52,152,219,0.06)', border:'1px dashed rgba(52,152,219,0.25)',
-            borderRadius:10, padding:'12px 16px', fontSize:11, color:'var(--text2)', lineHeight:1.7
-          }}>
+          <div style={{background:'rgba(52,152,219,0.06)', border:'1px dashed rgba(52,152,219,0.25)', borderRadius:10, padding:'12px 16px', fontSize:11, color:'var(--text2)', lineHeight:1.7}}>
             <div style={{color:'#3498db', fontWeight:700, marginBottom:4, fontSize:12}}>🛠️ Developer Note: Adding More Matches</div>
             To add YouTube videos for more matches, update the <code style={{background:'rgba(255,255,255,0.08)', padding:'1px 5px', borderRadius:3, color:'var(--accent)'}}>MATCH_FANTASY_DATA</code> constant in App.jsx:
-            <pre style={{
-              background:'rgba(0,0,0,0.3)', padding:'8px 10px', borderRadius:6,
-              marginTop:6, fontSize:10, color:'#8899bb', overflowX:'auto'
-            }}>{`20: { youtubeUrl: 'https://youtu.be/YOUR_VIDEO_ID', teams: 'Team A vs Team B' },`}</pre>
+            <pre style={{background:'rgba(0,0,0,0.3)', padding:'8px 10px', borderRadius:6, marginTop:6, fontSize:10, color:'#8899bb', overflowX:'auto'}}>{`20: { youtubeUrl: 'https://youtu.be/YOUR_VIDEO_ID', teams: 'Team A vs Team B' },`}</pre>
           </div>
         </div>
       ) : (
-        <div style={{
-          background:'rgba(255,255,255,0.02)', border:'1px dashed rgba(255,255,255,0.1)',
-          borderRadius:12, padding:40, textAlign:'center', color:'var(--text2)', fontSize:13
-        }}>
+        <div style={{background:'rgba(255,255,255,0.02)', border:'1px dashed rgba(255,255,255,0.1)', borderRadius:12, padding:40, textAlign:'center', color:'var(--text2)', fontSize:13}}>
           🎯 No match selected. Add YouTube links in MATCH_FANTASY_DATA to get started.
         </div>
       )}
 
       <style>{`
         @media (max-width: 700px) {
-          .fantasy-grid {
-            grid-template-columns: 1fr !important;
-          }
+          .fantasy-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>
   )
 }
-
 // ─────────────────────────────────────────────────────────────
 export default function App() {
   const [matches, setMatches]         = useState([])
