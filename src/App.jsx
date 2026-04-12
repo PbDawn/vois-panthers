@@ -3001,46 +3001,49 @@ function FantasySuggestions({ matches }) {
     const md = MATCH_FANTASY_DATA[matchNo]
     if (!md) return
 
-    setLoadingAI(prev => ({...prev, [matchNo]: true}))
+   setLoadingAI(prev => ({...prev, [matchNo]: true}))
     setAiError(prev => ({...prev, [matchNo]: null}))
+
+    const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY_HERE'  // ← paste your key here
 
     try {
       const matchLabel = matches.find(m => parseInt(m.matchno) === matchNo)?.teams || md.teams || `Match ${matchNo}`
       const prompt = `You are an expert IPL fantasy cricket analyst for IPL 2026.
 
 The match is: ${matchLabel} (Match #${matchNo}).
-Reference video (for context): ${md.youtubeUrl}
+Reference video: ${md.youtubeUrl}
 
-Based on your knowledge of IPL 2026, current player form, recent performances, pitch and venue data, and head-to-head records, provide detailed fantasy cricket notes covering ALL 8 sections:
+Based on your knowledge of IPL 2026, current player form, recent performances, pitch/venue data, and head-to-head records, provide detailed fantasy cricket notes covering ALL 8 sections:
 
 1. 🏟️ PITCH & CONDITIONS — Pitch type, surface behavior, weather, dew factor, ground dimensions, historical avg first innings score at this venue in IPL 2026.
-2. 📊 CURRENT FORM & STATS (IPL 2026) — Top run-scorers & wicket-takers from both teams with recent scores and economy rates. Players with 3+ consecutive good performances.
+2. 📊 CURRENT FORM & STATS (IPL 2026) — Top run-scorers & wicket-takers from both teams with recent scores and economy rates. Players on hot streaks.
 3. 🔥 KEY PLAYERS TO PICK — Top 6–7 must-pick players with specific reasons (form, H2H record, pitch suitability, recent scores).
-4. ⚡ DIFFERENTIAL PICKS — 3–4 under-the-radar low-ownership players who could be surprise match-winners, with reasons.
-5. 🚫 PLAYERS TO AVOID — 2–3 players to bench with clear reasons (injury, poor form, bad matchup).
-6. 👑 CAPTAIN & VICE-CAPTAIN — Best C and VC picks with detailed logic. Mention 1 risky differential captain if applicable.
-7. 🧠 TEAM COMPOSITION — Recommended WK/BAT/AR/BOWL split with player names. Small league vs Grand League differences.
-8. 🏆 MATCH PREDICTION — Likely winner, margin, predicted top scorer, top wicket-taker, and 3 key deciding factors.
+4. ⚡ DIFFERENTIAL PICKS — 3–4 under-the-radar low-ownership players who could be surprise match-winners.
+5. 🚫 PLAYERS TO AVOID — 2–3 players to bench (injury concern, poor form, bad matchup).
+6. 👑 CAPTAIN & VICE-CAPTAIN — Best C and VC with detailed logic. Include 1 risky differential captain.
+7. 🧠 TEAM COMPOSITION — Recommended WK/BAT/AR/BOWL split. Small league vs Grand League differences.
+8. 🏆 MATCH PREDICTION — Likely winner, margin, predicted top scorer, top wicket-taker, 3 key deciding factors.
 
 Use emojis for all section headers. Use full player names. Keep it actionable for Dream11/MyCircle11 players.`
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1800,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      })
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }]
+          })
+        }
+      )
+
       if (!response.ok) {
         const errBody = await response.text()
         throw new Error(`API error ${response.status}: ${errBody.slice(0, 120)}`)
       }
 
       const data = await response.json()
-      if (data.error) throw new Error(data.error.message)
-      const text = data.content?.map(c => c.text || '').join('\n') || 'No summary generated.'
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No summary generated.'
       setAiSummary(prev => ({...prev, [matchNo]: text}))
     } catch (err) {
       setAiError(prev => ({...prev, [matchNo]: `Failed to generate summary: ${err.message}`}))
