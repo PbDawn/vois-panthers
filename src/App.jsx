@@ -3214,88 +3214,22 @@ function FantasySuggestions({ matches, fantasyData }) {
   )
 }
 // ─── MATCH HIGHLIGHTS (Public View) ─────────────────────────
-function getInstagramShortcode(url) {
+function getIgShortcode(url) {
   if (!url) return null
-  // Strip query params, extract shortcode from /p/, /reel/, /reels/, /tv/
   const clean = url.split('?')[0].replace(/\/$/, '')
-  const match = clean.match(/instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)
-  return match ? match[1] : null
+  const m = clean.match(/instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)
+  return m ? m[1] : null
 }
 
-// Renders an official Instagram embed using blockquote + embed.js
-// This is the ONLY reliable method — iframe /embed/ URLs are blocked by Instagram
-function InstagramEmbedPost({ url, label }) {
-  const containerRef = useRef(null)
-  const shortcode = getInstagramShortcode(url)
-  // Canonical permalink always uses /p/ — works for reels, posts, tv
-  const permalink = shortcode ? `https://www.instagram.com/p/${shortcode}/` : url
-
-  useEffect(() => {
-    if (!containerRef.current || !shortcode) return
-
-    // Build the official blockquote HTML
-    containerRef.current.innerHTML = `
-      <blockquote
-        class="instagram-media"
-        data-instgrm-permalink="${permalink}?utm_source=ig_embed&utm_campaign=loading"
-        data-instgrm-version="14"
-        style="background:#FFF;border:0;border-radius:12px;box-shadow:0 0 1px 0 rgba(0,0,0,0.5),0 1px 10px 0 rgba(0,0,0,0.15);margin:0 auto;max-width:400px;min-width:280px;padding:0;width:100%;">
-      </blockquote>`
-
-    // If embed.js is already loaded, just re-process
-    if (window.instgrm?.Embeds) {
-      window.instgrm.Embeds.process()
-      return
-    }
-
-    // Otherwise load it fresh
-    const existing = document.getElementById('ig-embed-script')
-    if (existing) existing.remove()
-
-    const script = document.createElement('script')
-    script.id = 'ig-embed-script'
-    script.src = 'https://www.instagram.com/embed.js'
-    script.async = true
-    script.onload = () => { window.instgrm?.Embeds?.process() }
-    document.body.appendChild(script)
-  }, [shortcode, permalink])
-
-  if (!shortcode) {
-    return (
-      <div style={{ color: 'var(--text2)', fontSize: 12, padding: 16, textAlign: 'center' }}>
-        ⚠️ Could not parse Instagram URL.{' '}
-        <a href={url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Open link ↗</a>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-      <div
-        ref={containerRef}
-        style={{ width: '100%', maxWidth: 400 }}
-      />
-      <a
-        href={url}
-        target="_blank"
-        rel="noreferrer"
-        style={{
-          fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 12,
-          padding: '7px 16px', borderRadius: 8, textDecoration: 'none',
-          background: 'linear-gradient(45deg,rgba(240,148,51,0.15),rgba(188,24,136,0.15))',
-          border: '1px solid rgba(240,148,51,0.35)',
-          color: '#f09433', display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}
-      >↗ Open on Instagram</a>
-    </div>
-  )
-}
-
-function getYouTubeShortsId(url) {
+function getYtEmbedId(url) {
   if (!url) return null
-  const match = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/)
-  if (match) return match[1]
-  return getYouTubeEmbedId(url) // fallback for regular YT links too
+  const s = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/)
+  if (s) return s[1]
+  const b = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/)
+  if (b) return b[1]
+  const v = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/)
+  if (v) return v[1]
+  return null
 }
 
 function detectMediaType(url) {
@@ -3306,83 +3240,130 @@ function detectMediaType(url) {
   return 'unknown'
 }
 
-function HighlightCard({ item, index }) {
-  const [expanded, setExpanded] = useState(false)
-  const type = item.type || detectMediaType(item.url)
-  const ytId = (type === 'youtube' || type === 'youtube_shorts') ? getYouTubeShortsId(item.url) : null
-  const isShorts = type === 'youtube_shorts'
-
-  const typeLabel = type === 'instagram' ? '📸 Instagram' : isShorts ? '▶ YT Shorts' : '▶ YouTube'
-  const typeBg = type === 'instagram'
-    ? 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)'
-    : '#e74c3c'
+// Instagram cannot autoplay in cross-origin iframes — show a rich tap-to-open card instead
+function InstagramReelCard({ item, index }) {
+  const shortcode = getIgShortcode(item.url)
+  const thumbUrl = shortcode ? `https://www.instagram.com/p/${shortcode}/media/?size=m` : null
 
   return (
-    <div style={{
-      background: 'rgba(255,255,255,0.03)',
-      border: '1px solid rgba(255,255,255,0.08)',
-      borderRadius: 14, overflow: 'hidden',
-      transition: 'border-color 0.2s',
-    }}>
-      {/* Card header */}
+    <a
+      href={item.url}
+      target="_blank"
+      rel="noreferrer"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        background: 'linear-gradient(135deg, rgba(240,148,51,0.08), rgba(188,24,136,0.08))',
+        border: '1px solid rgba(240,148,51,0.25)',
+        borderRadius: 14, padding: '14px 16px',
+        textDecoration: 'none', cursor: 'pointer',
+        transition: 'all 0.2s',
+      }}
+    >
+      {/* IG gradient icon */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '10px 14px', cursor: 'pointer',
-        background: expanded ? 'rgba(245,166,35,0.05)' : 'transparent',
-        borderBottom: expanded ? '1px solid rgba(255,255,255,0.06)' : 'none',
-      }} onClick={() => setExpanded(v => !v)}>
-        <span style={{
-          background: typeBg, color: '#fff',
-          fontSize: 9, padding: '2px 8px', borderRadius: 5,
-          fontWeight: 900, letterSpacing: 1, whiteSpace: 'nowrap',
-          flexShrink: 0,
-        }}>{typeLabel}</span>
-        <span style={{
-          fontFamily: "'Rajdhani',sans-serif", fontWeight: 700,
-          fontSize: 13, color: 'var(--text)', flex: 1,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        width: 52, height: 52, borderRadius: 14, flexShrink: 0,
+        background: 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 26, boxShadow: '0 4px 16px rgba(240,148,51,0.3)',
+      }}>🎬</div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 14,
+          color: '#f0f0f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
-          {item.label || `Highlight #${index + 1}`}
-        </span>
-        <span style={{
-          fontSize: 11, color: 'var(--text2)', flexShrink: 0,
-          fontFamily: "'Rajdhani',sans-serif",
-        }}>{expanded ? '▲ Close' : '▶ Play'}</span>
+          {item.label || `Reel #${index + 1}`}
+        </div>
+        <div style={{ fontSize: 11, color: '#f09433', marginTop: 3, fontFamily: "'Rajdhani',sans-serif" }}>
+          📸 Instagram Reel · Tap to watch
+        </div>
+        <div style={{ fontSize: 10, color: '#8899bb', marginTop: 2 }}>
+          Opens in Instagram app or browser
+        </div>
       </div>
 
-      {/* Embed */}
-      {expanded && (
-        <div style={{ padding: '12px 14px 14px' }}>
-          {type === 'instagram' ? (
-            <InstagramEmbedPost url={item.url} label={item.label} />
-          ) : (type === 'youtube' || type === 'youtube_shorts') && ytId ? (
-            <div style={{
-              position: 'relative', width: '100%',
-              paddingBottom: isShorts ? '177.78%' : '56.25%',
-              height: 0, borderRadius: 12, overflow: 'hidden',
-              background: '#000', border: '1px solid rgba(231,76,60,0.3)',
-            }}>
-              <iframe
-                src={`https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1`}
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title={item.label || 'YouTube Short'}
-              />
-            </div>
-          ) : (
-            <div style={{ color: 'var(--text2)', fontSize: 12, padding: 16, textAlign: 'center' }}>
-              ⚠️ Could not parse embed URL. <a href={item.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Open link ↗</a>
-            </div>
-          )}
+      <div style={{
+        flexShrink: 0, width: 36, height: 36, borderRadius: 10,
+        background: 'linear-gradient(45deg,rgba(240,148,51,0.2),rgba(188,24,136,0.2))',
+        border: '1px solid rgba(240,148,51,0.4)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 16,
+      }}>↗</div>
+    </a>
+  )
+}
+
+function YouTubeCard({ item, index }) {
+  const [playing, setPlaying] = useState(false)
+  const ytId = getYtEmbedId(item.url)
+  const isShorts = (item.type || detectMediaType(item.url)) === 'youtube_shorts'
+
+  if (!ytId) {
+    return (
+      <div style={{ background: 'rgba(231,76,60,0.07)', border: '1px solid rgba(231,76,60,0.2)', borderRadius: 14, padding: '14px 16px', color: 'var(--text2)', fontSize: 12 }}>
+        ⚠️ Could not parse YouTube URL. <a href={item.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Open ↗</a>
+      </div>
+    )
+  }
+
+  if (!playing) {
+    return (
+      <div
+        onClick={() => setPlaying(true)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 14,
+          background: 'rgba(231,76,60,0.07)', border: '1px solid rgba(231,76,60,0.25)',
+          borderRadius: 14, padding: '14px 16px', cursor: 'pointer', transition: 'all 0.2s',
+        }}
+      >
+        <div style={{
+          width: 52, height: 52, borderRadius: 14, flexShrink: 0, background: '#e74c3c',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 22, boxShadow: '0 4px 16px rgba(231,76,60,0.35)',
+        }}>▶</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 14,
+            color: '#f0f0f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>{item.label || `Video #${index + 1}`}</div>
+          <div style={{ fontSize: 11, color: '#e74c3c', marginTop: 3, fontFamily: "'Rajdhani',sans-serif" }}>
+            {isShorts ? '▶ YouTube Short' : '▶ YouTube Video'} · Tap to play
+          </div>
         </div>
-      )}
+        <div style={{
+          flexShrink: 0, width: 36, height: 36, borderRadius: 10, background: 'rgba(231,76,60,0.15)',
+          border: '1px solid rgba(231,76,60,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18,
+        }}>▶</div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid rgba(231,76,60,0.3)', background: '#000' }}>
+      <div style={{ padding: '8px 12px', background: 'rgba(231,76,60,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13, color: '#f0f0f0' }}>
+          {item.label || `Video #${index + 1}`}
+        </span>
+        <button onClick={() => setPlaying(false)} style={{ background: 'none', border: 'none', color: '#8899bb', cursor: 'pointer', fontSize: 12, fontFamily: "'Rajdhani',sans-serif" }}>✕ Close</button>
+      </div>
+      <div style={{
+        position: 'relative', width: '100%',
+        paddingBottom: isShorts ? '177.78%' : '56.25%',
+        height: 0,
+      }}>
+        <iframe
+          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&modestbranding=1`}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title={item.label || 'YouTube'}
+        />
+      </div>
     </div>
   )
 }
 
 function MatchHighlights({ matches, highlightsData }) {
-  // Only show completed matches that have highlights
   const matchesWithHighlights = useMemo(() => {
     return matches
       .filter(m => {
@@ -3390,47 +3371,26 @@ function MatchHighlights({ matches, highlightsData }) {
         const clips = highlightsData[mn]
         return Array.isArray(clips) && clips.length > 0
       })
-      .sort((a, b) => parseInt(b.matchno) - parseInt(a.matchno)) // newest first
+      .sort((a, b) => parseInt(b.matchno) - parseInt(a.matchno))
   }, [matches, highlightsData])
 
   const [selectedMatchNo, setSelectedMatchNo] = useState(null)
 
-  // Auto-select most recent match with highlights
   useEffect(() => {
-    if (matchesWithHighlights.length > 0 && selectedMatchNo === null) {
+    if (matchesWithHighlights.length > 0) {
       setSelectedMatchNo(parseInt(matchesWithHighlights[0].matchno))
+    } else {
+      setSelectedMatchNo(null)
     }
-  }, [matchesWithHighlights, selectedMatchNo])
+  }, [matchesWithHighlights])
+
+  // ── If no clips at all, render nothing (nav tab still shows but section is blank)
+  if (matchesWithHighlights.length === 0) return null
 
   const selectedMatch = selectedMatchNo ? matches.find(m => parseInt(m.matchno) === selectedMatchNo) : null
   const clips = selectedMatchNo ? (highlightsData[selectedMatchNo] || []) : []
-
   const igClips = clips.filter(c => (c.type || detectMediaType(c.url)) === 'instagram')
-  const ytClips = clips.filter(c => {
-    const t = c.type || detectMediaType(c.url)
-    return t === 'youtube' || t === 'youtube_shorts'
-  })
-
-  if (matchesWithHighlights.length === 0) {
-    return (
-      <div className="section">
-        <div className="sec-title">🎬 Match Highlights</div>
-        <div style={{
-          background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)',
-          borderRadius: 12, padding: 48, textAlign: 'center', color: 'var(--text2)', fontSize: 13, lineHeight: 1.8,
-        }}>
-          <div style={{ fontSize: 40, marginBottom: 12 }}>🎬</div>
-          <div style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 6 }}>
-            No Highlights Available Yet
-          </div>
-          <div style={{ fontSize: 12 }}>
-            Instagram Reels &amp; YouTube Shorts from key IPL moments will appear here.<br />
-            Admin adds highlights after each match.
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const ytClips = clips.filter(c => { const t = c.type || detectMediaType(c.url); return t === 'youtube' || t === 'youtube_shorts' })
 
   return (
     <div className="section">
@@ -3441,7 +3401,7 @@ function MatchHighlights({ matches, highlightsData }) {
         </span>
       </div>
 
-      {/* Match selector */}
+      {/* Match selector pills */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
         {matchesWithHighlights.map(m => {
           const mn = parseInt(m.matchno)
@@ -3458,10 +3418,7 @@ function MatchHighlights({ matches, highlightsData }) {
               boxShadow: isActive ? '0 0 12px rgba(245,166,35,0.2)' : 'none',
             }}>
               #{mn} · {m.teams || `Match ${mn}`}
-              <span style={{
-                marginLeft: 6, fontSize: 10, background: isActive ? 'rgba(245,166,35,0.3)' : 'rgba(255,255,255,0.1)',
-                borderRadius: 10, padding: '1px 6px',
-              }}>{count}</span>
+              <span style={{ marginLeft: 6, fontSize: 10, background: isActive ? 'rgba(245,166,35,0.3)' : 'rgba(255,255,255,0.1)', borderRadius: 10, padding: '1px 6px' }}>{count}</span>
             </button>
           )
         })}
@@ -3472,7 +3429,7 @@ function MatchHighlights({ matches, highlightsData }) {
           {/* Match title bar */}
           <div style={{
             background: 'rgba(245,166,35,0.06)', border: '1px solid rgba(245,166,35,0.2)',
-            borderRadius: 10, padding: '10px 16px', marginBottom: 16,
+            borderRadius: 10, padding: '10px 16px', marginBottom: 20,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
           }}>
             <div>
@@ -3487,57 +3444,33 @@ function MatchHighlights({ matches, highlightsData }) {
               )}
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              {igClips.length > 0 && (
-                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(240,148,51,0.15)', color: '#f09433', border: '1px solid rgba(240,148,51,0.3)' }}>
-                  📸 {igClips.length} Reel{igClips.length !== 1 ? 's' : ''}
-                </span>
-              )}
-              {ytClips.length > 0 && (
-                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(231,76,60,0.15)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.3)' }}>
-                  ▶ {ytClips.length} Short{ytClips.length !== 1 ? 's' : ''}
-                </span>
-              )}
+              {igClips.length > 0 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(240,148,51,0.15)', color: '#f09433', border: '1px solid rgba(240,148,51,0.3)' }}>📸 {igClips.length} Reel{igClips.length !== 1 ? 's' : ''}</span>}
+              {ytClips.length > 0 && <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(231,76,60,0.15)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.3)' }}>▶ {ytClips.length} Video{ytClips.length !== 1 ? 's' : ''}</span>}
             </div>
           </div>
 
-          {/* Instagram Reels section */}
+          {/* Instagram Reels */}
           {igClips.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div style={{
-                fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 13,
-                letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10,
-                display: 'flex', alignItems: 'center', gap: 8,
-              }}>
-                <span style={{
-                  background: 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#bc1888)',
-                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}>📸 Instagram Reels</span>
-                <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
-                  — tap to play in-app · or open on Instagram
-                </span>
+            <div style={{ marginBottom: 24 }}>
+              <div style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10, color: '#f09433' }}>
+                📸 Instagram Reels
+                <span style={{ fontSize: 10, fontWeight: 400, color: '#8899bb', textTransform: 'none', letterSpacing: 0, marginLeft: 8 }}>tap card to open in Instagram</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {igClips.map((item, i) => <HighlightCard key={i} item={item} index={i} />)}
+                {igClips.map((item, i) => <InstagramReelCard key={i} item={item} index={i} />)}
               </div>
             </div>
           )}
 
-          {/* YouTube Shorts / Videos section */}
+          {/* YouTube */}
           {ytClips.length > 0 && (
             <div>
-              <div style={{
-                fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 13,
-                letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10,
-                color: '#e74c3c', display: 'flex', alignItems: 'center', gap: 8,
-              }}>
+              <div style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10, color: '#e74c3c' }}>
                 ▶ YouTube Shorts &amp; Videos
-                <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
-                  — tap to play embedded
-                </span>
+                <span style={{ fontSize: 10, fontWeight: 400, color: '#8899bb', textTransform: 'none', letterSpacing: 0, marginLeft: 8 }}>tap to play embedded</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {ytClips.map((item, i) => <HighlightCard key={i} item={item} index={i} />)}
+                {ytClips.map((item, i) => <YouTubeCard key={i} item={item} index={i} />)}
               </div>
             </div>
           )}
@@ -3629,6 +3562,8 @@ export default function App() {
     fetchFromCloud()
   }
 
+  const hasHighlights = useMemo(() => Object.values(highlightsData).some(v => Array.isArray(v) && v.length > 0), [highlightsData])
+
   const navItems = [
     { id:'matchlog',    label:'📋 Match Log' },
     { id:'playerstats', label:'👤 Player Stats' },
@@ -3636,7 +3571,7 @@ export default function App() {
     { id:'graphs',      label:'📊 Graphs' },
     { id:'stockindex',  label:'📈 Stock Index' },
     { id:'fantasy',     label:'🎯 Fantasy Tips' },
-    { id:'highlights',  label:'🎬 Highlights' },
+    ...(hasHighlights ? [{ id:'highlights', label:'🎬 Highlights' }] : []),
   ]
 
   return (
