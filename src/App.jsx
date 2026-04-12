@@ -3213,10 +3213,302 @@ function FantasySuggestions({ matches, fantasyData }) {
     </div>
   )
 }
+// ─── MATCH HIGHLIGHTS (Public View) ─────────────────────────
+function getInstagramEmbedCode(url) {
+  if (!url) return null
+  // Extract shortcode from various IG URL formats
+  const match = url.match(/instagram\.com\/(?:p|reel|reels|tv)\/([A-Za-z0-9_-]+)/)
+  return match ? match[1] : null
+}
+
+function getYouTubeShortsId(url) {
+  if (!url) return null
+  const match = url.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/)
+  if (match) return match[1]
+  return getYouTubeEmbedId(url) // fallback for regular YT links too
+}
+
+function detectMediaType(url) {
+  if (!url) return 'unknown'
+  if (url.includes('instagram.com')) return 'instagram'
+  if (url.includes('youtube.com/shorts')) return 'youtube_shorts'
+  if (url.includes('youtu.be') || url.includes('youtube.com')) return 'youtube'
+  return 'unknown'
+}
+
+function HighlightCard({ item, index }) {
+  const [expanded, setExpanded] = useState(false)
+  const type = item.type || detectMediaType(item.url)
+  const igCode = type === 'instagram' ? getInstagramEmbedCode(item.url) : null
+  const ytId = (type === 'youtube' || type === 'youtube_shorts') ? getYouTubeShortsId(item.url) : null
+  const isShorts = type === 'youtube_shorts'
+
+  const typeLabel = type === 'instagram' ? '📸 Instagram' : isShorts ? '▶ YT Shorts' : '▶ YouTube'
+  const typeBg = type === 'instagram'
+    ? 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)'
+    : '#e74c3c'
+
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.03)',
+      border: '1px solid rgba(255,255,255,0.08)',
+      borderRadius: 14, overflow: 'hidden',
+      transition: 'border-color 0.2s',
+    }}>
+      {/* Card header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 14px', cursor: 'pointer',
+        background: expanded ? 'rgba(245,166,35,0.05)' : 'transparent',
+        borderBottom: expanded ? '1px solid rgba(255,255,255,0.06)' : 'none',
+      }} onClick={() => setExpanded(v => !v)}>
+        <span style={{
+          background: typeBg, color: '#fff',
+          fontSize: 9, padding: '2px 8px', borderRadius: 5,
+          fontWeight: 900, letterSpacing: 1, whiteSpace: 'nowrap',
+          flexShrink: 0,
+        }}>{typeLabel}</span>
+        <span style={{
+          fontFamily: "'Rajdhani',sans-serif", fontWeight: 700,
+          fontSize: 13, color: 'var(--text)', flex: 1,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {item.label || `Highlight #${index + 1}`}
+        </span>
+        <span style={{
+          fontSize: 11, color: 'var(--text2)', flexShrink: 0,
+          fontFamily: "'Rajdhani',sans-serif",
+        }}>{expanded ? '▲ Close' : '▶ Play'}</span>
+      </div>
+
+      {/* Embed */}
+      {expanded && (
+        <div style={{ padding: '12px 14px 14px' }}>
+          {type === 'instagram' && igCode ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <div style={{
+                width: '100%', maxWidth: 400,
+                borderRadius: 12, overflow: 'hidden',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: '#000',
+              }}>
+                <iframe
+                  src={`https://www.instagram.com/reel/${igCode}/embed/`}
+                  style={{ width: '100%', height: 560, border: 'none', display: 'block' }}
+                  allowFullScreen
+                  scrolling="no"
+                  title={item.label || 'Instagram Reel'}
+                />
+              </div>
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 12,
+                  padding: '7px 16px', borderRadius: 8, textDecoration: 'none',
+                  background: 'linear-gradient(45deg,rgba(240,148,51,0.15),rgba(188,24,136,0.15))',
+                  border: '1px solid rgba(240,148,51,0.35)',
+                  color: '#f09433', display: 'inline-flex', alignItems: 'center', gap: 6,
+                }}
+              >↗ Open on Instagram</a>
+            </div>
+          ) : (type === 'youtube' || type === 'youtube_shorts') && ytId ? (
+            <div style={{
+              position: 'relative', width: '100%',
+              paddingBottom: isShorts ? '177.78%' : '56.25%',
+              height: 0, borderRadius: 12, overflow: 'hidden',
+              background: '#000', border: '1px solid rgba(231,76,60,0.3)',
+            }}>
+              <iframe
+                src={`https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1`}
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={item.label || 'YouTube Short'}
+              />
+            </div>
+          ) : (
+            <div style={{ color: 'var(--text2)', fontSize: 12, padding: 16, textAlign: 'center' }}>
+              ⚠️ Could not parse embed URL. <a href={item.url} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>Open link ↗</a>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MatchHighlights({ matches, highlightsData }) {
+  // Only show completed matches that have highlights
+  const matchesWithHighlights = useMemo(() => {
+    return matches
+      .filter(m => {
+        const mn = parseInt(m.matchno)
+        const clips = highlightsData[mn]
+        return Array.isArray(clips) && clips.length > 0
+      })
+      .sort((a, b) => parseInt(b.matchno) - parseInt(a.matchno)) // newest first
+  }, [matches, highlightsData])
+
+  const [selectedMatchNo, setSelectedMatchNo] = useState(null)
+
+  // Auto-select most recent match with highlights
+  useEffect(() => {
+    if (matchesWithHighlights.length > 0 && selectedMatchNo === null) {
+      setSelectedMatchNo(parseInt(matchesWithHighlights[0].matchno))
+    }
+  }, [matchesWithHighlights, selectedMatchNo])
+
+  const selectedMatch = selectedMatchNo ? matches.find(m => parseInt(m.matchno) === selectedMatchNo) : null
+  const clips = selectedMatchNo ? (highlightsData[selectedMatchNo] || []) : []
+
+  const igClips = clips.filter(c => (c.type || detectMediaType(c.url)) === 'instagram')
+  const ytClips = clips.filter(c => {
+    const t = c.type || detectMediaType(c.url)
+    return t === 'youtube' || t === 'youtube_shorts'
+  })
+
+  if (matchesWithHighlights.length === 0) {
+    return (
+      <div className="section">
+        <div className="sec-title">🎬 Match Highlights</div>
+        <div style={{
+          background: 'rgba(255,255,255,0.02)', border: '1px dashed rgba(255,255,255,0.1)',
+          borderRadius: 12, padding: 48, textAlign: 'center', color: 'var(--text2)', fontSize: 13, lineHeight: 1.8,
+        }}>
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🎬</div>
+          <div style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 6 }}>
+            No Highlights Available Yet
+          </div>
+          <div style={{ fontSize: 12 }}>
+            Instagram Reels &amp; YouTube Shorts from key IPL moments will appear here.<br />
+            Admin adds highlights after each match.
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="section">
+      <div className="sec-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+        <span>🎬 Match Highlights</span>
+        <span style={{ fontSize: 11, color: 'var(--text2)', fontFamily: "'Rajdhani',sans-serif", letterSpacing: 1, fontWeight: 400 }}>
+          Reels · Shorts · Key Moments
+        </span>
+      </div>
+
+      {/* Match selector */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        {matchesWithHighlights.map(m => {
+          const mn = parseInt(m.matchno)
+          const isActive = selectedMatchNo === mn
+          const count = (highlightsData[mn] || []).length
+          return (
+            <button key={mn} onClick={() => setSelectedMatchNo(mn)} style={{
+              fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 12,
+              padding: '7px 14px', borderRadius: 20, cursor: 'pointer',
+              border: isActive ? '1.5px solid var(--accent)' : '1px solid rgba(255,255,255,0.1)',
+              background: isActive ? 'rgba(245,166,35,0.18)' : 'rgba(255,255,255,0.04)',
+              color: isActive ? 'var(--accent)' : 'var(--text2)',
+              transition: 'all 0.2s', whiteSpace: 'nowrap',
+              boxShadow: isActive ? '0 0 12px rgba(245,166,35,0.2)' : 'none',
+            }}>
+              #{mn} · {m.teams || `Match ${mn}`}
+              <span style={{
+                marginLeft: 6, fontSize: 10, background: isActive ? 'rgba(245,166,35,0.3)' : 'rgba(255,255,255,0.1)',
+                borderRadius: 10, padding: '1px 6px',
+              }}>{count}</span>
+            </button>
+          )
+        })}
+      </div>
+
+      {selectedMatch && clips.length > 0 && (
+        <div>
+          {/* Match title bar */}
+          <div style={{
+            background: 'rgba(245,166,35,0.06)', border: '1px solid rgba(245,166,35,0.2)',
+            borderRadius: 10, padding: '10px 16px', marginBottom: 16,
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8,
+          }}>
+            <div>
+              <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 20, letterSpacing: 3, color: 'var(--accent)' }}>
+                MATCH #{selectedMatchNo} — {(selectedMatch.teams || '').toUpperCase()}
+              </div>
+              {selectedMatch.date && (
+                <div style={{ fontSize: 11, color: 'var(--text2)' }}>
+                  📅 {new Date(selectedMatch.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {selectedMatch.teamwon && selectedMatch.teamwon !== '—' ? ` · 🏆 ${selectedMatch.teamwon} won` : ''}
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {igClips.length > 0 && (
+                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(240,148,51,0.15)', color: '#f09433', border: '1px solid rgba(240,148,51,0.3)' }}>
+                  📸 {igClips.length} Reel{igClips.length !== 1 ? 's' : ''}
+                </span>
+              )}
+              {ytClips.length > 0 && (
+                <span style={{ fontSize: 10, padding: '3px 8px', borderRadius: 6, background: 'rgba(231,76,60,0.15)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.3)' }}>
+                  ▶ {ytClips.length} Short{ytClips.length !== 1 ? 's' : ''}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Instagram Reels section */}
+          {igClips.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div style={{
+                fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 13,
+                letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10,
+                display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                <span style={{
+                  background: 'linear-gradient(45deg,#f09433,#e6683c,#dc2743,#bc1888)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}>📸 Instagram Reels</span>
+                <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                  — tap to play in-app · or open on Instagram
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {igClips.map((item, i) => <HighlightCard key={i} item={item} index={i} />)}
+              </div>
+            </div>
+          )}
+
+          {/* YouTube Shorts / Videos section */}
+          {ytClips.length > 0 && (
+            <div>
+              <div style={{
+                fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 13,
+                letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10,
+                color: '#e74c3c', display: 'flex', alignItems: 'center', gap: 8,
+              }}>
+                ▶ YouTube Shorts &amp; Videos
+                <span style={{ fontSize: 11, color: 'var(--text2)', fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>
+                  — tap to play embedded
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {ytClips.map((item, i) => <HighlightCard key={i} item={item} index={i} />)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 // ─────────────────────────────────────────────────────────────
 export default function App() {
   const [matches, setMatches]         = useState([])
   const [fantasyData, setFantasyData] = useState({})   // { matchNo: { youtubeUrl, notes } }
+  const [highlightsData, setHighlightsData] = useState({}) // { matchNo: [{ type, url, label }] }
   const [h2hPlayers, setH2hPlayers]   = useState({ p1: null, p2: null })
   const [loading, setLoading]         = useState(false)
   const [activeSection, setActiveSection] = useState('matchlog')
@@ -3256,11 +3548,13 @@ export default function App() {
       }
       const newMatches = data.matches || data || []
       const newFantasyData = data.fantasyData || {}
+      const newHighlightsData = data.highlightsData || {}
       const newVersion = data.version || data.updatedAt || JSON.stringify(newMatches).length
       if (newVersion !== lastVersionRef.current) {
         lastVersionRef.current = newVersion
         setMatches(newMatches)
         setFantasyData(newFantasyData)
+        setHighlightsData(newHighlightsData)
         const options = { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true }
         const updatedAt = data.updatedAt
           ? new Date(data.updatedAt).toLocaleString('en-IN', options).replace(/,/g, '')
@@ -3300,6 +3594,7 @@ export default function App() {
     { id:'graphs',      label:'📊 Graphs' },
     { id:'stockindex',  label:'📈 Stock Index' },
     { id:'fantasy',     label:'🎯 Fantasy Tips' },
+    { id:'highlights',  label:'🎬 Highlights' },
   ]
 
   return (
@@ -3313,6 +3608,8 @@ export default function App() {
           matches={matches}
           fantasyData={fantasyData}
           onFantasyDataSave={(newFD) => setFantasyData(newFD)}
+          highlightsData={highlightsData}
+          onHighlightsDataSave={(newHD) => setHighlightsData(newHD)}
         />
       )}
 
@@ -3379,6 +3676,7 @@ export default function App() {
         <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
         <div style={activeSection==='stockindex'  ? {} : {display:'none'}}><PlayerStockIndex matches={matches} /></div>
         <div style={activeSection==='fantasy'     ? {} : {display:'none'}}><FantasySuggestions matches={matches} fantasyData={fantasyData} /></div>
+        <div style={activeSection==='highlights'  ? {} : {display:'none'}}><MatchHighlights matches={matches} highlightsData={highlightsData} /></div>
 
         <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
         {h2hPlayers.p1 && h2hPlayers.p2 && (
