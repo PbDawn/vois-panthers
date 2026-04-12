@@ -2091,7 +2091,7 @@ function PlayerStockIndex({ matches }) {
           else if (matchRank === 7) multiplier = 0.90
           //runningPrice = parseFloat((((pts * 0.4) + (open * 0.6)) * multiplier).toFixed(2))
           const isFirstMatch = idx === 0
-          runningPrice = parseFloat((isFirstMatch ? pts : ((pts * 0.4) + (open * 0.6))) * multiplier).toFixed(2))
+          runningPrice = parseFloat(((isFirstMatch ? pts : ((pts * 0.4) + (open * 0.6))) * multiplier).toFixed(2))
         }
         // For the candle: open = price before match, close = price after
         // High = max(open, close) * slight intra-match volatility factor
