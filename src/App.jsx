@@ -312,7 +312,7 @@ function computePlayerStats(matches) {
       //let newIndexBase = (pts * 0.4) + (prevIndex * 0.6);
       const isFirstMatch = s.matchesPlayed === 0;
       let newIndexBase = isFirstMatch
-      ? Math.max(pts, 100)   // first match: never drop below listing price of 100
+      ? pts // first match: listing price
       : (pts * 0.4) + (prevIndex * 0.6);
       // 4. FORM-BASED MULTIPLIERS (Confidence Kickers)
       const pRank = paidRanks[p] || 0; // Assuming paidRanks is calculated earlier in the loop 
