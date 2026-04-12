@@ -3004,7 +3004,7 @@ function FantasySuggestions({ matches }) {
    setLoadingAI(prev => ({...prev, [matchNo]: true}))
     setAiError(prev => ({...prev, [matchNo]: null}))
 
-    const GEMINI_API_KEY = 'YOUR_GEMINI_API_KEY_HERE'  // ← paste your key here
+    const GEMINI_API_KEY = 'AIzaSyD-XkBXASiP-QqJ_izb1SpySYnDWE3cxjU'  // ← paste your key here
 
     try {
       const matchLabel = matches.find(m => parseInt(m.matchno) === matchNo)?.teams || md.teams || `Match ${matchNo}`
