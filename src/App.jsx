@@ -3000,35 +3000,69 @@ function FantasySuggestions({ matches }) {
   const generateSummary = async (matchNo) => {
     const md = MATCH_FANTASY_DATA[matchNo]
     if (!md) return
+
+    // ── OPTION A: Cloudflare Worker proxy (recommended — free, no backend needed)
+    // Deploy the worker from worker.js in your project root, then paste its URL below.
+    // Leave as empty string '' to use Option B (direct API key).
+    const WORKER_URL = 'https://vois-ai.iampbdawn.workers.dev'   // e.g. 'https://vois-ai.YOUR-NAME.workers.dev'
+
+    // ── OPTION B: Direct API key (only safe if app is password-protected / admin-only)
+    // Never expose this in a public website. Leave as '' if using Worker above.
+    const ANTHROPIC_API_KEY = ''  // e.g. 'sk-ant-api03-...'
+
+    if (!WORKER_URL && !ANTHROPIC_API_KEY) {
+      setAiError(prev => ({...prev, [matchNo]:
+        '⚙️ Setup required: Add your WORKER_URL or ANTHROPIC_API_KEY in App.jsx (see MATCH_FANTASY_DATA section). Check the included worker.js for free Cloudflare Worker setup instructions.'
+      }))
+      return
+    }
+
     setLoadingAI(prev => ({...prev, [matchNo]: true}))
     setAiError(prev => ({...prev, [matchNo]: null}))
+
     try {
       const matchLabel = matches.find(m => parseInt(m.matchno) === matchNo)?.teams || md.teams || `Match ${matchNo}`
-      const prompt = `You are an expert IPL fantasy cricket analyst. The user has shared a YouTube video link for a pre-match analysis video: ${md.youtubeUrl}
+      const prompt = `You are an expert IPL fantasy cricket analyst. The user has a YouTube pre-match analysis video for: ${md.youtubeUrl}
 
-This video is about IPL 2026 ${matchLabel} (Match ${matchNo}).
+This is for IPL 2026 — ${matchLabel} (Match ${matchNo}).
 
-Based on your general IPL 2026 knowledge for this match, provide detailed fantasy cricket notes/suggestions covering:
+Provide detailed fantasy cricket notes covering these 7 sections:
 
-1. 🏏 PITCH & CONDITIONS — Expected pitch behavior, weather impact, dew factor, ground dimensions.
-2. 🔥 KEY PLAYERS TO PICK — Top 5-7 must-pick players with reasons (recent form, head-to-head record, pitch suitability).
-3. ⚡ DIFFERENTIAL PICKS — 3-4 low-owned players who could be game-changers.
-4. 🚫 PLAYERS TO AVOID — 2-3 players to bench with reasons.
-5. 👑 CAPTAIN & VICE-CAPTAIN CHOICES — Best C and VC options with logic.
-6. 🧠 TEAM BUILDING STRATEGY — Suggested team composition (how many batsmen, bowlers, allrounders, wicketkeeper).
-7. 📊 MATCH PREDICTION — Likely winner and key factors.
+1. 🏏 PITCH & CONDITIONS — Pitch type (batting/bowling), expected behavior, weather, dew factor, ground dimensions at this venue.
+2. 🔥 KEY PLAYERS TO PICK — Top 6-7 must-pick players with specific reasons (current form, head-to-head record, pitch suitability, recent scores).
+3. ⚡ DIFFERENTIAL PICKS — 3-4 under-the-radar players (low ownership %) who could be surprise match-winners.
+4. 🚫 PLAYERS TO AVOID — 2-3 players to bench this match with clear reasons (injury concern, poor form, unfavorable matchup).
+5. 👑 CAPTAIN & VICE-CAPTAIN — Best C and VC picks with detailed logic on why they have the highest ceiling.
+6. 🧠 TEAM COMPOSITION — Recommended split: how many WK / BAT / AR / BOWL, with example team names.
+7. 📊 MATCH PREDICTION — Likely winner, margin, and 2-3 key factors that will decide the game.
 
-Write in a structured, detailed format. Use emojis for visual appeal. Be specific with player names and stats where possible. This will help fantasy league players build the best possible team.`
+Be specific with player names. Use emojis for each section header. Keep it actionable for fantasy league players.`
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
+      const endpoint = WORKER_URL
+        ? `${WORKER_URL.replace(/\/$/, '')}/v1/messages`
+        : 'https://api.anthropic.com/v1/messages'
+
+      const headers = { 'Content-Type': 'application/json' }
+      if (ANTHROPIC_API_KEY) {
+        headers['x-api-key'] = ANTHROPIC_API_KEY
+        headers['anthropic-version'] = '2023-06-01'
+      }
+
+      const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
+          max_tokens: 1200,
           messages: [{ role: 'user', content: prompt }]
         })
       })
+
+      if (!response.ok) {
+        const errBody = await response.text()
+        throw new Error(`API error ${response.status}: ${errBody.slice(0, 120)}`)
+      }
+
       const data = await response.json()
       if (data.error) throw new Error(data.error.message)
       const text = data.content?.map(c => c.text || '').join('\n') || 'No summary generated.'
@@ -3304,22 +3338,93 @@ Write in a structured, detailed format. Use emojis for visual appeal. Be specifi
                 )}
 
                 {aiError[selectedMatchNo] && (
-                  <div style={{
-                    flex:1, display:'flex', flexDirection:'column', gap:10
-                  }}>
+                  <div style={{flex:1, display:'flex', flexDirection:'column', gap:10}}>
+                    {/* Error message */}
                     <div style={{
                       background:'rgba(231,76,60,0.1)', border:'1px solid rgba(231,76,60,0.3)',
-                      borderRadius:8, padding:12, fontSize:12, color:'#e74c3c'
+                      borderRadius:8, padding:'10px 12px', fontSize:12, color:'#e74c3c', lineHeight:1.6
                     }}>
                       ⚠️ {aiError[selectedMatchNo]}
                     </div>
+
+                    {/* Setup guide — shown when not yet configured */}
+                    {(aiError[selectedMatchNo].includes('Setup required') || aiError[selectedMatchNo].includes('Failed to fetch') || aiError[selectedMatchNo].includes('CORS') || aiError[selectedMatchNo].includes('fetch')) && (
+                      <div style={{
+                        background:'rgba(52,152,219,0.08)', border:'1px solid rgba(52,152,219,0.25)',
+                        borderRadius:10, padding:'12px 14px', fontSize:11.5, color:'var(--text2)', lineHeight:1.8
+                      }}>
+                        <div style={{color:'#3498db', fontWeight:700, fontSize:13, marginBottom:8}}>
+                          🛠️ One-Time Setup Required (Free · 3 min)
+                        </div>
+
+                        <div style={{marginBottom:10}}>
+                          The AI button needs a free <b style={{color:'var(--text)'}}>Cloudflare Worker</b> proxy
+                          because browsers block direct API calls (CORS restriction).
+                        </div>
+
+                        <div style={{display:'flex', flexDirection:'column', gap:6}}>
+                          {[
+                            ['1', '🔑', 'Get free Anthropic API key', 'https://console.anthropic.com', 'console.anthropic.com →'],
+                            ['2', '☁️', 'Deploy free Cloudflare Worker', 'https://dash.cloudflare.com', 'dash.cloudflare.com →'],
+                          ].map(([num, icon, label, href, linkText]) => (
+                            <div key={num} style={{
+                              display:'flex', alignItems:'center', gap:8,
+                              background:'rgba(255,255,255,0.03)', borderRadius:6, padding:'6px 10px'
+                            }}>
+                              <span style={{
+                                background:'rgba(52,152,219,0.25)', color:'#3498db',
+                                borderRadius:'50%', width:18, height:18, fontSize:10,
+                                display:'flex', alignItems:'center', justifyContent:'center',
+                                fontWeight:900, flexShrink:0
+                              }}>{num}</span>
+                              <span style={{flex:1}}>{icon} {label}</span>
+                              <a href={href} target="_blank" rel="noreferrer" style={{
+                                color:'var(--accent)', fontSize:10, textDecoration:'none',
+                                border:'1px solid rgba(245,166,35,0.3)', borderRadius:4,
+                                padding:'2px 7px', whiteSpace:'nowrap'
+                              }}>{linkText}</a>
+                            </div>
+                          ))}
+                          <div style={{
+                            background:'rgba(255,255,255,0.03)', borderRadius:6, padding:'6px 10px',
+                            display:'flex', alignItems:'flex-start', gap:8
+                          }}>
+                            <span style={{
+                              background:'rgba(52,152,219,0.25)', color:'#3498db',
+                              borderRadius:'50%', width:18, height:18, fontSize:10,
+                              display:'flex', alignItems:'center', justifyContent:'center',
+                              fontWeight:900, flexShrink:0, marginTop:1
+                            }}>3</span>
+                            <div>
+                              <div>📋 Paste <code style={{background:'rgba(245,166,35,0.1)',color:'var(--accent)',padding:'1px 5px',borderRadius:3}}>worker.js</code> code into the Worker, add your API key as a secret env var</div>
+                              <div style={{marginTop:4}}>Then in <code style={{background:'rgba(245,166,35,0.1)',color:'var(--accent)',padding:'1px 5px',borderRadius:3}}>App.jsx</code>, set:
+                                <pre style={{
+                                  background:'rgba(0,0,0,0.3)', padding:'5px 8px', borderRadius:4,
+                                  marginTop:4, fontSize:10, color:'#8899bb', overflowX:'auto'
+                                }}>{'const WORKER_URL = \'https://your-worker.workers.dev\''}</pre>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{
+                          marginTop:10, padding:'6px 10px', borderRadius:6,
+                          background:'rgba(46,204,113,0.08)', border:'1px solid rgba(46,204,113,0.2)',
+                          fontSize:11, color:'#2ecc71'
+                        }}>
+                          ✅ The included <b>worker.js</b> file has full step-by-step instructions inside.
+                        </div>
+                      </div>
+                    )}
+
                     <button
                       onClick={() => generateSummary(selectedMatchNo)}
                       style={{
                         fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
                         padding:'8px 16px', borderRadius:8, cursor:'pointer',
                         border:'1px solid rgba(245,166,35,0.4)',
-                        background:'rgba(245,166,35,0.1)', color:'var(--accent)'
+                        background:'rgba(245,166,35,0.1)', color:'var(--accent)',
+                        alignSelf:'flex-start'
                       }}
                     >🔄 Retry</button>
                   </div>
