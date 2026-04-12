@@ -2959,6 +2959,435 @@ function MarketSentimentTicker({ matches }) {
 }
 
 
+// ─── FANTASY SUGGESTIONS DATA ────────────────────────────────
+// Add YouTube links per match here. The AI summary is generated on demand.
+const MATCH_FANTASY_DATA = {
+  19: {
+    youtubeUrl: 'https://youtu.be/MFuut59C2sQ?si=ZAkSYrdUZ6AliWgp',
+    teams: 'Match 19 Preview',
+  },
+  // Add more matches here as needed:
+  // 20: { youtubeUrl: 'https://youtu.be/XXXX', teams: 'Team A vs Team B' },
+}
+
+function getYouTubeEmbedId(url) {
+  if (!url) return null
+  // Handle youtu.be short links and youtube.com/watch?v= links
+  const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/)
+  if (shortMatch) return shortMatch[1]
+  const longMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/)
+  if (longMatch) return longMatch[1]
+  return null
+}
+
+function FantasySuggestions({ matches }) {
+  const [selectedMatchNo, setSelectedMatchNo] = useState(() => {
+    const keys = Object.keys(MATCH_FANTASY_DATA).map(Number).sort((a,b) => b - a)
+    return keys[0] || null
+  })
+  const [aiSummary, setAiSummary]     = useState({})   // { matchNo: summaryText }
+  const [loadingAI, setLoadingAI]     = useState({})   // { matchNo: bool }
+  const [aiError, setAiError]         = useState({})   // { matchNo: errorMsg }
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // Find the match from store, or just use static data
+  const matchData = selectedMatchNo ? MATCH_FANTASY_DATA[selectedMatchNo] : null
+  const matchRecord = matches.find(m => parseInt(m.matchno) === selectedMatchNo)
+  const embedId = matchData ? getYouTubeEmbedId(matchData.youtubeUrl) : null
+
+  const teamsLabel = matchRecord?.teams || matchData?.teams || `Match ${selectedMatchNo}`
+
+  const generateSummary = async (matchNo) => {
+    const md = MATCH_FANTASY_DATA[matchNo]
+    if (!md) return
+    setLoadingAI(prev => ({...prev, [matchNo]: true}))
+    setAiError(prev => ({...prev, [matchNo]: null}))
+    try {
+      const matchLabel = matches.find(m => parseInt(m.matchno) === matchNo)?.teams || md.teams || `Match ${matchNo}`
+      const prompt = `You are an expert IPL fantasy cricket analyst. The user has shared a YouTube video link for a pre-match analysis video: ${md.youtubeUrl}
+
+This video is about IPL 2026 ${matchLabel} (Match ${matchNo}).
+
+Based on your general IPL 2026 knowledge for this match, provide detailed fantasy cricket notes/suggestions covering:
+
+1. 🏏 PITCH & CONDITIONS — Expected pitch behavior, weather impact, dew factor, ground dimensions.
+2. 🔥 KEY PLAYERS TO PICK — Top 5-7 must-pick players with reasons (recent form, head-to-head record, pitch suitability).
+3. ⚡ DIFFERENTIAL PICKS — 3-4 low-owned players who could be game-changers.
+4. 🚫 PLAYERS TO AVOID — 2-3 players to bench with reasons.
+5. 👑 CAPTAIN & VICE-CAPTAIN CHOICES — Best C and VC options with logic.
+6. 🧠 TEAM BUILDING STRATEGY — Suggested team composition (how many batsmen, bowlers, allrounders, wicketkeeper).
+7. 📊 MATCH PREDICTION — Likely winner and key factors.
+
+Write in a structured, detailed format. Use emojis for visual appeal. Be specific with player names and stats where possible. This will help fantasy league players build the best possible team.`
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      })
+      const data = await response.json()
+      if (data.error) throw new Error(data.error.message)
+      const text = data.content?.map(c => c.text || '').join('\n') || 'No summary generated.'
+      setAiSummary(prev => ({...prev, [matchNo]: text}))
+    } catch (err) {
+      setAiError(prev => ({...prev, [matchNo]: `Failed to generate summary: ${err.message}`}))
+    } finally {
+      setLoadingAI(prev => ({...prev, [matchNo]: false}))
+    }
+  }
+
+  const matchNos = Object.keys(MATCH_FANTASY_DATA).map(Number).sort((a,b) => a - b)
+
+  const iframeStyle = isFullscreen ? {
+    position: 'fixed', inset: 0, zIndex: 9999,
+    width: '100vw', height: '100vh',
+    background: '#000', display: 'flex', flexDirection: 'column'
+  } : {}
+
+  return (
+    <div className="section">
+      {/* Header */}
+      <div className="sec-title" style={{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8}}>
+        <span>🎯 Fantasy Tips & Match Preview</span>
+        <span style={{fontSize:11, color:'var(--text2)', fontFamily:"'Rajdhani',sans-serif", letterSpacing:1, fontWeight:400}}>
+          Watch pre-match videos · Build your winning team
+        </span>
+      </div>
+
+      {/* Info banner */}
+      <div style={{
+        background:'linear-gradient(90deg, rgba(52,152,219,0.12), rgba(46,204,113,0.08))',
+        border:'1px solid rgba(52,152,219,0.3)', borderRadius:10,
+        padding:'10px 14px', marginBottom:16, fontSize:12,
+        color:'#8899bb', lineHeight:1.6
+      }}>
+        📺 <b style={{color:'var(--text)'}}>How to use:</b> Select a match below to watch the YouTube preview video (no redirect — plays inline!) and click <b style={{color:'var(--accent)'}}>Generate AI Notes</b> to get detailed fantasy team suggestions powered by AI.
+      </div>
+
+      {/* Match Selector */}
+      <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:16}}>
+        {matchNos.map(mn => {
+          const mr = matches.find(m => parseInt(m.matchno) === mn)
+          const label = mr?.teams || MATCH_FANTASY_DATA[mn]?.teams || `Match ${mn}`
+          const isActive = selectedMatchNo === mn
+          return (
+            <button
+              key={mn}
+              onClick={() => setSelectedMatchNo(mn)}
+              style={{
+                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                padding:'7px 14px', borderRadius:20, cursor:'pointer',
+                border: isActive ? '1.5px solid var(--accent)' : '1px solid rgba(255,255,255,0.1)',
+                background: isActive ? 'rgba(245,166,35,0.18)' : 'rgba(255,255,255,0.04)',
+                color: isActive ? 'var(--accent)' : 'var(--text2)',
+                transition:'all 0.2s', whiteSpace:'nowrap',
+                boxShadow: isActive ? '0 0 12px rgba(245,166,35,0.2)' : 'none'
+              }}
+            >
+              #{mn} · {label}
+            </button>
+          )
+        })}
+        {matchNos.length === 0 && (
+          <div style={{fontSize:12, color:'var(--text2)', padding:'8px 0'}}>
+            No fantasy data available yet. Add YouTube links in the MATCH_FANTASY_DATA constant.
+          </div>
+        )}
+      </div>
+
+      {selectedMatchNo && matchData ? (
+        <div style={{display:'flex', flexDirection:'column', gap:16}}>
+
+          {/* Match Title Bar */}
+          <div style={{
+            background:'rgba(245,166,35,0.06)', border:'1px solid rgba(245,166,35,0.2)',
+            borderRadius:10, padding:'10px 16px',
+            display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8
+          }}>
+            <div>
+              <div style={{fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:3, color:'var(--accent)'}}>
+                MATCH #{selectedMatchNo} — {teamsLabel.toUpperCase()}
+              </div>
+              {matchRecord?.date && (
+                <div style={{fontSize:11, color:'var(--text2)'}}>
+                  📅 {new Date(matchRecord.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}
+                  {matchRecord.matchTime ? ` · ${formatMatchTimeLabel(matchRecord.matchTime)}` : ''}
+                </div>
+              )}
+            </div>
+            <div style={{display:'flex', gap:8}}>
+              <span style={{fontSize:11, background:'rgba(46,204,113,0.15)', color:'#2ecc71', border:'1px solid rgba(46,204,113,0.3)', borderRadius:6, padding:'4px 10px'}}>
+                📺 Video Available
+              </span>
+            </div>
+          </div>
+
+          {/* Main 2-col layout */}
+          <div style={{
+            display:'grid',
+            gridTemplateColumns: 'minmax(0,1.2fr) minmax(0,1fr)',
+            gap:16,
+          }}
+          className="fantasy-grid"
+          >
+            {/* LEFT: YouTube Embed */}
+            <div style={{display:'flex', flexDirection:'column', gap:8}}>
+              <div style={{
+                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
+                color:'var(--text2)', letterSpacing:1, textTransform:'uppercase',
+                display:'flex', alignItems:'center', gap:6
+              }}>
+                <span style={{
+                  background:'#e74c3c', color:'#fff', fontSize:9, padding:'2px 6px',
+                  borderRadius:4, fontWeight:900, letterSpacing:2
+                }}>YOUTUBE</span>
+                Pre-Match Analysis Video
+              </div>
+
+              {embedId ? (
+                <div style={{
+                  ...iframeStyle,
+                  position:'relative',
+                  width:'100%',
+                  paddingBottom: isFullscreen ? '0' : '56.25%',
+                  height: isFullscreen ? '100%' : '0',
+                  borderRadius: isFullscreen ? 0 : 12,
+                  overflow:'hidden',
+                  background:'#000',
+                  border:'1px solid rgba(231,76,60,0.3)',
+                  boxShadow:'0 4px 24px rgba(0,0,0,0.5)'
+                }}>
+                  {isFullscreen && (
+                    <button
+                      onClick={() => setIsFullscreen(false)}
+                      style={{
+                        position:'absolute', top:12, right:12, zIndex:10000,
+                        background:'rgba(0,0,0,0.7)', color:'#fff', border:'none',
+                        borderRadius:8, padding:'8px 14px', cursor:'pointer',
+                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13
+                      }}
+                    >✕ Exit Fullscreen</button>
+                  )}
+                  <iframe
+                    style={{
+                      position: isFullscreen ? 'static' : 'absolute',
+                      top:0, left:0,
+                      width:'100%',
+                      height: isFullscreen ? '100%' : '100%',
+                      border:'none'
+                    }}
+                    src={`https://www.youtube.com/embed/${embedId}?rel=0&modestbranding=1`}
+                    title={`Match ${selectedMatchNo} Preview`}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                    allowFullScreen
+                  />
+                </div>
+              ) : (
+                <div style={{
+                  background:'rgba(255,255,255,0.03)', border:'1px dashed rgba(255,255,255,0.12)',
+                  borderRadius:12, padding:30, textAlign:'center', color:'var(--text2)', fontSize:13
+                }}>
+                  ⚠️ Invalid YouTube URL. Please check the MATCH_FANTASY_DATA config.
+                </div>
+              )}
+
+              {embedId && !isFullscreen && (
+                <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+                  <button
+                    onClick={() => setIsFullscreen(true)}
+                    style={{
+                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                      padding:'7px 14px', borderRadius:8, cursor:'pointer',
+                      border:'1px solid rgba(231,76,60,0.4)',
+                      background:'rgba(231,76,60,0.12)', color:'#e74c3c',
+                      display:'flex', alignItems:'center', gap:6, transition:'all 0.2s'
+                    }}
+                  >
+                    ⛶ Fullscreen
+                  </button>
+                  <a
+                    href={matchData.youtubeUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                      padding:'7px 14px', borderRadius:8,
+                      border:'1px solid rgba(255,255,255,0.1)',
+                      background:'rgba(255,255,255,0.04)', color:'var(--text2)',
+                      display:'flex', alignItems:'center', gap:6,
+                      textDecoration:'none', transition:'all 0.2s'
+                    }}
+                  >
+                    ↗ Open on YouTube
+                  </a>
+                </div>
+              )}
+
+              {/* Video tips */}
+              <div style={{
+                background:'rgba(46,204,113,0.06)', border:'1px solid rgba(46,204,113,0.2)',
+                borderRadius:8, padding:'10px 12px', fontSize:11, color:'#8899bb', lineHeight:1.7
+              }}>
+                <div style={{color:'#2ecc71', fontWeight:700, marginBottom:4}}>💡 Pro Tips for Team Building</div>
+                <div>• Watch the full video for pitch report and expert picks</div>
+                <div>• Use AI Notes alongside the video for the best strategy</div>
+                <div>• Focus on players in good form and against this specific opposition</div>
+                <div>• Tap ⛶ Fullscreen for immersive mobile viewing</div>
+              </div>
+            </div>
+
+            {/* RIGHT: AI Summary */}
+            <div style={{display:'flex', flexDirection:'column', gap:8}}>
+              <div style={{
+                fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
+                color:'var(--text2)', letterSpacing:1, textTransform:'uppercase',
+                display:'flex', alignItems:'center', gap:6
+              }}>
+                <span style={{
+                  background:'linear-gradient(90deg,#f5a623,#e8531a)', color:'#000', fontSize:9,
+                  padding:'2px 6px', borderRadius:4, fontWeight:900, letterSpacing:2
+                }}>AI</span>
+                Fantasy Notes & Player Tips
+              </div>
+
+              <div style={{
+                background:'rgba(16,24,48,0.85)', border:'1px solid rgba(255,255,255,0.08)',
+                borderRadius:12, padding:14, minHeight:300, position:'relative',
+                display:'flex', flexDirection:'column', gap:10,
+                boxShadow:'inset 0 0 40px rgba(0,0,0,0.3)'
+              }}>
+                {!aiSummary[selectedMatchNo] && !loadingAI[selectedMatchNo] && !aiError[selectedMatchNo] && (
+                  <div style={{
+                    flex:1, display:'flex', flexDirection:'column',
+                    alignItems:'center', justifyContent:'center', gap:14, padding:20, textAlign:'center'
+                  }}>
+                    <div style={{fontSize:40}}>🤖</div>
+                    <div style={{fontSize:13, color:'var(--text2)', lineHeight:1.6}}>
+                      Click the button below to generate AI-powered detailed fantasy notes for this match — player picks, captain choices, pitch analysis, and more!
+                    </div>
+                    <button
+                      onClick={() => generateSummary(selectedMatchNo)}
+                      style={{
+                        fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:14,
+                        padding:'12px 24px', borderRadius:10, cursor:'pointer',
+                        border:'1.5px solid rgba(245,166,35,0.5)',
+                        background:'linear-gradient(135deg,rgba(245,166,35,0.2),rgba(232,83,26,0.15))',
+                        color:'var(--accent)', letterSpacing:1, textTransform:'uppercase',
+                        boxShadow:'0 0 20px rgba(245,166,35,0.15)', transition:'all 0.2s'
+                      }}
+                    >
+                      ✨ Generate AI Fantasy Notes
+                    </button>
+                  </div>
+                )}
+
+                {loadingAI[selectedMatchNo] && (
+                  <div style={{
+                    flex:1, display:'flex', flexDirection:'column',
+                    alignItems:'center', justifyContent:'center', gap:12, padding:20, textAlign:'center'
+                  }}>
+                    <div style={{
+                      width:40, height:40, borderRadius:'50%',
+                      border:'3px solid rgba(245,166,35,0.2)',
+                      borderTop:'3px solid var(--accent)',
+                      animation:'spin 0.8s linear infinite'
+                    }}/>
+                    <div style={{fontSize:13, color:'var(--text2)'}}>
+                      🤖 AI is analyzing the match...<br/>
+                      <span style={{fontSize:11}}>Generating your fantasy tips</span>
+                    </div>
+                  </div>
+                )}
+
+                {aiError[selectedMatchNo] && (
+                  <div style={{
+                    flex:1, display:'flex', flexDirection:'column', gap:10
+                  }}>
+                    <div style={{
+                      background:'rgba(231,76,60,0.1)', border:'1px solid rgba(231,76,60,0.3)',
+                      borderRadius:8, padding:12, fontSize:12, color:'#e74c3c'
+                    }}>
+                      ⚠️ {aiError[selectedMatchNo]}
+                    </div>
+                    <button
+                      onClick={() => generateSummary(selectedMatchNo)}
+                      style={{
+                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                        padding:'8px 16px', borderRadius:8, cursor:'pointer',
+                        border:'1px solid rgba(245,166,35,0.4)',
+                        background:'rgba(245,166,35,0.1)', color:'var(--accent)'
+                      }}
+                    >🔄 Retry</button>
+                  </div>
+                )}
+
+                {aiSummary[selectedMatchNo] && (
+                  <div style={{flex:1, display:'flex', flexDirection:'column', gap:10}}>
+                    <div style={{
+                      fontSize:11.5, color:'var(--text)', lineHeight:1.75,
+                      whiteSpace:'pre-wrap', overflowY:'auto',
+                      maxHeight:460, paddingRight:4,
+                      fontFamily:"'Rajdhani',sans-serif"
+                    }}>
+                      {aiSummary[selectedMatchNo]}
+                    </div>
+                    <div style={{borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:8, display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
+                      <span style={{fontSize:10, color:'var(--text2)'}}>⚠️ AI analysis — use as a guide, not guaranteed picks</span>
+                      <button
+                        onClick={() => generateSummary(selectedMatchNo)}
+                        style={{
+                          marginLeft:'auto',
+                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
+                          padding:'5px 12px', borderRadius:6, cursor:'pointer',
+                          border:'1px solid rgba(255,255,255,0.1)',
+                          background:'rgba(255,255,255,0.04)', color:'var(--text2)'
+                        }}
+                      >🔄 Regenerate</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* How to add more matches guide */}
+          <div style={{
+            background:'rgba(52,152,219,0.06)', border:'1px dashed rgba(52,152,219,0.25)',
+            borderRadius:10, padding:'12px 16px', fontSize:11, color:'var(--text2)', lineHeight:1.7
+          }}>
+            <div style={{color:'#3498db', fontWeight:700, marginBottom:4, fontSize:12}}>🛠️ Developer Note: Adding More Matches</div>
+            To add YouTube videos for more matches, update the <code style={{background:'rgba(255,255,255,0.08)', padding:'1px 5px', borderRadius:3, color:'var(--accent)'}}>MATCH_FANTASY_DATA</code> constant in App.jsx:
+            <pre style={{
+              background:'rgba(0,0,0,0.3)', padding:'8px 10px', borderRadius:6,
+              marginTop:6, fontSize:10, color:'#8899bb', overflowX:'auto'
+            }}>{`20: { youtubeUrl: 'https://youtu.be/YOUR_VIDEO_ID', teams: 'Team A vs Team B' },`}</pre>
+          </div>
+        </div>
+      ) : (
+        <div style={{
+          background:'rgba(255,255,255,0.02)', border:'1px dashed rgba(255,255,255,0.1)',
+          borderRadius:12, padding:40, textAlign:'center', color:'var(--text2)', fontSize:13
+        }}>
+          🎯 No match selected. Add YouTube links in MATCH_FANTASY_DATA to get started.
+        </div>
+      )}
+
+      <style>{`
+        @media (max-width: 700px) {
+          .fantasy-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
 export default function App() {
   const [matches, setMatches]         = useState([])
   const [h2hPlayers, setH2hPlayers]   = useState({ p1: null, p2: null })
@@ -3041,6 +3470,7 @@ export default function App() {
     { id:'leaderboard', label:'🏆 Leaderboard' },
     { id:'graphs',      label:'📊 Graphs' },
     { id:'stockindex',  label:'📈 Stock Index' },
+    { id:'fantasy',     label:'🎯 Fantasy Tips' },
   ]
 
   return (
@@ -3114,6 +3544,7 @@ export default function App() {
         <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} /></div>
         <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
         <div style={activeSection==='stockindex'  ? {} : {display:'none'}}><PlayerStockIndex matches={matches} /></div>
+        <div style={activeSection==='fantasy'     ? {} : {display:'none'}}><FantasySuggestions matches={matches} /></div>
 
         <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
         {h2hPlayers.p1 && h2hPlayers.p2 && (
