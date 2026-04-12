@@ -326,7 +326,7 @@ function computePlayerStats(matches) {
       else if (pRank === 7) multiplier = 0.90; // -10% for 7th Rank
     
       // Apply the multiplier to the base index
-      s.currentIndex = newIndexBase * multiplier;
+      s.currentIndex = isFirstMatch ? newIndexBase : newIndexBase * multiplier;
 
       
       //s.currentIndex = (pts * 0.7) + (prevIndex * 0.3); // Existing calculation
@@ -1560,7 +1560,7 @@ function PaginatedMarketSentimentChart({ matches }) {
           else if (matchRank === 7) multiplier = 0.90
           //runningPrice = ((pts * 0.4) + (runningPrice * 0.6)) * multiplier
           const isFirstMatch = idx === 0
-          runningPrice = (isFirstMatch ? pts : ((pts * 0.4) + (runningPrice * 0.6))) * multiplier
+          runningPrice = isFirstMatch ? pts : ((pts * 0.4) + (runningPrice * 0.6)) * multiplier
         } else {
           if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice
         }
@@ -2093,7 +2093,7 @@ function PlayerStockIndex({ matches }) {
           else if (matchRank === 7) multiplier = 0.90
           //runningPrice = parseFloat((((pts * 0.4) + (open * 0.6)) * multiplier).toFixed(2))
           const isFirstMatch = idx === 0
-          runningPrice = parseFloat(((isFirstMatch ? pts : ((pts * 0.4) + (open * 0.6))) * multiplier).toFixed(2))
+          runningPrice = parseFloat((isFirstMatch ? pts : ((pts * 0.4) + (open * 0.6)) * multiplier).toFixed(2))
         }
         // For the candle: open = price before match, close = price after
         // High = max(open, close) * slight intra-match volatility factor
