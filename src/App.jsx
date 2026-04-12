@@ -2959,20 +2959,9 @@ function MarketSentimentTicker({ matches }) {
 }
 
 
-// ─── FANTASY SUGGESTIONS DATA ────────────────────────────────
-// Add YouTube links per match here. The AI summary is generated on demand.
-const MATCH_FANTASY_DATA = {
-  19: {
-    youtubeUrl: 'https://youtu.be/MFuut59C2sQ?si=ZAkSYrdUZ6AliWgp',
-    teams: 'Match 19 Preview',
-  },
-  // Add more matches here as needed:
-  // 20: { youtubeUrl: 'https://youtu.be/XXXX', teams: 'Team A vs Team B' },
-}
-
+// ─── FANTASY HELPERS ─────────────────────────────────────────
 function getYouTubeEmbedId(url) {
   if (!url) return null
-  // Handle youtu.be short links and youtube.com/watch?v= links
   const shortMatch = url.match(/youtu\.be\/([a-zA-Z0-9_-]{11})/)
   if (shortMatch) return shortMatch[1]
   const longMatch = url.match(/[?&]v=([a-zA-Z0-9_-]{11})/)
@@ -2980,202 +2969,114 @@ function getYouTubeEmbedId(url) {
   return null
 }
 
-function FantasySuggestions({ matches }) {
-  const [selectedMatchNo, setSelectedMatchNo] = useState(() => {
-    const keys = Object.keys(MATCH_FANTASY_DATA).map(Number).sort((a,b) => b - a)
-    return keys[0] || null
+// Returns only upcoming (not yet started, not completed) matches that have fantasy data
+function getUpcomingFantasyMatches(matches, fantasyData) {
+  const now = new Date()
+  return matches.filter(m => {
+    const matchNo = parseInt(m.matchno)
+    if (!fantasyData[matchNo]?.youtubeUrl) return false
+    // Exclude completed matches
+    const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
+    if (done) return false
+    // Exclude matches that have already started
+    const dt = getMatchDateTime(m)
+    if (dt && dt <= now) return false
+    return true
   })
-  const [aiSummary, setAiSummary]         = useState({})
-  const [loadingAI, setLoadingAI]         = useState({})
-  const [aiError, setAiError]             = useState({})
-  const [isFullscreen, setIsFullscreen]   = useState(false)
-  const [manualMode, setManualMode]       = useState({})   // { matchNo: bool }
-  const [manualText, setManualText]       = useState({})   // { matchNo: string }
-  const [transcriptStatus, setTranscriptStatus] = useState({}) // { matchNo: string }
+}
 
-  const matchData   = selectedMatchNo ? MATCH_FANTASY_DATA[selectedMatchNo] : null
-  const matchRecord = matches.find(m => parseInt(m.matchno) === selectedMatchNo)
-  const embedId     = matchData ? getYouTubeEmbedId(matchData.youtubeUrl) : null
-  const teamsLabel  = matchRecord?.teams || matchData?.teams || `Match ${selectedMatchNo}`
+// ─── PUBLIC FANTASY SUGGESTIONS (View Only) ──────────────────
+function FantasySuggestions({ matches, fantasyData }) {
+  const upcomingMatches = useMemo(
+    () => getUpcomingFantasyMatches(matches, fantasyData),
+    [matches, fantasyData]
+  )
 
-  const OPENROUTER_API_KEY = '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'  // ← paste your OpenRouter key here
+  const [selectedMatchNo, setSelectedMatchNo] = useState(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
-  const fetchTranscript = async (videoId) => {
-    // Try multiple free transcript proxy services
-    const proxies = [
-      `https://yt-transcript-api.vercel.app/api/transcript?videoId=${videoId}`,
-      `https://api.kome.ai/api/tools/youtube-transcripts?video_id=${videoId}`,
-    ]
-    for (const url of proxies) {
-      try {
-        const res = await fetch(url)
-        if (!res.ok) continue
-        const data = await res.json()
-        // Handle different response shapes
-        const items = data?.transcript || data?.transcripts?.[0]?.transcript || data
-        if (Array.isArray(items) && items.length > 0) {
-          return items.map(i => i.text || i.content || '').join(' ').slice(0, 12000)
-        }
-      } catch { continue }
-    }
-    return null
-  }
-
-  const generateSummary = async (matchNo, manualTranscript = null) => {
-    const md = MATCH_FANTASY_DATA[matchNo]
-    if (!md) return
-
-    setLoadingAI(prev => ({ ...prev, [matchNo]: true }))
-    setAiError(prev => ({ ...prev, [matchNo]: null }))
-    setTranscriptStatus(prev => ({ ...prev, [matchNo]: 'Fetching transcript...' }))
-
-    try {
-      const matchLabel = matches.find(m => parseInt(m.matchno) === matchNo)?.teams || md.teams || `Match ${matchNo}`
-      const videoId = getYouTubeEmbedId(md.youtubeUrl)
-
-      // Step 1: Try to get transcript
-      let transcript = manualTranscript
-      if (!transcript && videoId) {
-        transcript = await fetchTranscript(videoId)
-      }
-
-      // Step 2: Build prompt — with transcript if available, otherwise best-effort
-      let prompt
-      if (transcript) {
-        setTranscriptStatus(prev => ({ ...prev, [matchNo]: '✅ Transcript fetched! Generating AI notes...' }))
-        prompt = `You are an expert IPL fantasy cricket analyst for IPL 2026.
-
-Match: ${matchLabel} (Match #${matchNo})
-YouTube Video Transcript (auto-generated, may have minor errors):
-"""
-${transcript}
-"""
-
-Based STRICTLY on this transcript above, extract and provide detailed fantasy cricket notes covering ALL 8 sections. Quote specific things the analyst said where relevant:
-
-1. 🏟️ PITCH & CONDITIONS — What did the analyst say about pitch type, surface, weather, dew factor, dimensions, expected score?
-2. 📊 PLAYING 11 & TEAM NEWS — Which players were mentioned as confirmed/doubtful? Any injury news mentioned?
-3. 🔥 KEY PLAYERS TO PICK — Which players did the analyst specifically recommend? List top 6–7 with the analyst's exact reasons.
-4. ⚡ DIFFERENTIAL PICKS — Any under-the-radar or surprise picks mentioned? Low-ownership suggestions?
-5. 🚫 PLAYERS TO AVOID — Who did the analyst say to avoid or bench? What reasons were given?
-6. 👑 CAPTAIN & VICE-CAPTAIN — Who did the analyst recommend as C and VC? What was the logic given?
-7. 🧠 TEAM COMPOSITION — What WK/BAT/AR/BOWL split or team combination did the analyst suggest?
-8. 🏆 MATCH PREDICTION — What was the analyst's predicted winner, score, and key factors?
-
-Be specific with player full names. Use emojis for section headers. If any section wasn't covered in the transcript, use your own IPL 2026 knowledge to fill it in and mark it as "(AI estimate)".`
-      } else {
-        setTranscriptStatus(prev => ({ ...prev, [matchNo]: '⚠️ Transcript unavailable — using AI knowledge' }))
-        prompt = `You are an expert IPL fantasy cricket analyst for IPL 2026.
-
-Match: ${matchLabel} (Match #${matchNo})
-Note: The YouTube transcript could not be fetched automatically. Use your best IPL 2026 knowledge for this match.
-
-Provide detailed fantasy cricket notes covering ALL 8 sections:
-
-1. 🏟️ PITCH & CONDITIONS — Pitch type, surface behavior, weather, dew factor, ground dimensions, historical avg first innings score at this venue in IPL 2026.
-2. 📊 CURRENT FORM & STATS (IPL 2026) — Top run-scorers & wicket-takers from both teams with recent scores and economy rates.
-3. 🔥 KEY PLAYERS TO PICK — Top 6–7 must-pick players with specific reasons (form, H2H record, pitch suitability).
-4. ⚡ DIFFERENTIAL PICKS — 3–4 low-ownership players who could surprise.
-5. 🚫 PLAYERS TO AVOID — 2–3 players to bench with clear reasons.
-6. 👑 CAPTAIN & VICE-CAPTAIN — Best C and VC with detailed logic. Include 1 risky differential.
-7. 🧠 TEAM COMPOSITION — Recommended WK/BAT/AR/BOWL split with names. Small vs Grand League differences.
-8. 🏆 MATCH PREDICTION — Likely winner, margin, top scorer, top wicket-taker, 3 deciding factors.
-
-Use emojis for all section headers. Use full player names. Keep it actionable for Dream11/MyCircle11 players.`
-      }
-
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-          'HTTP-Referer': window.location.origin,
-        },
-        body: JSON.stringify({
-          model: 'meta-llama/llama-4-maverick:free',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 2000,
-        })
+  // Auto-select the soonest upcoming match with fantasy data
+  useEffect(() => {
+    if (upcomingMatches.length > 0) {
+      const sorted = [...upcomingMatches].sort((a, b) => {
+        const da = getMatchDateTime(a), db = getMatchDateTime(b)
+        return (da || 0) - (db || 0)
       })
-
-      if (!response.ok) {
-        const errBody = await response.text()
-        throw new Error(`API error ${response.status}: ${errBody.slice(0, 120)}`)
-      }
-
-      const data = await response.json()
-      const text = data.choices?.[0]?.message?.content || 'No summary generated.'
-      setAiSummary(prev => ({ ...prev, [matchNo]: text }))
-    } catch (err) {
-      setAiError(prev => ({ ...prev, [matchNo]: `Failed to generate summary: ${err.message}` }))
-    } finally {
-      setLoadingAI(prev => ({ ...prev, [matchNo]: false }))
+      setSelectedMatchNo(parseInt(sorted[0].matchno))
+    } else {
+      setSelectedMatchNo(null)
     }
-  }
+  }, [upcomingMatches])
 
-  const submitManual = (matchNo) => {
-    const text = manualText[matchNo] || ''
-    if (!text.trim()) return
-    setManualMode(prev => ({ ...prev, [matchNo]: false }))
-    generateSummary(matchNo, text.trim())
-  }
-
-  const matchNos = Object.keys(MATCH_FANTASY_DATA).map(Number).sort((a,b) => a - b)
+  const matchRecord = selectedMatchNo ? matches.find(m => parseInt(m.matchno) === selectedMatchNo) : null
+  const fd = selectedMatchNo ? fantasyData[selectedMatchNo] : null
+  const embedId = fd ? getYouTubeEmbedId(fd.youtubeUrl) : null
+  const teamsLabel = matchRecord?.teams || fd?.teams || `Match ${selectedMatchNo}`
 
   const iframeStyle = isFullscreen ? {
     position: 'fixed', inset: 0, zIndex: 9999,
     width: '100vw', height: '100vh',
-    background: '#000', display: 'flex', flexDirection: 'column'
+    background: '#000'
   } : {}
+
+  if (upcomingMatches.length === 0) {
+    return (
+      <div className="section">
+        <div className="sec-title">🎯 Fantasy Tips & Match Preview</div>
+        <div style={{
+          background:'rgba(255,255,255,0.02)', border:'1px dashed rgba(255,255,255,0.1)',
+          borderRadius:12, padding:48, textAlign:'center', color:'var(--text2)', fontSize:13, lineHeight:1.8
+        }}>
+          <div style={{fontSize:40, marginBottom:12}}>🏏</div>
+          <div style={{fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:15, color:'var(--text)', marginBottom:6}}>
+            No Upcoming Match Tips Available
+          </div>
+          <div style={{fontSize:12}}>
+            Fantasy tips are shown only for upcoming matches.<br/>
+            Once a match starts or is completed, tips are hidden automatically.<br/>
+            <span style={{color:'var(--accent)'}}>Check back before the next match!</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="section">
       <div className="sec-title" style={{display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8}}>
         <span>🎯 Fantasy Tips & Match Preview</span>
         <span style={{fontSize:11, color:'var(--text2)', fontFamily:"'Rajdhani',sans-serif", letterSpacing:1, fontWeight:400}}>
-          Watch pre-match videos · Build your winning team
+          Upcoming match preview · Build your winning team
         </span>
       </div>
 
-      <div style={{
-        background:'linear-gradient(90deg, rgba(52,152,219,0.12), rgba(46,204,113,0.08))',
-        border:'1px solid rgba(52,152,219,0.3)', borderRadius:10,
-        padding:'10px 14px', marginBottom:16, fontSize:12,
-        color:'#8899bb', lineHeight:1.6
-      }}>
-        📺 <b style={{color:'var(--text)'}}>How to use:</b> Select a match → AI will auto-fetch the YouTube transcript and generate real notes from the video. Or paste the transcript manually for best results.
-      </div>
+      {/* Match selector — only upcoming matches */}
+      {upcomingMatches.length > 1 && (
+        <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:16}}>
+          {[...upcomingMatches]
+            .sort((a,b) => (getMatchDateTime(a)||0) - (getMatchDateTime(b)||0))
+            .map(m => {
+              const mn = parseInt(m.matchno)
+              const isActive = selectedMatchNo === mn
+              return (
+                <button key={mn} onClick={() => setSelectedMatchNo(mn)} style={{
+                  fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
+                  padding:'7px 14px', borderRadius:20, cursor:'pointer',
+                  border: isActive ? '1.5px solid var(--accent)' : '1px solid rgba(255,255,255,0.1)',
+                  background: isActive ? 'rgba(245,166,35,0.18)' : 'rgba(255,255,255,0.04)',
+                  color: isActive ? 'var(--accent)' : 'var(--text2)',
+                  transition:'all 0.2s', whiteSpace:'nowrap',
+                  boxShadow: isActive ? '0 0 12px rgba(245,166,35,0.2)' : 'none'
+                }}>
+                  #{mn} · {m.teams || fantasyData[mn]?.teams || `Match ${mn}`}
+                </button>
+              )
+            })}
+        </div>
+      )}
 
-      {/* Match Selector */}
-      <div style={{display:'flex', gap:8, flexWrap:'wrap', marginBottom:16}}>
-        {matchNos.map(mn => {
-          const mr = matches.find(m => parseInt(m.matchno) === mn)
-          const label = mr?.teams || MATCH_FANTASY_DATA[mn]?.teams || `Match ${mn}`
-          const isActive = selectedMatchNo === mn
-          return (
-            <button key={mn} onClick={() => setSelectedMatchNo(mn)} style={{
-              fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
-              padding:'7px 14px', borderRadius:20, cursor:'pointer',
-              border: isActive ? '1.5px solid var(--accent)' : '1px solid rgba(255,255,255,0.1)',
-              background: isActive ? 'rgba(245,166,35,0.18)' : 'rgba(255,255,255,0.04)',
-              color: isActive ? 'var(--accent)' : 'var(--text2)',
-              transition:'all 0.2s', whiteSpace:'nowrap',
-              boxShadow: isActive ? '0 0 12px rgba(245,166,35,0.2)' : 'none'
-            }}>
-              #{mn} · {label}
-            </button>
-          )
-        })}
-        {matchNos.length === 0 && (
-          <div style={{fontSize:12, color:'var(--text2)', padding:'8px 0'}}>
-            No fantasy data available yet. Add YouTube links in the MATCH_FANTASY_DATA constant.
-          </div>
-        )}
-      </div>
-
-      {selectedMatchNo && matchData ? (
+      {selectedMatchNo && fd ? (
         <div style={{display:'flex', flexDirection:'column', gap:16}}>
-
           {/* Match Title Bar */}
           <div style={{
             background:'rgba(245,166,35,0.06)', border:'1px solid rgba(245,166,35,0.2)',
@@ -3198,10 +3099,10 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
             </span>
           </div>
 
-          {/* 2-col layout */}
+          {/* 2-col: video left, notes right */}
           <div style={{display:'grid', gridTemplateColumns:'minmax(0,1.2fr) minmax(0,1fr)', gap:16}} className="fantasy-grid">
 
-            {/* LEFT: YouTube */}
+            {/* LEFT: YouTube embed */}
             <div style={{display:'flex', flexDirection:'column', gap:8}}>
               <div style={{fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13, color:'var(--text2)', letterSpacing:1, textTransform:'uppercase', display:'flex', alignItems:'center', gap:6}}>
                 <span style={{background:'#e74c3c', color:'#fff', fontSize:9, padding:'2px 6px', borderRadius:4, fontWeight:900, letterSpacing:2}}>YOUTUBE</span>
@@ -3228,7 +3129,7 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
                     }}>✕ Exit Fullscreen</button>
                   )}
                   <iframe
-                    style={{position: isFullscreen ? 'static' : 'absolute', top:0, left:0, width:'100%', height: isFullscreen ? '100%' : '100%', border:'none'}}
+                    style={{position: isFullscreen ? 'static' : 'absolute', top:0, left:0, width:'100%', height:'100%', border:'none'}}
                     src={`https://www.youtube.com/embed/${embedId}?rel=0&modestbranding=1`}
                     title={`Match ${selectedMatchNo} Preview`}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
@@ -3248,183 +3149,61 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
                     padding:'7px 14px', borderRadius:8, cursor:'pointer',
                     border:'1px solid rgba(231,76,60,0.4)',
                     background:'rgba(231,76,60,0.12)', color:'#e74c3c',
-                    display:'flex', alignItems:'center', gap:6, transition:'all 0.2s'
+                    display:'flex', alignItems:'center', gap:6
                   }}>⛶ Fullscreen</button>
-                  <a href={matchData.youtubeUrl} target="_blank" rel="noreferrer" style={{
+                  <a href={fd.youtubeUrl} target="_blank" rel="noreferrer" style={{
                     fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
                     padding:'7px 14px', borderRadius:8,
                     border:'1px solid rgba(255,255,255,0.1)',
                     background:'rgba(255,255,255,0.04)', color:'var(--text2)',
-                    display:'flex', alignItems:'center', gap:6,
-                    textDecoration:'none', transition:'all 0.2s'
+                    display:'flex', alignItems:'center', gap:6, textDecoration:'none'
                   }}>↗ Open on YouTube</a>
                 </div>
               )}
 
-              {/* Manual Transcript Box */}
-              <div style={{
-                background:'rgba(245,166,35,0.05)', border:'1px solid rgba(245,166,35,0.2)',
-                borderRadius:10, padding:'12px 14px'
-              }}>
-                <div style={{
-                  fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
-                  color:'var(--accent)', marginBottom:8, display:'flex', alignItems:'center', gap:6
-                }}>
-                  📋 PASTE TRANSCRIPT MANUALLY (Best Results)
-                </div>
-                <div style={{fontSize:11, color:'var(--text2)', marginBottom:8, lineHeight:1.6}}>
-                  On YouTube → click <b style={{color:'var(--text)'}}>⋯ More → Show transcript</b> → Select All → Copy → Paste below:
-                </div>
-                {manualMode[selectedMatchNo] ? (
-                  <div style={{display:'flex', flexDirection:'column', gap:8}}>
-                    <textarea
-                      value={manualText[selectedMatchNo] || ''}
-                      onChange={e => setManualText(prev => ({...prev, [selectedMatchNo]: e.target.value}))}
-                      placeholder="Paste the full YouTube transcript here..."
-                      style={{
-                        width:'100%', minHeight:120, background:'rgba(0,0,0,0.4)',
-                        border:'1px solid rgba(245,166,35,0.3)', borderRadius:8,
-                        color:'var(--text)', fontSize:11, padding:'8px 10px',
-                        fontFamily:'monospace', resize:'vertical', boxSizing:'border-box'
-                      }}
-                    />
-                    <div style={{display:'flex', gap:8}}>
-                      <button
-                        onClick={() => submitManual(selectedMatchNo)}
-                        disabled={!manualText[selectedMatchNo]?.trim()}
-                        style={{
-                          fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:13,
-                          padding:'9px 18px', borderRadius:8, cursor:'pointer',
-                          border:'1.5px solid rgba(46,204,113,0.5)',
-                          background:'rgba(46,204,113,0.15)', color:'#2ecc71',
-                          opacity: manualText[selectedMatchNo]?.trim() ? 1 : 0.4
-                        }}
-                      >✅ Generate from Transcript</button>
-                      <button
-                        onClick={() => setManualMode(prev => ({...prev, [selectedMatchNo]: false}))}
-                        style={{
-                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
-                          padding:'9px 14px', borderRadius:8, cursor:'pointer',
-                          border:'1px solid rgba(255,255,255,0.1)',
-                          background:'rgba(255,255,255,0.04)', color:'var(--text2)'
-                        }}
-                      >✕ Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setManualMode(prev => ({...prev, [selectedMatchNo]: true}))}
-                    style={{
-                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
-                      padding:'7px 16px', borderRadius:8, cursor:'pointer',
-                      border:'1px solid rgba(245,166,35,0.35)',
-                      background:'rgba(245,166,35,0.1)', color:'var(--accent)'
-                    }}
-                  >📋 Paste Transcript</button>
-                )}
-              </div>
-
               <div style={{background:'rgba(46,204,113,0.06)', border:'1px solid rgba(46,204,113,0.2)', borderRadius:8, padding:'10px 12px', fontSize:11, color:'#8899bb', lineHeight:1.7}}>
                 <div style={{color:'#2ecc71', fontWeight:700, marginBottom:4}}>💡 Pro Tips for Team Building</div>
                 <div>• Watch the full video for pitch report and expert picks</div>
-                <div>• Paste transcript for AI notes based on the actual video content</div>
+                <div>• Read the Fantasy Notes on the right for key player recommendations</div>
                 <div>• Focus on players in good form and against this specific opposition</div>
                 <div>• Tap ⛶ Fullscreen for immersive mobile viewing</div>
               </div>
             </div>
 
-            {/* RIGHT: AI Summary */}
+            {/* RIGHT: Fantasy Notes (read only) */}
             <div style={{display:'flex', flexDirection:'column', gap:8}}>
               <div style={{fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13, color:'var(--text2)', letterSpacing:1, textTransform:'uppercase', display:'flex', alignItems:'center', gap:6}}>
-                <span style={{background:'linear-gradient(90deg,#f5a623,#e8531a)', color:'#000', fontSize:9, padding:'2px 6px', borderRadius:4, fontWeight:900, letterSpacing:2}}>AI</span>
+                <span style={{background:'linear-gradient(90deg,#f5a623,#e8531a)', color:'#000', fontSize:9, padding:'2px 6px', borderRadius:4, fontWeight:900, letterSpacing:2}}>TIPS</span>
                 Fantasy Notes & Player Tips
               </div>
 
-              <div style={{background:'rgba(16,24,48,0.85)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:14, minHeight:300, position:'relative', display:'flex', flexDirection:'column', gap:10, boxShadow:'inset 0 0 40px rgba(0,0,0,0.3)'}}>
-
-                {!aiSummary[selectedMatchNo] && !loadingAI[selectedMatchNo] && !aiError[selectedMatchNo] && (
-                  <div style={{flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:14, padding:20, textAlign:'center'}}>
-                    <div style={{fontSize:40}}>🤖</div>
-                    <div style={{fontSize:13, color:'var(--text2)', lineHeight:1.6}}>
-                      Click below to auto-fetch the YouTube transcript and generate AI-powered fantasy notes.<br/>
-                      <span style={{fontSize:11, color:'var(--text2)', opacity:0.7}}>Or paste the transcript manually on the left for guaranteed results.</span>
+              <div style={{background:'rgba(16,24,48,0.85)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:12, padding:14, minHeight:300, display:'flex', flexDirection:'column', gap:10, boxShadow:'inset 0 0 40px rgba(0,0,0,0.3)'}}>
+                {fd.notes ? (
+                  <div style={{flex:1, display:'flex', flexDirection:'column', gap:8}}>
+                    <div style={{fontSize:10, color:'#2ecc71', background:'rgba(46,204,113,0.08)', borderRadius:6, padding:'4px 8px'}}>
+                      ✅ Notes added by admin from video analysis
                     </div>
-                    <button onClick={() => generateSummary(selectedMatchNo)} style={{
-                      fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:14,
-                      padding:'12px 24px', borderRadius:10, cursor:'pointer',
-                      border:'1.5px solid rgba(245,166,35,0.5)',
-                      background:'linear-gradient(135deg,rgba(245,166,35,0.2),rgba(232,83,26,0.15))',
-                      color:'var(--accent)', letterSpacing:1, textTransform:'uppercase',
-                      boxShadow:'0 0 20px rgba(245,166,35,0.15)', transition:'all 0.2s'
-                    }}>✨ Auto-Generate AI Notes</button>
+                    <div style={{fontSize:12, color:'var(--text)', lineHeight:1.85, whiteSpace:'pre-wrap', overflowY:'auto', maxHeight:500, paddingRight:4, fontFamily:"'Rajdhani',sans-serif"}}>
+                      {fd.notes}
+                    </div>
+                    <div style={{borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:8, fontSize:10, color:'var(--text2)'}}>
+                      ⚠️ Use as a guide — not guaranteed picks. Always check toss & playing XI.
+                    </div>
                   </div>
-                )}
-
-                {loadingAI[selectedMatchNo] && (
+                ) : (
                   <div style={{flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, padding:20, textAlign:'center'}}>
-                    <div style={{width:40, height:40, borderRadius:'50%', border:'3px solid rgba(245,166,35,0.2)', borderTop:'3px solid var(--accent)', animation:'spin 0.8s linear infinite'}}/>
-                    <div style={{fontSize:13, color:'var(--text2)'}}>
-                      🤖 {transcriptStatus[selectedMatchNo] || 'Generating AI notes...'}<br/>
-                      <span style={{fontSize:11}}>This may take 10–20 seconds</span>
-                    </div>
-                  </div>
-                )}
-
-                {aiError[selectedMatchNo] && !loadingAI[selectedMatchNo] && (
-                  <div style={{flex:1, display:'flex', flexDirection:'column', gap:10}}>
-                    <div style={{background:'rgba(231,76,60,0.1)', border:'1px solid rgba(231,76,60,0.3)', borderRadius:8, padding:'10px 12px', fontSize:12, color:'#e74c3c'}}>
-                      ⚠️ {aiError[selectedMatchNo]}
-                    </div>
-                    <div style={{background:'rgba(52,152,219,0.08)', border:'1px solid rgba(52,152,219,0.2)', borderRadius:8, padding:'10px 12px', fontSize:11, color:'var(--text2)', lineHeight:1.7}}>
-                      💡 <b style={{color:'#3498db'}}>Try this instead:</b> Open the YouTube video → click <b style={{color:'var(--text)'}}>⋯ More → Show transcript</b> → Copy all text → Use the <b style={{color:'var(--accent)'}}>📋 Paste Transcript</b> button on the left for guaranteed AI notes from the actual video.
-                    </div>
-                    <button onClick={() => generateSummary(selectedMatchNo)} style={{
-                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:12,
-                      padding:'8px 16px', borderRadius:8, cursor:'pointer',
-                      border:'1px solid rgba(245,166,35,0.4)',
-                      background:'rgba(245,166,35,0.1)', color:'var(--accent)',
-                      alignSelf:'flex-start'
-                    }}>🔄 Retry Auto-Fetch</button>
-                  </div>
-                )}
-
-                {aiSummary[selectedMatchNo] && (
-                  <div style={{flex:1, display:'flex', flexDirection:'column', gap:10}}>
-                    {transcriptStatus[selectedMatchNo] && (
-                      <div style={{fontSize:10, color: transcriptStatus[selectedMatchNo].includes('✅') ? '#2ecc71' : '#f5a623', background:'rgba(255,255,255,0.04)', borderRadius:6, padding:'4px 8px'}}>
-                        {transcriptStatus[selectedMatchNo]}
-                      </div>
-                    )}
-                    <div style={{fontSize:11.5, color:'var(--text)', lineHeight:1.75, whiteSpace:'pre-wrap', overflowY:'auto', maxHeight:460, paddingRight:4, fontFamily:"'Rajdhani',sans-serif"}}>
-                      {aiSummary[selectedMatchNo]}
-                    </div>
-                    <div style={{borderTop:'1px solid rgba(255,255,255,0.07)', paddingTop:8, display:'flex', gap:8, flexWrap:'wrap', alignItems:'center'}}>
-                      <span style={{fontSize:10, color:'var(--text2)'}}>⚠️ AI analysis — use as a guide, not guaranteed picks</span>
-                      <button onClick={() => generateSummary(selectedMatchNo)} style={{
-                        marginLeft:'auto',
-                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:11,
-                        padding:'5px 12px', borderRadius:6, cursor:'pointer',
-                        border:'1px solid rgba(255,255,255,0.1)',
-                        background:'rgba(255,255,255,0.04)', color:'var(--text2)'
-                      }}>🔄 Regenerate</button>
+                    <div style={{fontSize:36}}>📋</div>
+                    <div style={{fontSize:13, color:'var(--text2)', lineHeight:1.6}}>
+                      Fantasy notes not added yet for this match.<br/>
+                      <span style={{fontSize:11, opacity:0.7}}>Check back closer to match time.</span>
                     </div>
                   </div>
                 )}
               </div>
             </div>
           </div>
-
-          <div style={{background:'rgba(52,152,219,0.06)', border:'1px dashed rgba(52,152,219,0.25)', borderRadius:10, padding:'12px 16px', fontSize:11, color:'var(--text2)', lineHeight:1.7}}>
-            <div style={{color:'#3498db', fontWeight:700, marginBottom:4, fontSize:12}}>🛠️ Developer Note: Adding More Matches</div>
-            To add YouTube videos for more matches, update the <code style={{background:'rgba(255,255,255,0.08)', padding:'1px 5px', borderRadius:3, color:'var(--accent)'}}>MATCH_FANTASY_DATA</code> constant in App.jsx:
-            <pre style={{background:'rgba(0,0,0,0.3)', padding:'8px 10px', borderRadius:6, marginTop:6, fontSize:10, color:'#8899bb', overflowX:'auto'}}>{`20: { youtubeUrl: 'https://youtu.be/YOUR_VIDEO_ID', teams: 'Team A vs Team B' },`}</pre>
-          </div>
         </div>
-      ) : (
-        <div style={{background:'rgba(255,255,255,0.02)', border:'1px dashed rgba(255,255,255,0.1)', borderRadius:12, padding:40, textAlign:'center', color:'var(--text2)', fontSize:13}}>
-          🎯 No match selected. Add YouTube links in MATCH_FANTASY_DATA to get started.
-        </div>
-      )}
+      ) : null}
 
       <style>{`
         @media (max-width: 700px) {
@@ -3437,6 +3216,7 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
 // ─────────────────────────────────────────────────────────────
 export default function App() {
   const [matches, setMatches]         = useState([])
+  const [fantasyData, setFantasyData] = useState({})   // { matchNo: { youtubeUrl, notes } }
   const [h2hPlayers, setH2hPlayers]   = useState({ p1: null, p2: null })
   const [loading, setLoading]         = useState(false)
   const [activeSection, setActiveSection] = useState('matchlog')
@@ -3475,10 +3255,12 @@ export default function App() {
         data = await res.json()
       }
       const newMatches = data.matches || data || []
+      const newFantasyData = data.fantasyData || {}
       const newVersion = data.version || data.updatedAt || JSON.stringify(newMatches).length
       if (newVersion !== lastVersionRef.current) {
         lastVersionRef.current = newVersion
         setMatches(newMatches)
+        setFantasyData(newFantasyData)
         const options = { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:true }
         const updatedAt = data.updatedAt
           ? new Date(data.updatedAt).toLocaleString('en-IN', options).replace(/,/g, '')
@@ -3526,7 +3308,12 @@ export default function App() {
         <AdminLogin onLoginSuccess={() => setAdminView('admin')} onBack={() => setAdminView('public')} />
       )}
       {adminView === 'admin' && (
-        <AdminPage onLogout={() => setAdminView('public')} />
+        <AdminPage
+          onLogout={() => setAdminView('public')}
+          matches={matches}
+          fantasyData={fantasyData}
+          onFantasyDataSave={(newFD) => setFantasyData(newFD)}
+        />
       )}
 
       <div style={adminView !== 'public' ? { display:'none' } : {}}>
@@ -3591,7 +3378,7 @@ export default function App() {
         <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} /></div>
         <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
         <div style={activeSection==='stockindex'  ? {} : {display:'none'}}><PlayerStockIndex matches={matches} /></div>
-        <div style={activeSection==='fantasy'     ? {} : {display:'none'}}><FantasySuggestions matches={matches} /></div>
+        <div style={activeSection==='fantasy'     ? {} : {display:'none'}}><FantasySuggestions matches={matches} fantasyData={fantasyData} /></div>
 
         <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
         {h2hPlayers.p1 && h2hPlayers.p2 && (
