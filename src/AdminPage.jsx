@@ -340,8 +340,229 @@ function FantasyTipsAdmin({ matches, fantasyData, onFantasyDataSave }) {
   )
 }
 
+// ─── HIGHLIGHTS ADMIN ────────────────────────────────────────
+function HighlightsAdmin({ matches, highlightsData, onHighlightsDataSave }) {
+  const [localData, setLocalData]     = useState({})
+  const [saving, setSaving]           = useState(false)
+  const [saveMsg, setSaveMsg]         = useState('')
+  const [openMatchNo, setOpenMatchNo] = useState(null)
+  // Per-match new-item form state
+  const [newUrl, setNewUrl]           = useState('')
+  const [newLabel, setNewLabel]       = useState('')
+  const [newType, setNewType]         = useState('auto')
+
+  useEffect(() => { setLocalData(highlightsData || {}) }, [highlightsData])
+
+  function detectType(url) {
+    if (!url) return 'unknown'
+    if (url.includes('instagram.com')) return 'instagram'
+    if (url.includes('youtube.com/shorts')) return 'youtube_shorts'
+    if (url.includes('youtu.be') || url.includes('youtube.com')) return 'youtube'
+    return 'unknown'
+  }
+
+  const saveToCloud = async (newData) => {
+    setSaving(true); setSaveMsg('')
+    try {
+      let binData = {}
+      const getRes = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}/latest`, { headers: { 'X-Bin-Meta': 'false' } })
+      if (getRes.ok) { binData = await getRes.json() }
+      else {
+        const getRes2 = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}/latest`)
+        if (getRes2.ok) { const d = await getRes2.json(); binData = d.record || d }
+      }
+      const updated = { ...binData, highlightsData: newData }
+      let headers = { 'Content-Type': 'application/json' }
+      try {
+        const raw = sessionStorage.getItem('vois_admin_session')
+        if (raw) { const s = JSON.parse(raw); if (s.key) headers['X-Master-Key'] = s.key }
+      } catch {}
+      const putRes = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}`, { method: 'PUT', headers, body: JSON.stringify(updated) })
+      if (!putRes.ok) throw new Error(`Save failed (${putRes.status})`)
+      setSaveMsg('✅ Saved! Public page updates on next refresh.')
+      onHighlightsDataSave(newData)
+    } catch (err) {
+      setSaveMsg(`❌ ${err.message}`)
+    } finally { setSaving(false) }
+  }
+
+  const addClip = async (matchNo) => {
+    if (!newUrl.trim()) return
+    const type = newType === 'auto' ? detectType(newUrl.trim()) : newType
+    const clip = { type, url: newUrl.trim(), label: newLabel.trim() || `Highlight` }
+    const existing = localData[matchNo] || []
+    const newData = { ...localData, [matchNo]: [...existing, clip] }
+    setLocalData(newData)
+    setNewUrl(''); setNewLabel(''); setNewType('auto')
+    await saveToCloud(newData)
+  }
+
+  const removeClip = async (matchNo, idx) => {
+    if (!window.confirm(`Remove this highlight?`)) return
+    const existing = [...(localData[matchNo] || [])]
+    existing.splice(idx, 1)
+    const newData = { ...localData, [matchNo]: existing }
+    if (existing.length === 0) delete newData[matchNo]
+    setLocalData(newData)
+    await saveToCloud(newData)
+  }
+
+  return (
+    <div style={{ padding: '16px 20px', color: '#e8eaf6', fontFamily: "'Rajdhani', sans-serif" }}>
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 3, color: '#f5a623', marginBottom: 4 }}>
+        🎬 HIGHLIGHTS MANAGER
+      </div>
+      <div style={{ fontSize: 12, color: '#8899bb', marginBottom: 20 }}>
+        Add Instagram Reels and YouTube Shorts per match. Multiple clips per match supported. Visible to public on the Highlights tab.
+      </div>
+
+      {matches.length === 0 && (
+        <div style={{ fontSize: 12, color: '#8899bb', padding: 24, textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 10 }}>
+          No matches loaded.
+        </div>
+      )}
+
+      {saveMsg && (
+        <div style={{ fontSize: 12, color: saveMsg.startsWith('✅') ? '#2ecc71' : '#e74c3c', marginBottom: 12, background: saveMsg.startsWith('✅') ? 'rgba(46,204,113,0.1)' : 'rgba(231,76,60,0.1)', border: `1px solid ${saveMsg.startsWith('✅') ? 'rgba(46,204,113,0.3)' : 'rgba(231,76,60,0.3)'}`, borderRadius: 8, padding: '8px 12px' }}>
+          {saveMsg}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[...matches].sort((a, b) => parseInt(b.matchno) - parseInt(a.matchno)).map(m => {
+          const mn = parseInt(m.matchno)
+          const clips = localData[mn] || []
+          const isOpen = openMatchNo === mn
+          const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
+
+          return (
+            <div key={mn} style={{
+              background: isOpen ? 'rgba(245,166,35,0.06)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${isOpen ? 'rgba(245,166,35,0.35)' : 'rgba(255,255,255,0.07)'}`,
+              borderRadius: 10, overflow: 'hidden',
+            }}>
+              {/* Match row header */}
+              <div
+                onClick={() => setOpenMatchNo(isOpen ? null : mn)}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', flexWrap: 'wrap' }}
+              >
+                <span style={{
+                  background: done ? 'rgba(46,204,113,0.15)' : 'rgba(245,166,35,0.15)',
+                  color: done ? '#2ecc71' : '#f5a623',
+                  border: `1px solid ${done ? 'rgba(46,204,113,0.3)' : 'rgba(245,166,35,0.3)'}`,
+                  borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                }}>#{mn}</span>
+                <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{m.teams || '—'}</span>
+                <span style={{ fontSize: 11, color: '#8899bb' }}>
+                  {m.date ? new Date(m.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}
+                </span>
+                {clips.length > 0 && (
+                  <span style={{ fontSize: 10, background: 'rgba(245,166,35,0.15)', color: '#f5a623', borderRadius: 10, padding: '2px 8px', fontWeight: 700 }}>
+                    {clips.length} clip{clips.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+                <span style={{ fontSize: 11, color: '#8899bb', marginLeft: 4 }}>{isOpen ? '▲' : '▼'}</span>
+              </div>
+
+              {/* Expanded panel */}
+              {isOpen && (
+                <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+                  {/* Existing clips */}
+                  {clips.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ fontSize: 11, color: '#8899bb', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+                        Current Clips ({clips.length})
+                      </div>
+                      {clips.map((c, i) => {
+                        const t = c.type || 'unknown'
+                        const isIg = t === 'instagram'
+                        return (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(0,0,0,0.3)', borderRadius: 8, padding: '8px 10px', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: 9, padding: '2px 7px', borderRadius: 4, fontWeight: 900, letterSpacing: 1, flexShrink: 0,
+                              background: isIg ? 'linear-gradient(45deg,#f09433,#dc2743,#bc1888)' : '#e74c3c',
+                              color: '#fff',
+                            }}>
+                              {isIg ? 'IG' : t === 'youtube_shorts' ? 'YT SHORT' : 'YT'}
+                            </span>
+                            <span style={{ fontWeight: 700, fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {c.label || `Clip ${i + 1}`}
+                            </span>
+                            <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: '#8899bb', textDecoration: 'none' }}>↗ link</a>
+                            <button onClick={() => removeClip(mn, i)} style={btnStyle('#e74c3c')}>🗑 Remove</button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Add new clip form */}
+                  <div style={{ background: 'rgba(245,166,35,0.04)', border: '1px solid rgba(245,166,35,0.2)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ fontSize: 11, color: '#f5a623', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
+                      ➕ Add New Clip to Match #{mn}
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>Clip Label / Title</label>
+                      <input
+                        value={newLabel}
+                        onChange={e => setNewLabel(e.target.value)}
+                        placeholder="e.g. Kohli's 6 sixes over, Bumrah hat-trick..."
+                        style={inputStyle}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={labelStyle}>Instagram / YouTube URL</label>
+                      <input
+                        value={newUrl}
+                        onChange={e => setNewUrl(e.target.value)}
+                        placeholder="https://www.instagram.com/reel/... or https://youtube.com/shorts/..."
+                        style={inputStyle}
+                      />
+                      {newUrl && (
+                        <div style={{ fontSize: 10, marginTop: 4, color: detectType(newUrl) === 'unknown' ? '#e74c3c' : '#2ecc71' }}>
+                          {detectType(newUrl) === 'instagram' && '✅ Instagram Reel detected'}
+                          {detectType(newUrl) === 'youtube_shorts' && '✅ YouTube Short detected'}
+                          {detectType(newUrl) === 'youtube' && '✅ YouTube Video detected'}
+                          {detectType(newUrl) === 'unknown' && '⚠️ Unknown URL format — paste Instagram or YouTube link'}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => addClip(mn)}
+                        disabled={saving || !newUrl.trim()}
+                        style={{ ...btnStyle('#2ecc71'), fontSize: 13, padding: '9px 20px', opacity: (!newUrl.trim() || saving) ? 0.5 : 1 }}
+                      >
+                        {saving ? '⏳ Saving...' : '➕ Add Clip'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      <div style={{ marginTop: 16, background: 'rgba(52,152,219,0.06)', border: '1px dashed rgba(52,152,219,0.25)', borderRadius: 10, padding: '12px 16px', fontSize: 11, color: '#8899bb', lineHeight: 1.8 }}>
+        <div style={{ color: '#3498db', fontWeight: 700, marginBottom: 4, fontSize: 12 }}>💡 How Highlights Work</div>
+        <div>1. Click any match row to expand it</div>
+        <div>2. Paste Instagram Reel URL or YouTube Shorts/video URL</div>
+        <div>3. Give it a label (e.g. "Kohli 50 off 22 balls")</div>
+        <div>4. Click <b style={{ color: '#2ecc71' }}>Add Clip</b> — saved to cloud instantly</div>
+        <div>5. Users see all clips for each match on the <b style={{ color: '#f5a623' }}>🎬 Highlights</b> tab</div>
+        <div>6. Instagram reels embed in-app with an option to open on Instagram</div>
+      </div>
+    </div>
+  )
+}
+
 // ─── MAIN ADMIN PAGE ─────────────────────────────────────────
-export default function AdminPage({ onLogout, matches = [], fantasyData = {}, onFantasyDataSave }) {
+export default function AdminPage({ onLogout, matches = [], fantasyData = {}, onFantasyDataSave, highlightsData = {}, onHighlightsDataSave }) {
   const [activeTab, setActiveTab] = useState('matchlog')
 
   useEffect(() => {
@@ -368,8 +589,9 @@ export default function AdminPage({ onLogout, matches = [], fantasyData = {}, on
         {/* Tab switcher */}
         <div style={{ display: 'flex', gap: 6 }}>
           {[
-            { id: 'matchlog', label: '📋 Match Log' },
-            { id: 'fantasy',  label: '🎯 Fantasy Tips' },
+            { id: 'matchlog',   label: '📋 Match Log' },
+            { id: 'fantasy',    label: '🎯 Fantasy Tips' },
+            { id: 'highlights', label: '🎬 Highlights' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -400,11 +622,17 @@ export default function AdminPage({ onLogout, matches = [], fantasyData = {}, on
             allow="clipboard-write"
             sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
           />
-        ) : (
+        ) : activeTab === 'fantasy' ? (
           <FantasyTipsAdmin
             matches={matches}
             fantasyData={fantasyData}
             onFantasyDataSave={onFantasyDataSave || (() => {})}
+          />
+        ) : (
+          <HighlightsAdmin
+            matches={matches}
+            highlightsData={highlightsData}
+            onHighlightsDataSave={onHighlightsDataSave || (() => {})}
           />
         )}
       </div>
