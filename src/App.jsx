@@ -1558,7 +1558,9 @@ function PaginatedMarketSentimentChart({ matches }) {
           else if (matchRank === 3) multiplier = 1.05
           else if (matchRank === 6) multiplier = 0.95
           else if (matchRank === 7) multiplier = 0.90
-          runningPrice = ((pts * 0.4) + (runningPrice * 0.6)) * multiplier
+          //runningPrice = ((pts * 0.4) + (runningPrice * 0.6)) * multiplier
+          const isFirstMatch = idx === 0
+          runningPrice = (isFirstMatch ? pts : ((pts * 0.4) + (runningPrice * 0.6))) * multiplier
         } else {
           if (idx === completedMatches.length - 1) prevPriceSnapshot = runningPrice
         }
