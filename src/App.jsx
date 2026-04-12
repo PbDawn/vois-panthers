@@ -3001,63 +3001,38 @@ function FantasySuggestions({ matches }) {
     const md = MATCH_FANTASY_DATA[matchNo]
     if (!md) return
 
-    // ── OPTION A: Cloudflare Worker proxy (recommended — free, no backend needed)
-    // Deploy the worker from worker.js in your project root, then paste its URL below.
-    // Leave as empty string '' to use Option B (direct API key).
-    const WORKER_URL = 'https://vois-ai.iampbdawn.workers.dev'   // e.g. 'https://vois-ai.YOUR-NAME.workers.dev'
-
-    // ── OPTION B: Direct API key (only safe if app is password-protected / admin-only)
-    // Never expose this in a public website. Leave as '' if using Worker above.
-    const ANTHROPIC_API_KEY = ''  // e.g. 'sk-ant-api03-...'
-
-    if (!WORKER_URL && !ANTHROPIC_API_KEY) {
-      setAiError(prev => ({...prev, [matchNo]:
-        '⚙️ Setup required: Add your WORKER_URL or ANTHROPIC_API_KEY in App.jsx (see MATCH_FANTASY_DATA section). Check the included worker.js for free Cloudflare Worker setup instructions.'
-      }))
-      return
-    }
-
     setLoadingAI(prev => ({...prev, [matchNo]: true}))
     setAiError(prev => ({...prev, [matchNo]: null}))
 
     try {
       const matchLabel = matches.find(m => parseInt(m.matchno) === matchNo)?.teams || md.teams || `Match ${matchNo}`
-      const prompt = `You are an expert IPL fantasy cricket analyst. The user has a YouTube pre-match analysis video for: ${md.youtubeUrl}
+      const prompt = `You are an expert IPL fantasy cricket analyst for IPL 2026.
 
-This is for IPL 2026 — ${matchLabel} (Match ${matchNo}).
+The match is: ${matchLabel} (Match #${matchNo}).
+Reference video (for context): ${md.youtubeUrl}
 
-Provide detailed fantasy cricket notes covering these 7 sections:
+Based on your knowledge of IPL 2026, current player form, recent performances, pitch and venue data, and head-to-head records, provide detailed fantasy cricket notes covering ALL 8 sections:
 
-1. 🏏 PITCH & CONDITIONS — Pitch type (batting/bowling), expected behavior, weather, dew factor, ground dimensions at this venue.
-2. 🔥 KEY PLAYERS TO PICK — Top 6-7 must-pick players with specific reasons (current form, head-to-head record, pitch suitability, recent scores).
-3. ⚡ DIFFERENTIAL PICKS — 3-4 under-the-radar players (low ownership %) who could be surprise match-winners.
-4. 🚫 PLAYERS TO AVOID — 2-3 players to bench this match with clear reasons (injury concern, poor form, unfavorable matchup).
-5. 👑 CAPTAIN & VICE-CAPTAIN — Best C and VC picks with detailed logic on why they have the highest ceiling.
-6. 🧠 TEAM COMPOSITION — Recommended split: how many WK / BAT / AR / BOWL, with example team names.
-7. 📊 MATCH PREDICTION — Likely winner, margin, and 2-3 key factors that will decide the game.
+1. 🏟️ PITCH & CONDITIONS — Pitch type, surface behavior, weather, dew factor, ground dimensions, historical avg first innings score at this venue in IPL 2026.
+2. 📊 CURRENT FORM & STATS (IPL 2026) — Top run-scorers & wicket-takers from both teams with recent scores and economy rates. Players with 3+ consecutive good performances.
+3. 🔥 KEY PLAYERS TO PICK — Top 6–7 must-pick players with specific reasons (form, H2H record, pitch suitability, recent scores).
+4. ⚡ DIFFERENTIAL PICKS — 3–4 under-the-radar low-ownership players who could be surprise match-winners, with reasons.
+5. 🚫 PLAYERS TO AVOID — 2–3 players to bench with clear reasons (injury, poor form, bad matchup).
+6. 👑 CAPTAIN & VICE-CAPTAIN — Best C and VC picks with detailed logic. Mention 1 risky differential captain if applicable.
+7. 🧠 TEAM COMPOSITION — Recommended WK/BAT/AR/BOWL split with player names. Small league vs Grand League differences.
+8. 🏆 MATCH PREDICTION — Likely winner, margin, predicted top scorer, top wicket-taker, and 3 key deciding factors.
 
-Be specific with player names. Use emojis for each section header. Keep it actionable for fantasy league players.`
+Use emojis for all section headers. Use full player names. Keep it actionable for Dream11/MyCircle11 players.`
 
-      const endpoint = WORKER_URL
-        ? `${WORKER_URL.replace(/\/$/, '')}/v1/messages`
-        : 'https://api.anthropic.com/v1/messages'
-
-      const headers = { 'Content-Type': 'application/json' }
-      if (ANTHROPIC_API_KEY) {
-        headers['x-api-key'] = ANTHROPIC_API_KEY
-        headers['anthropic-version'] = '2023-06-01'
-      }
-
-      const response = await fetch(endpoint, {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 1200,
+          max_tokens: 1800,
           messages: [{ role: 'user', content: prompt }]
         })
       })
-
       if (!response.ok) {
         const errBody = await response.text()
         throw new Error(`API error ${response.status}: ${errBody.slice(0, 120)}`)
