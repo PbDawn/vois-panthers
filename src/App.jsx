@@ -3004,7 +3004,7 @@ function FantasySuggestions({ matches }) {
    setLoadingAI(prev => ({...prev, [matchNo]: true}))
     setAiError(prev => ({...prev, [matchNo]: null}))
 
-    const GEMINI_API_KEY = 'AIzaSyD-XkBXASiP-QqJ_izb1SpySYnDWE3cxjU'  // ← paste your key here
+    const OPENROUTER_API_KEY = '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'  // ← paste your OpenRouter key
 
     try {
       const matchLabel = matches.find(m => parseInt(m.matchno) === matchNo)?.teams || md.teams || `Match ${matchNo}`
@@ -3026,16 +3026,18 @@ Based on your knowledge of IPL 2026, current player form, recent performances, p
 
 Use emojis for all section headers. Use full player names. Keep it actionable for Dream11/MyCircle11 players.`
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }]
-          })
-        }
-      )
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': window.location.origin,
+        },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-4-maverick:free',  // 100% free model, no quota
+          messages: [{ role: 'user', content: prompt }]
+        })
+      })
 
       if (!response.ok) {
         const errBody = await response.text()
@@ -3043,7 +3045,7 @@ Use emojis for all section headers. Use full player names. Keep it actionable fo
       }
 
       const data = await response.json()
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No summary generated.'
+      const text = data.choices?.[0]?.message?.content || 'No summary generated.'
       setAiSummary(prev => ({...prev, [matchNo]: text}))
     } catch (err) {
       setAiError(prev => ({...prev, [matchNo]: `Failed to generate summary: ${err.message}`}))
