@@ -271,7 +271,9 @@ function computePlayerStats(matches) {
       indexATH: 100,        // NEW: All-time high index
       indexATL: null,         // NEW: All-time low index
       winsRank1: 0, // NEW: Track 1st ranks
-      winsRank2: 0 // NEW: Track 2nd ranks
+      winsRank2: 0, // NEW: Track 2nd ranks
+      sponsorGiven: 0,    // total ₹ this player sponsored to others
+      sponseeReceived: 0  // total ₹ this player received from sponsors
     }
   })
   let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
@@ -418,6 +420,27 @@ function computePlayerStats(matches) {
       }
     }
   })
+
+  // ── Sponsor / Sponsee aggregation ──────────────────────────
+  matches.forEach(m => {
+    if (m.contest !== 'yes') return
+    PLAYERS.forEach(sponsee => {
+      const pd = m.players?.[sponsee]
+      if (!pd?.sponsored || !pd.sponsorDetails?.length) return
+      // This player was sponsored — accumulate sponseeReceived
+      const total = pd.sponsorDetails.reduce((s, d) => s + (parseFloat(d.amount) || 0), 0)
+      stats[sponsee].sponseeReceived = parseFloat((stats[sponsee].sponseeReceived + total).toFixed(2))
+      // Each sponsor gets credit in sponsorGiven
+      pd.sponsorDetails.forEach(d => {
+        if (d.sponsor && stats[d.sponsor] !== undefined) {
+          stats[d.sponsor].sponsorGiven = parseFloat(
+            (stats[d.sponsor].sponsorGiven + (parseFloat(d.amount) || 0)).toFixed(2)
+          )
+        }
+      })
+    })
+  })
+
   return stats
 }
 
@@ -749,7 +772,7 @@ function MatchLog({ matches }) {
                       <td key={p}>
                         <div className={isWin ? (winObj.rank === 1 ? 'rank-1-box' : 'rank-2-box') : ''}>
                           <div style={{fontSize:9}}>✅ Joined</div>
-                          <div style={{fontSize:9}} className={pd.paid ? 'paid-yes' : 'paid-no'}>{pd.paid ? '💰 Paid' : '❌ Unpaid'}</div>
+                          <div style={{fontSize:9}} className={pd.paid ? 'paid-yes' : 'paid-no'}>{pd.sponsored ? '🎁 Sponsored' : pd.paid ? '💰 Paid' : '❌ Unpaid'}</div>
                           <div style={{fontSize:14,fontWeight:900,color:isWin?'var(--accent)':'inherit'}}>{pd.points}</div>
                           <div style={{fontSize:10}} className={`rank-${isWin ? winObj.rank : globalRank}`}>#{isWin ? winObj.rank : globalRank}</div>
                           {!pd.paid && !done && (
@@ -999,6 +1022,25 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
                   </div>
                 )}
                 {s.carryFwd > 0 && <div className="p-stat-row"><span className="p-stat-label">Carry Forward</span><span className="p-stat-val"><span className="cf-tag">₹{s.carryFwd.toFixed(2)} pending</span></span></div>}
+                {/* Sponsor / Sponsee info — only shown when relevant */}
+                {s.sponsorGiven > 0 && (
+                  <div className="p-stat-row" style={{borderTop:'1px solid rgba(155,89,182,0.2)',paddingTop:8,marginTop:4}}>
+                    <span className="p-stat-label" style={{color:'#9b59b6'}}>🎁 Sponsor Amount</span>
+                    <div style={{textAlign:'right'}}>
+                      <span className="p-stat-val" style={{color:'#9b59b6'}}>₹{s.sponsorGiven.toFixed(2)}</span>
+                      <div style={{fontSize:9,color:'var(--text2)'}}>Paid for others' fees</div>
+                    </div>
+                  </div>
+                )}
+                {s.sponseeReceived > 0 && (
+                  <div className="p-stat-row" style={{borderTop: s.sponsorGiven > 0 ? 'none' : '1px solid rgba(52,152,219,0.2)', paddingTop: s.sponsorGiven > 0 ? 0 : 8, marginTop: s.sponsorGiven > 0 ? 0 : 4}}>
+                    <span className="p-stat-label" style={{color:'#3498db'}}>🤝 Beneficiary Amount</span>
+                    <div style={{textAlign:'right'}}>
+                      <span className="p-stat-val" style={{color:'#3498db'}}>₹{s.sponseeReceived.toFixed(2)}</span>
+                      <div style={{fontSize:9,color:'var(--text2)'}}>Fee paid by sponsors</div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -1477,6 +1519,12 @@ function Leaderboard({ matches }) {
                   )}
                   {p.carryFwd > 0 && (
                     <div className="lb-stat">Carry Fwd: <span className="cf-tag">₹{p.carryFwd.toFixed(2)}</span></div>
+                  )}
+                  {p.sponsorGiven > 0 && (
+                    <div className="lb-stat">🎁 Sponsor Given: <span style={{color:'#9b59b6'}}>₹{p.sponsorGiven.toFixed(2)}</span></div>
+                  )}
+                  {p.sponseeReceived > 0 && (
+                    <div className="lb-stat">🤝 Beneficiary: <span style={{color:'#3498db'}}>₹{p.sponseeReceived.toFixed(2)}</span></div>
                   )}
                 </div>
                 {/* Win Probability */}
@@ -3595,6 +3643,7 @@ export default function App() {
           onFantasyDataSave={(newFD) => setFantasyData(newFD)}
           highlightsData={highlightsData}
           onHighlightsDataSave={(newHD) => setHighlightsData(newHD)}
+          onMatchesSave={(newMatches) => setMatches(newMatches)}
         />
       )}
 
