@@ -4,9 +4,9 @@
 
 import { useEffect, useState, useCallback } from 'react'
 
-const ADMIN_HTML_URL   = 'https://pbdawn.github.io/vois-ipl-tracker/indexadmin.html'
 const JSONBIN_BASE     = 'https://api.jsonbin.io/v3/b'
 const HARDCODED_BIN_ID = '69c84b985fdde574550bf9f7'
+const PLAYERS = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
 
 function isSessionValid() {
   try {
@@ -62,6 +62,440 @@ const inputStyle = {
   border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8,
   color: '#e8eaf6', fontSize: 12, padding: '8px 12px',
   fontFamily: "'Rajdhani', sans-serif", boxSizing: 'border-box'
+}
+
+// ─── MATCH LOG ADMIN ─────────────────────────────────────────
+function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
+  const TODAY = new Date().toISOString().split('T')[0]
+
+  const emptyForm = () => ({
+    matchno: '', date: TODAY, matchTime: '',
+    teams: '', teamwon: '', fee: 50,
+    contest: 'yes', contestLink: '',
+    players: Object.fromEntries(PLAYERS.map(p => [p, { joined: false, paid: false, sponsored: false, sponsorDetails: [], points: 0.00 }]))
+  })
+
+  const [matches, setMatches] = useState(initialMatches || [])
+  const [form, setForm] = useState(emptyForm())
+  const [editMatchno, setEditMatchno] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [expandedMatch, setExpandedMatch] = useState(null)
+
+  useEffect(() => { setMatches(initialMatches || []) }, [initialMatches])
+
+  // ── Sponsor amount helpers ──
+  const getSponsorTotal = (player) => {
+    const pd = form.players[player]
+    if (!pd?.sponsored) return 0
+    return (pd.sponsorDetails || []).reduce((s, d) => s + (parseFloat(d.amount) || 0), 0)
+  }
+  const getRemaining = (player) => {
+    const fee = parseFloat(form.fee) || 0
+    return fee - getSponsorTotal(player)
+  }
+
+  // ── Player checkbox handlers ──
+  const handleJoined = (player, checked) => {
+    setForm(f => {
+      const pd = { ...f.players[player], joined: checked }
+      if (!checked) { pd.paid = false; pd.sponsored = false; pd.sponsorDetails = [] }
+      return { ...f, players: { ...f.players, [player]: pd } }
+    })
+  }
+
+  const handlePaid = (player, checked) => {
+    setForm(f => {
+      const pd = { ...f.players[player], paid: checked }
+      if (!checked) { pd.sponsored = false; pd.sponsorDetails = [] }
+      return { ...f, players: { ...f.players, [player]: pd } }
+    })
+  }
+
+  const handleSponsored = (player, checked) => {
+    setForm(f => {
+      const pd = { ...f.players[player], sponsored: checked }
+      if (checked) { pd.paid = true } // sponsored always implies paid
+      else { pd.sponsorDetails = [] }
+      return { ...f, players: { ...f.players, [player]: pd } }
+    })
+  }
+
+  const handleSponsorDetail = (player, idx, field, value) => {
+    setForm(f => {
+      const pd = { ...f.players[player] }
+      const details = [...(pd.sponsorDetails || [])]
+      details[idx] = { ...details[idx], [field]: value }
+      pd.sponsorDetails = details
+      return { ...f, players: { ...f.players, [player]: pd } }
+    })
+  }
+
+  const addSponsorRow = (player) => {
+    setForm(f => {
+      const pd = { ...f.players[player] }
+      pd.sponsorDetails = [...(pd.sponsorDetails || []), { sponsor: '', amount: '' }]
+      return { ...f, players: { ...f.players, [player]: pd } }
+    })
+  }
+
+  const removeSponsorRow = (player, idx) => {
+    setForm(f => {
+      const pd = { ...f.players[player] }
+      const details = [...(pd.sponsorDetails || [])]
+      details.splice(idx, 1)
+      pd.sponsorDetails = details
+      return { ...f, players: { ...f.players, [player]: pd } }
+    })
+  }
+
+  // ── Load match into form for editing ──
+  const loadMatch = (m) => {
+    const players = {}
+    PLAYERS.forEach(p => {
+      const src = m.players?.[p] || {}
+      players[p] = {
+        joined: src.joined || false,
+        paid: src.paid || false,
+        sponsored: src.sponsored || false,
+        sponsorDetails: src.sponsorDetails || [],
+        points: src.points || 0
+      }
+    })
+    setForm({
+      matchno: m.matchno || '', date: m.date || TODAY,
+      matchTime: m.matchTime || '', teams: m.teams || '',
+      teamwon: m.teamwon || '', fee: m.fee || 50,
+      contest: m.contest || 'yes', contestLink: m.contestLink || '',
+      players
+    })
+    setEditMatchno(m.matchno)
+    setSaveMsg('')
+  }
+
+  const clearForm = () => { setForm(emptyForm()); setEditMatchno(null); setSaveMsg('') }
+
+  // ── Cloud save ──
+  const saveToCloud = async (newMatches) => {
+    setSaving(true); setSaveMsg('')
+    try {
+      let binData = {}
+      const getRes = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}/latest`, { headers: { 'X-Bin-Meta': 'false' } })
+      if (getRes.ok) { binData = await getRes.json() }
+      else {
+        const r2 = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}/latest`)
+        if (r2.ok) { const d = await r2.json(); binData = d.record || d }
+      }
+      const updated = { ...binData, matches: newMatches, updatedAt: new Date().toISOString() }
+      let headers = { 'Content-Type': 'application/json' }
+      try {
+        const raw = sessionStorage.getItem('vois_admin_session')
+        if (raw) { const s = JSON.parse(raw); if (s.key) headers['X-Master-Key'] = s.key }
+      } catch {}
+      const putRes = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}`, { method: 'PUT', headers, body: JSON.stringify(updated) })
+      if (!putRes.ok) throw new Error(`Save failed (${putRes.status})`)
+      setSaveMsg('✅ Saved to cloud! Refresh public page to see changes.')
+      onMatchesSave && onMatchesSave(newMatches)
+    } catch (err) { setSaveMsg(`❌ ${err.message}`) }
+    finally { setSaving(false) }
+  }
+
+  const handleSaveMatch = async () => {
+    if (!form.matchno) { setSaveMsg('❌ Match No. is required'); return }
+    // Build clean player data
+    const players = {}
+    PLAYERS.forEach(p => {
+      const pd = form.players[p]
+      players[p] = {
+        joined: pd.joined,
+        paid: pd.paid,
+        sponsored: pd.sponsored || false,
+        sponsorDetails: pd.sponsored ? (pd.sponsorDetails || []).filter(d => d.sponsor && parseFloat(d.amount) > 0) : [],
+        points: parseFloat(pd.points) || 0
+      }
+    })
+    // Compute joined ranks
+    const joinedRanks = {}
+    const joined = PLAYERS.filter(p => players[p].joined && players[p].points > 0)
+      .sort((a,b) => players[b].points - players[a].points)
+    let r = 1
+    joined.forEach((p, i) => {
+      if (i > 0 && players[p].points < players[joined[i-1]].points) r++
+      joinedRanks[p] = r
+    })
+
+    const matchEntry = {
+      matchno: form.matchno, date: form.date, matchTime: form.matchTime,
+      teams: form.teams, teamwon: form.teamwon, fee: parseFloat(form.fee) || 0,
+      contest: form.contest, contestLink: form.contestLink,
+      joinedCount: PLAYERS.filter(p => players[p].joined).length,
+      pool: 0, transferred: false, players, joinedRanks
+    }
+
+    let newMatches
+    if (editMatchno !== null) {
+      newMatches = matches.map(m => String(m.matchno) === String(editMatchno) ? matchEntry : m)
+    } else {
+      const exists = matches.find(m => String(m.matchno) === String(form.matchno))
+      if (exists) { setSaveMsg('❌ Match No. already exists. Edit it instead.'); return }
+      newMatches = [...matches, matchEntry].sort((a,b) => parseInt(a.matchno) - parseInt(b.matchno))
+    }
+    setMatches(newMatches)
+    await saveToCloud(newMatches)
+    clearForm()
+  }
+
+  const handleDeleteMatch = async (matchno) => {
+    const newMatches = matches.filter(m => String(m.matchno) !== String(matchno))
+    setMatches(newMatches)
+    setDeleteConfirm(null)
+    await saveToCloud(newMatches)
+  }
+
+  const fee = parseFloat(form.fee) || 0
+
+  return (
+    <div style={{ padding: '16px 20px', color: '#e8eaf6', fontFamily: "'Rajdhani', sans-serif", maxWidth: 1100, margin: '0 auto' }}>
+      {/* ── Form ── */}
+      <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 14, padding: '20px 24px', marginBottom: 24 }}>
+        <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 3, color: '#f5a623', marginBottom: 16 }}>
+          {editMatchno ? `✏️ EDITING MATCH #${editMatchno}` : '➕ ADD / EDIT MATCH'}
+        </div>
+
+        {/* Match Details */}
+        <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#f5a623', marginBottom: 12, textTransform: 'uppercase' }}>Match Details</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
+            {[
+              { key: 'matchno', label: 'Match No.', placeholder: 'e.g. 1', type: 'text' },
+              { key: 'date', label: 'Match Date', type: 'date' },
+              { key: 'teams', label: 'Teams Playing', placeholder: 'e.g. MI vs CSK', type: 'text' },
+              { key: 'teamwon', label: 'Team Won', placeholder: 'e.g. MI', type: 'text' },
+              { key: 'fee', label: 'Entry Fee (₹)', placeholder: '50', type: 'number' },
+            ].map(f => (
+              <div key={f.key}>
+                <label style={labelStyle}>{f.label}</label>
+                <input type={f.type} value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder} style={inputStyle} />
+              </div>
+            ))}
+            <div>
+              <label style={labelStyle}>Match Time</label>
+              <select value={form.matchTime} onChange={e => setForm(p => ({ ...p, matchTime: e.target.value }))} style={inputStyle}>
+                <option value="">— Select Time —</option>
+                <option value="15:30">3:30 PM IST</option>
+                <option value="19:30">7:30 PM IST</option>
+              </select>
+            </div>
+            <div>
+              <label style={labelStyle}>Contest Played?</label>
+              <select value={form.contest} onChange={e => setForm(p => ({ ...p, contest: e.target.value }))} style={inputStyle}>
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+          </div>
+          {form.contest === 'yes' && (
+            <div style={{ marginTop: 12 }}>
+              <label style={labelStyle}>MyCircle11 Link</label>
+              <input value={form.contestLink} onChange={e => setForm(p => ({ ...p, contestLink: e.target.value }))}
+                placeholder="Paste app link here..." style={inputStyle} />
+            </div>
+          )}
+        </div>
+
+        {/* Player Details */}
+        {form.contest === 'yes' && (
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#f5a623', marginBottom: 6, textTransform: 'uppercase' }}>Player Details</div>
+            <div style={{ fontSize: 11, color: '#8899bb', marginBottom: 12 }}>
+              ✅ Joined = played the contest &nbsp;|&nbsp; 💰 Paid = paid the match fee &nbsp;|&nbsp; 🎁 Sponsored = someone else paid for this player &nbsp;|&nbsp; Enter MyCircle11 points
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+              {PLAYERS.map(player => {
+                const pd = form.players[player]
+                const sponsorTotal = getSponsorTotal(player)
+                const remaining = getRemaining(player)
+                const otherPlayers = PLAYERS.filter(p => p !== player)
+
+                return (
+                  <div key={player} style={{
+                    background: pd.sponsored ? 'rgba(155,89,182,0.08)' : pd.joined ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.2)',
+                    border: `1px solid ${pd.sponsored ? 'rgba(155,89,182,0.4)' : pd.joined ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'}`,
+                    borderRadius: 10, padding: '12px 14px'
+                  }}>
+                    {/* Joined checkbox */}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 8 }}>
+                      <input type="checkbox" checked={pd.joined} onChange={e => handleJoined(player, e.target.checked)}
+                        style={{ width: 16, height: 16, accentColor: '#f5a623' }} />
+                      <span style={{ fontWeight: 800, fontSize: 14, color: pd.joined ? '#e8eaf6' : '#8899bb' }}>{player}</span>
+                    </label>
+
+                    {pd.joined && (
+                      <>
+                        {/* Paid + Sponsored row */}
+                        <div style={{ display: 'flex', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
+                            <input type="checkbox" checked={pd.paid} onChange={e => handlePaid(player, e.target.checked)}
+                              style={{ accentColor: '#2ecc71' }} />
+                            <span style={{ color: '#2ecc71' }}>Paid Fee?</span>
+                          </label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
+                            <input type="checkbox" checked={pd.sponsored || false}
+                              onChange={e => handleSponsored(player, e.target.checked)}
+                              style={{ accentColor: '#9b59b6' }} />
+                            <span style={{ color: '#9b59b6' }}>🎁 Sponsored</span>
+                          </label>
+                        </div>
+
+                        {/* Sponsor details */}
+                        {pd.sponsored && (
+                          <div style={{ background: 'rgba(155,89,182,0.1)', border: '1px solid rgba(155,89,182,0.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+                            <div style={{ fontSize: 10, color: '#c39bd3', fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
+                              🎁 SPONSOR BREAKDOWN — Fee: ₹{fee} &nbsp;|&nbsp;
+                              Covered: ₹{sponsorTotal.toFixed(2)} &nbsp;|&nbsp;
+                              <span style={{ color: remaining <= 0 ? '#2ecc71' : '#f5a623' }}>Remaining: ₹{remaining.toFixed(2)}</span>
+                            </div>
+                            {(pd.sponsorDetails || []).map((d, idx) => (
+                              <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                                <select value={d.sponsor} onChange={e => handleSponsorDetail(player, idx, 'sponsor', e.target.value)}
+                                  style={{ ...inputStyle, flex: 2, fontSize: 11, padding: '5px 8px' }}>
+                                  <option value="">— Sponsor —</option>
+                                  {otherPlayers.map(op => <option key={op} value={op}>{op}</option>)}
+                                </select>
+                                <input type="number" value={d.amount} placeholder="₹"
+                                  min={0} max={Math.max(0, remaining + (parseFloat(d.amount) || 0))}
+                                  onChange={e => {
+                                    const maxAmt = remaining + (parseFloat(d.amount) || 0)
+                                    const val = Math.min(parseFloat(e.target.value) || 0, maxAmt)
+                                    handleSponsorDetail(player, idx, 'amount', val)
+                                  }}
+                                  style={{ ...inputStyle, flex: 1, fontSize: 11, padding: '5px 8px' }} />
+                                <button onClick={() => removeSponsorRow(player, idx)}
+                                  style={{ background: 'rgba(231,76,60,0.2)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>✕</button>
+                              </div>
+                            ))}
+                            {remaining > 0 && (
+                              <button onClick={() => addSponsorRow(player)}
+                                style={{ background: 'rgba(155,89,182,0.2)', color: '#c39bd3', border: '1px solid rgba(155,89,182,0.3)', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 11, marginTop: 4 }}>
+                                ➕ Add Sponsor
+                              </button>
+                            )}
+                            {remaining <= 0 && (
+                              <div style={{ fontSize: 10, color: '#2ecc71', marginTop: 4 }}>✅ Full fee covered by sponsors</div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Points */}
+                        <div>
+                          <label style={{ ...labelStyle, marginBottom: 3 }}>Points</label>
+                          <input type="number" step="0.01" value={pd.points}
+                            onChange={e => setForm(f => ({ ...f, players: { ...f.players, [player]: { ...f.players[player], points: e.target.value } } }))}
+                            style={{ ...inputStyle, fontSize: 13 }} />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button onClick={handleSaveMatch} disabled={saving} style={{
+            fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: 1,
+            padding: '10px 24px', borderRadius: 9, cursor: saving ? 'wait' : 'pointer',
+            background: saving ? 'rgba(46,204,113,0.1)' : 'rgba(46,204,113,0.2)',
+            color: '#2ecc71', border: '1px solid rgba(46,204,113,0.4)'
+          }}>
+            {saving ? '⏳ Saving...' : '💾 SAVE MATCH'}
+          </button>
+          <button onClick={clearForm} style={{
+            fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13,
+            padding: '10px 20px', borderRadius: 9, cursor: 'pointer',
+            background: 'rgba(231,76,60,0.1)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.3)'
+          }}>🗑 CLEAR FORM</button>
+          {saveMsg && (
+            <span style={{ fontSize: 12, color: saveMsg.startsWith('✅') ? '#2ecc71' : '#e74c3c' }}>{saveMsg}</span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Match List ── */}
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 3, color: '#f5a623', marginBottom: 12 }}>
+        📋 SAVED MATCHES ({matches.length})
+      </div>
+      {matches.length === 0 && (
+        <div style={{ textAlign: 'center', color: '#8899bb', padding: 32, border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 10 }}>No matches yet. Add one above.</div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[...matches].sort((a,b) => parseInt(b.matchno) - parseInt(a.matchno)).map(m => {
+          const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
+          const isOpen = expandedMatch === m.matchno
+          const sponsoredPlayers = PLAYERS.filter(p => m.players?.[p]?.sponsored)
+
+          return (
+            <div key={m.matchno} style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: `1px solid ${done ? 'rgba(46,204,113,0.2)' : 'rgba(245,166,35,0.2)'}`,
+              borderRadius: 10, overflow: 'hidden'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', flexWrap: 'wrap', cursor: 'pointer' }}
+                onClick={() => setExpandedMatch(isOpen ? null : m.matchno)}>
+                <span style={{ fontWeight: 800, fontSize: 13, color: done ? '#2ecc71' : '#f5a623' }}>#{m.matchno}</span>
+                <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{m.teams || '—'}</span>
+                <span style={{ fontSize: 11, color: '#8899bb' }}>{m.date}</span>
+                {done && <span style={{ fontSize: 10, color: '#2ecc71', background: 'rgba(46,204,113,0.1)', borderRadius: 4, padding: '2px 6px' }}>✅ {m.teamwon}</span>}
+                {sponsoredPlayers.length > 0 && (
+                  <span style={{ fontSize: 10, color: '#c39bd3', background: 'rgba(155,89,182,0.1)', borderRadius: 4, padding: '2px 6px' }}>
+                    🎁 {sponsoredPlayers.join(', ')} sponsored
+                  </span>
+                )}
+                <span style={{ fontSize: 12, color: '#8899bb' }}>{isOpen ? '▲' : '▼'}</span>
+              </div>
+
+              {isOpen && (
+                <div style={{ padding: '0 14px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, marginBottom: 10 }}>
+                    {PLAYERS.map(p => {
+                      const pd = m.players?.[p]
+                      if (!pd?.joined) return null
+                      return (
+                        <span key={p} style={{
+                          fontSize: 11, padding: '3px 8px', borderRadius: 6,
+                          background: pd.sponsored ? 'rgba(155,89,182,0.15)' : pd.paid ? 'rgba(46,204,113,0.1)' : 'rgba(231,76,60,0.1)',
+                          color: pd.sponsored ? '#c39bd3' : pd.paid ? '#2ecc71' : '#e74c3c',
+                          border: `1px solid ${pd.sponsored ? 'rgba(155,89,182,0.3)' : pd.paid ? 'rgba(46,204,113,0.2)' : 'rgba(231,76,60,0.2)'}`
+                        }}>
+                          {p}: {pd.sponsored ? '🎁 Sponsored' : pd.paid ? '💰 Paid' : '❌ Unpaid'} · {pd.points || 0} pts
+                        </span>
+                      )
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button onClick={() => { loadMatch(m); setExpandedMatch(null) }} style={{ ...btnStyle('#f5a623'), fontSize: 12, padding: '7px 16px' }}>✏️ Edit</button>
+                    {deleteConfirm === m.matchno ? (
+                      <>
+                        <span style={{ fontSize: 11, color: '#e74c3c', alignSelf: 'center' }}>Confirm delete?</span>
+                        <button onClick={() => handleDeleteMatch(m.matchno)} style={{ ...btnStyle('#e74c3c'), fontSize: 12, padding: '7px 14px' }}>Yes, Delete</button>
+                        <button onClick={() => setDeleteConfirm(null)} style={{ ...btnStyle('#8899bb'), fontSize: 12, padding: '7px 14px' }}>Cancel</button>
+                      </>
+                    ) : (
+                      <button onClick={() => setDeleteConfirm(m.matchno)} style={{ ...btnStyle('#e74c3c'), fontSize: 12, padding: '7px 14px' }}>🗑 Delete</button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 // ─── FANTASY TIPS EDITOR ─────────────────────────────────────
@@ -671,7 +1105,7 @@ function HighlightsAdmin({ matches, highlightsData, onHighlightsDataSave }) {
 }
 
 // ─── MAIN ADMIN PAGE ─────────────────────────────────────────
-export default function AdminPage({ onLogout, matches = [], fantasyData = {}, onFantasyDataSave, highlightsData = {}, onHighlightsDataSave }) {
+export default function AdminPage({ onLogout, matches = [], fantasyData = {}, onFantasyDataSave, highlightsData = {}, onHighlightsDataSave, onMatchesSave }) {
   const [activeTab, setActiveTab] = useState('matchlog')
 
   useEffect(() => {
@@ -696,7 +1130,7 @@ export default function AdminPage({ onLogout, matches = [], fantasyData = {}, on
         </div>
 
         {/* Tab switcher */}
-        <div style={{ display: 'flex', gap: 6 }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
             { id: 'matchlog',   label: '📋 Match Log' },
             { id: 'fantasy',    label: '🎯 Fantasy Tips' },
@@ -724,12 +1158,9 @@ export default function AdminPage({ onLogout, matches = [], fantasyData = {}, on
 
       <div style={{ flex: 1, overflow: 'auto', background: '#0a0f1e', display: 'flex', flexDirection: 'column' }}>
         {activeTab === 'matchlog' ? (
-          <iframe
-            src={ADMIN_HTML_URL}
-            style={styles.iframe}
-            title="VOIS Panthers Admin"
-            allow="clipboard-write"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+          <MatchLogAdmin
+            matches={matches}
+            onMatchesSave={onMatchesSave}
           />
         ) : activeTab === 'fantasy' ? (
           <FantasyTipsAdmin
@@ -778,5 +1209,4 @@ const styles = {
     background: 'rgba(231,76,60,0.15)', color: '#e74c3c',
     border: '1px solid rgba(231,76,60,0.4)', cursor: 'pointer', transition: 'all 0.2s',
   },
-  iframe: { width: '100%', height: '100%', border: 'none', background: '#0a0f1e', display: 'block' },
 }
