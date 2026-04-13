@@ -10,7 +10,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 // ─── CONSTANTS  ────────────────────────────────────────────────
 const PLAYERS = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
-const COLORS  = ['#f5a623','#3498db','#2ecc71','#e74c3c','#e056fd','#00cec9','#fd9644']
+const COLORS  = ['#f500e9','#34db7f','#cc6d2e','#2c075c','#034712','#c2d32c','#570707']
 const PLAYER_IMAGES = { Ashish:'/vois-panthers/ashish.jpg', Kalpesh:'/vois-panthers/kalpesh.jpg', Nilesh:'/vois-panthers/nilesh.jpeg', Prabhat:'/vois-panthers/prabhat.jpg', Pritam:'/vois-panthers/pritam.jpeg', Sudhir:'/vois-panthers/sudhir.jpg', Swapnil:'/vois-panthers/swapnil.jpg' }
 const JSONBIN_BASE   = 'https://api.jsonbin.io/v3/b'
 const HARDCODED_BIN_ID = '69c84b985fdde574550bf9f7'
@@ -300,7 +300,7 @@ function computePlayerStats(matches) {
       const s = stats[p]
 
       if (!matchIsComplete) {
-        if (m.contest === 'yes' && pd.paid) {
+        if (m.contest === 'yes' && pd.paid && !pd.sponsored) {
           s.activeDeposits += m.fee
         }
         return
@@ -354,7 +354,11 @@ function computePlayerStats(matches) {
         s.contested++
         if (pd.paid) {
           s.paidContests++
-          if (cf[p] <= 0) s.totalInvested += m.fee; else cf[p] -= m.fee
+          // Sponsored players are counted as paid (for pool/prize purposes) but
+          // their fee was covered by others — do NOT add to their own totalInvested
+          if (!pd.sponsored) {
+            if (cf[p] <= 0) s.totalInvested += m.fee; else cf[p] -= m.fee
+          }
 
           if (pd.points > 0) {
             s.totalPointsSum += pd.points
