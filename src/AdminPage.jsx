@@ -425,8 +425,11 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
         </div>
       </div>
 
+      {/* ── Transfer Management Table ── */}
+      <TransferTable matches={matches} saveToCloud={saveToCloud} setMatches={setMatches} saving={saving} />
+
       {/* ── Match List ── */}
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 3, color: '#f5a623', marginBottom: 12 }}>
+      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 3, color: '#f5a623', marginBottom: 12, marginTop: 28 }}>
         📋 SAVED MATCHES ({matches.length})
       </div>
       {matches.length === 0 && (
@@ -494,6 +497,189 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+// ─── PRIZE CALCULATOR (mirrors App.jsx logic) ────────────────
+function calcPrizes(m) {
+  const paidCount = PLAYERS.filter(p => m.players?.[p]?.joined && m.players?.[p]?.paid).length
+  const fee = parseFloat(m.fee) || 0
+  const matchNum = parseInt(m.matchno) || 0
+  let pot1 = 0, pot2 = 0, winnerCountLimit = 0
+  if (matchNum >= 3) {
+    if (paidCount >= 2 && paidCount <= 5) { pot1 = fee * paidCount; winnerCountLimit = 1 }
+    else if (paidCount === 6) { pot1 = fee * 4; pot2 = fee * 2; winnerCountLimit = 2 }
+    else if (paidCount === 7) { pot1 = fee * 5; pot2 = fee * 2; winnerCountLimit = 2 }
+  } else {
+    pot1 = fee * paidCount
+    winnerCountLimit = paidCount >= 1 ? 1 : 0
+  }
+  const eligiblePaid = PLAYERS
+    .filter(p => m.players?.[p]?.paid && m.players?.[p]?.points > 0)
+    .map(p => ({ name: p, points: m.players[p].points }))
+    .sort((a, b) => b.points - a.points)
+  let paidRanks = {}, cr = 1
+  eligiblePaid.forEach((p, i) => {
+    if (i > 0 && p.points < eligiblePaid[i-1].points) cr++
+    paidRanks[p.name] = cr
+  })
+  const r1Count = eligiblePaid.filter(p => paidRanks[p.name] === 1).length
+  const r2Count = eligiblePaid.filter(p => paidRanks[p.name] === 2).length
+  return {
+    1: r1Count > 0 ? pot1 / r1Count : 0,
+    2: (winnerCountLimit === 2 && r2Count > 0) ? pot2 / r2Count : 0,
+    winnerCountLimit, totalPool: pot1 + pot2, _paidRanks: paidRanks
+  }
+}
+
+// ─── TRANSFER TABLE COMPONENT ────────────────────────────────
+function TransferTable({ matches, saveToCloud, setMatches, saving }) {
+  // Only show completed contest matches that have winners
+  const rows = []
+  matches.forEach(m => {
+    const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
+    if (!done || m.contest !== 'yes') return
+    const prizes = calcPrizes(m)
+    const paidRanks = prizes._paidRanks || {}
+    PLAYERS.forEach(p => {
+      const rank = paidRanks[p]
+      const isR1 = rank === 1
+      const isR2 = rank === 2 && prizes.winnerCountLimit === 2
+      if (!isR1 && !isR2) return
+      const prize = isR1 ? prizes[1] : prizes[2]
+      if (!prize || prize <= 0) return
+      const tVal = m.transferred
+      const isDone = typeof tVal === 'object' && tVal !== null
+        ? tVal[p] === true
+        : tVal === true
+      rows.push({ m, player: p, rank: isR1 ? 1 : 2, prize, isDone })
+    })
+  })
+
+  // Sort: pending first, then by match number desc
+  rows.sort((a, b) => {
+    if (a.isDone !== b.isDone) return a.isDone ? 1 : -1
+    return parseInt(b.m.matchno) - parseInt(a.m.matchno)
+  })
+
+  const pendingCount = rows.filter(r => !r.isDone).length
+  const doneCount = rows.filter(r => r.isDone).length
+
+  const toggleTransfer = async (m, player) => {
+    // Compute new transferred value
+    const currentT = m.transferred
+    let newT
+    if (typeof currentT === 'object' && currentT !== null) {
+      newT = { ...currentT, [player]: !currentT[player] }
+    } else {
+      // Migrate scalar → object keyed by each winner
+      const prizes = calcPrizes(m)
+      const paidRanks = prizes._paidRanks || {}
+      newT = {}
+      PLAYERS.forEach(p => {
+        const r = paidRanks[p]
+        if (r === 1 || (r === 2 && prizes.winnerCountLimit === 2)) {
+          if (p === player) {
+            newT[p] = !(currentT === true)
+          } else {
+            newT[p] = currentT === true
+          }
+        }
+      })
+    }
+
+    const newMatches = matches.map(mm =>
+      String(mm.matchno) === String(m.matchno) ? { ...mm, transferred: newT } : mm
+    )
+    setMatches(newMatches)
+    await saveToCloud(newMatches)
+  }
+
+  if (rows.length === 0) return null
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
+        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 3, color: '#f5a623' }}>
+          💸 TRANSFER MANAGEMENT
+        </div>
+        <span style={{ fontSize: 11, background: 'rgba(231,76,60,0.15)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>
+          {pendingCount} Pending
+        </span>
+        <span style={{ fontSize: 11, background: 'rgba(46,204,113,0.1)', color: '#2ecc71', border: '1px solid rgba(46,204,113,0.25)', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>
+          {doneCount} Done
+        </span>
+      </div>
+
+      <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Rajdhani',sans-serif", fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: 'rgba(245,166,35,0.08)', borderBottom: '1px solid rgba(245,166,35,0.2)' }}>
+              {['Match', 'Date', 'Teams', 'Winner', 'Rank', 'Prize (₹)', 'Status', 'Action'].map(h => (
+                <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#f5a623', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => {
+              const { m, player, rank, prize, isDone } = row
+              return (
+                <tr key={`${m.matchno}-${player}`} style={{
+                  background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
+                  borderBottom: '1px solid rgba(255,255,255,0.04)',
+                  transition: 'background 0.15s'
+                }}>
+                  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#f5a623' }}>#{m.matchno}</td>
+                  <td style={{ padding: '10px 14px', color: '#8899bb', fontSize: 11, whiteSpace: 'nowrap' }}>{m.date || '—'}</td>
+                  <td style={{ padding: '10px 14px', color: '#e8eaf6', whiteSpace: 'nowrap' }}>{m.teams || '—'}</td>
+                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#e8eaf6' }}>{player}</td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
+                      background: rank === 1 ? 'rgba(255,215,0,0.15)' : 'rgba(192,192,192,0.15)',
+                      color: rank === 1 ? '#FFD700' : '#C0C0C0',
+                      border: `1px solid ${rank === 1 ? 'rgba(255,215,0,0.3)' : 'rgba(192,192,192,0.3)'}`
+                    }}>
+                      {rank === 1 ? '🥇 1st' : '🥈 2nd'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#2ecc71', fontSize: 14 }}>₹{prize.toFixed(2)}</td>
+                  <td style={{ padding: '10px 14px' }}>
+                    {isDone
+                      ? <span style={{ fontSize: 11, color: '#2ecc71', background: 'rgba(46,204,113,0.1)', border: '1px solid rgba(46,204,113,0.3)', borderRadius: 6, padding: '3px 10px', fontWeight: 700 }}>✅ Done</span>
+                      : <span style={{ fontSize: 11, color: '#e74c3c', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 6, padding: '3px 10px', fontWeight: 700 }}>⏳ Pending</span>
+                    }
+                  </td>
+                  <td style={{ padding: '10px 14px' }}>
+                    <button
+                      onClick={() => toggleTransfer(m, player)}
+                      disabled={saving}
+                      style={{
+                        fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 11,
+                        padding: '5px 14px', borderRadius: 7, cursor: saving ? 'wait' : 'pointer',
+                        background: isDone ? 'rgba(231,76,60,0.12)' : 'rgba(46,204,113,0.15)',
+                        color: isDone ? '#e74c3c' : '#2ecc71',
+                        border: `1px solid ${isDone ? 'rgba(231,76,60,0.35)' : 'rgba(46,204,113,0.35)'}`,
+                        transition: 'all 0.15s', whiteSpace: 'nowrap',
+                        opacity: saving ? 0.6 : 1
+                      }}
+                    >
+                      {saving ? '⏳...' : isDone ? '↩ Mark Pending' : '✅ Mark Done'}
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {pendingCount === 0 && (
+        <div style={{ textAlign: 'center', fontSize: 11, color: '#2ecc71', marginTop: 8, letterSpacing: 1 }}>
+          🎉 All payouts transferred!
+        </div>
+      )}
     </div>
   )
 }
