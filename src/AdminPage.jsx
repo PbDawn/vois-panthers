@@ -508,7 +508,10 @@ function calcPrizes(m) {
   const matchNum = parseInt(m.matchno) || 0
   let pot1 = 0, pot2 = 0, winnerCountLimit = 0
   if (matchNum >= 3) {
-    if (paidCount >= 2 && paidCount <= 5) { pot1 = fee * paidCount; winnerCountLimit = 1 }
+    if (matchNum >= 26 && paidCount === 5) {
+      // From match 26 onwards: 5 paid players → 2 winners (1st gets fee*4, 2nd gets fee*1)
+      pot1 = fee * 4; pot2 = fee * 1; winnerCountLimit = 2
+    } else if (paidCount >= 2 && paidCount <= 5) { pot1 = fee * paidCount; winnerCountLimit = 1 }
     else if (paidCount === 6) { pot1 = fee * 4; pot2 = fee * 2; winnerCountLimit = 2 }
     else if (paidCount === 7) { pot1 = fee * 5; pot2 = fee * 2; winnerCountLimit = 2 }
   } else {
