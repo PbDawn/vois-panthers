@@ -28,7 +28,7 @@ function generateBreakingNews(matches, stats) {
   let headlines = [];
 
   // --- 1. LEADERBOARD & GLOBAL RECORDS ---
-  const currentProfits = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested }));
+  const currentProfits = PLAYERS.map(p => ({ name: p, profit: stats[p].totalWon - stats[p].totalInvested - (stats[p].sponsorGiven || 0) }));
   const sortedProfits = [...currentProfits].sort((a, b) => b.profit - a.profit);
   const currentLeader = sortedProfits[0];
   const maxBestPts = Math.max(...PLAYERS.map(p => stats[p].bestPoints));
@@ -170,7 +170,10 @@ function calculatePrizes(m) {
 
   let pot1 = 0, pot2 = 0, winnerCountLimit = 0
   if (matchNum >= 3) {
-    if (paidCount >= 2 && paidCount <= 5) { pot1 = fee * paidCount; winnerCountLimit = 1 }
+    if (matchNum >= 26 && paidCount === 5) {
+      // From match 26 onwards: 5 paid players → 2 winners (1st gets fee*4, 2nd gets fee*1)
+      pot1 = fee * 4; pot2 = fee * 1; winnerCountLimit = 2
+    } else if (paidCount >= 2 && paidCount <= 5) { pot1 = fee * paidCount; winnerCountLimit = 1 }
     else if (paidCount === 6) { pot1 = fee * 4; pot2 = fee * 2; winnerCountLimit = 2 }
     else if (paidCount === 7) { pot1 = fee * 5; pot2 = fee * 2; winnerCountLimit = 2 }
   } else {
@@ -1383,12 +1386,14 @@ function Leaderboard({ matches }) {
   const sorted = useMemo(() => {
     return PLAYERS.map((p, i) => {
       const s = stats[p]
-      const profit    = s.totalWon - s.totalInvested
+      // totalInvested (own cash) + sponsorGiven (cash given to others) = total money deployed
+      const displayInvested = s.totalInvested + (s.sponsorGiven || 0)
+      const profit    = s.totalWon - displayInvested
       const winPct    = s.paidContests > 0 ? (s.wins / s.paidContests) * 100 : 0
       const avgPoints = s.pointsMatchCount > 0 ? (s.totalPointsSum / s.pointsMatchCount) : 0
-      const roi       = s.totalInvested > 0 ? (profit / s.totalInvested) * 100 : 0
+      const roi       = displayInvested > 0 ? (profit / displayInvested) * 100 : 0
       const streak    = computeCurrentStreak(s.paidWinStreak)
-      return { ...s, name:p, color:COLORS[i], profit, winPct, avgPoints, roi, streak }
+      return { ...s, name:p, color:COLORS[i], totalInvested: displayInvested, profit, winPct, avgPoints, roi, streak }
     }).sort((a, b) => {
       // Primary sort
       const diff = b[sortBy] - a[sortBy]
