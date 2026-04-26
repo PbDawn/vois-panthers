@@ -276,7 +276,14 @@ function computePlayerStats(matches) {
       winsRank1: 0, // NEW: Track 1st ranks
       winsRank2: 0, // NEW: Track 2nd ranks
       sponsorGiven: 0,    // total ₹ this player sponsored to others
-      sponseeReceived: 0  // total ₹ this player received from sponsors
+      sponseeReceived: 0,  // total ₹ this player received from sponsors
+      // Streak tracking
+      currentWinStreak: 0,
+      currentLossStreak: 0,
+      highestWinStreak: 0,
+      highestLossStreak: 0,
+      // Rank finish breakdown: rankFinishes[rank] = [{contestCount}]
+      rankFinishes: { 1:[], 2:[], 3:[], 4:[], 5:[], 6:[], 7:[] }
     }
   })
   let cf = {}; PLAYERS.forEach(p => { cf[p] = 0 })
@@ -400,10 +407,25 @@ function computePlayerStats(matches) {
               s.recentForm.push(isR1Win ? 'win1' : 'win2')
               // Feature 4: track paid wins for hat-trick
               s.paidWinStreak.push(true)
+              // Streak tracking
+              s.currentWinStreak++
+              s.currentLossStreak = 0
+              if (s.currentWinStreak > s.highestWinStreak) s.highestWinStreak = s.currentWinStreak
             } else {
               s.recentForm.push('loss')
               // Feature 4: any paid loss breaks streak reset tracking
               s.paidWinStreak.push(false)
+              // Streak tracking
+              s.currentLossStreak++
+              s.currentWinStreak = 0
+              if (s.currentLossStreak > s.highestLossStreak) s.highestLossStreak = s.currentLossStreak
+            }
+
+            // Rank finish breakdown: record which rank this player finished and how many paid players contested
+            if (pRank >= 1 && pRank <= 7) {
+              const contestCount = eligiblePaid.length
+              if (!s.rankFinishes[pRank]) s.rankFinishes[pRank] = []
+              s.rankFinishes[pRank].push(contestCount)
             }
           }
         } else {
@@ -1019,6 +1041,61 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
                 <div className="p-stat-row"><span className="p-stat-label">Total Invested</span><span className="p-stat-val red">₹{s.totalInvested}</span></div>
                 <div className="p-stat-row"><span className="p-stat-label">Total Winnings</span><span className="p-stat-val green">₹{s.totalWon.toFixed(2)}</span></div>
                 <div className="p-stat-row"><span className="p-stat-label">Profit / Loss</span><span className={`p-stat-val ${profit>=0?'green':'red'}`}>{profit>=0?'+':''}₹{profit.toFixed(2)}</span></div>
+
+                {/* ── Streak Stats ── */}
+                {(s.highestWinStreak > 0 || s.highestLossStreak > 0) && (
+                  <div style={{borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:8,marginTop:4,marginBottom:4}}>
+                    <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'#8899bb',marginBottom:5}}>Streak Records</div>
+                    <div style={{display:'flex',gap:8}}>
+                      <div style={{flex:1,background:'rgba(46,204,113,0.08)',border:'1px solid rgba(46,204,113,0.2)',borderRadius:8,padding:'5px 8px',textAlign:'center'}}>
+                        <div style={{fontSize:9,color:'#8899bb',letterSpacing:1}}>🔥 BEST WIN STREAK</div>
+                        <div style={{fontSize:20,fontWeight:900,color:'#2ecc71',fontFamily:"'Orbitron',sans-serif",lineHeight:1.2}}>{s.highestWinStreak}</div>
+                        <div style={{fontSize:9,color:'#8899bb'}}>in a row</div>
+                      </div>
+                      <div style={{flex:1,background:'rgba(231,76,60,0.08)',border:'1px solid rgba(231,76,60,0.2)',borderRadius:8,padding:'5px 8px',textAlign:'center'}}>
+                        <div style={{fontSize:9,color:'#8899bb',letterSpacing:1}}>💀 WORST LOSS STREAK</div>
+                        <div style={{fontSize:20,fontWeight:900,color:'#e74c3c',fontFamily:"'Orbitron',sans-serif",lineHeight:1.2}}>{s.highestLossStreak}</div>
+                        <div style={{fontSize:9,color:'#8899bb'}}>in a row</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Rank Finish Breakdown ── */}
+                {(() => {
+                  const hasAnyRank = [1,2,3,4,5,6,7].some(r => s.rankFinishes[r]?.length > 0)
+                  if (!hasAnyRank) return null
+                  const rankEmoji = { 1:'🥇', 2:'🥈', 3:'🥉', 4:'4️⃣', 5:'5️⃣', 6:'6️⃣', 7:'7️⃣' }
+                  const rankColor = { 1:'#FFD700', 2:'#C0C0C0', 3:'#CD7F32', 4:'#8899bb', 5:'#8899bb', 6:'#8899bb', 7:'#8899bb' }
+                  return (
+                    <div style={{borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:8,marginTop:4}}>
+                      <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'#8899bb',marginBottom:6}}>Rank Finish History</div>
+                      {[1,2,3,4,5,6,7].map(rank => {
+                        const arr = s.rankFinishes[rank] || []
+                        if (arr.length === 0) return null
+                        // Group by contest count: { contestCount: occurrences }
+                        const grouped = {}
+                        arr.forEach(c => { grouped[c] = (grouped[c] || 0) + 1 })
+                        const breakdown = Object.entries(grouped)
+                          .sort((a,b) => b[0]-a[0])
+                          .map(([cnt, times]) => `${times}× (${cnt} joined)`)
+                          .join(',  ')
+                        return (
+                          <div key={rank} style={{
+                            display:'flex', alignItems:'flex-start', gap:6,
+                            padding:'4px 0', borderBottom:'1px solid rgba(255,255,255,0.04)',
+                            fontSize:11
+                          }}>
+                            <span style={{minWidth:22, fontSize:13}}>{rankEmoji[rank]}</span>
+                            <span style={{color:'#8899bb', minWidth:48}}>Rank {rank}:</span>
+                            <span style={{color:rankColor[rank], fontWeight:700, minWidth:28}}>{arr.length}×</span>
+                            <span style={{color:'var(--text2)', fontSize:10, lineHeight:1.4}}>[ {breakdown} ]</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
                 {s.activeDeposits > 0 && (
                   <div className="p-stat-row" style={{borderBottom:'1px solid rgba(52,152,219,0.3)',paddingBottom:'8px',marginBottom:'8px'}}>
                     <span className="p-stat-label" style={{color:'#3498db',fontWeight:'bold'}}>💰 Active Deposit</span>
