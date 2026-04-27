@@ -1020,6 +1020,17 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
                         })
                     }
                   </div>
+
+                  {/* ── Active Deposit (shown below form) ── */}
+                  {s.activeDeposits > 0 && (
+                    <div style={{marginTop:6,background:'rgba(52,152,219,0.08)',border:'1px solid rgba(52,152,219,0.3)',borderRadius:8,padding:'5px 10px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <span style={{fontSize:11,color:'#3498db',fontWeight:'bold'}}>💰 Active Deposit</span>
+                      <div style={{textAlign:'right'}}>
+                        <span style={{fontSize:13,fontWeight:700,color:'#3498db'}}>₹{s.activeDeposits}</span>
+                        <div style={{fontSize:'9px',color:'var(--text2)'}}>Match pending/ongoing</div>
+                      </div>
+                    </div>
+                  )}
                   
                 </div>
               </div>
@@ -1041,6 +1052,30 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
                 <div className="p-stat-row"><span className="p-stat-label">Total Invested</span><span className="p-stat-val red">₹{s.totalInvested}</span></div>
                 <div className="p-stat-row"><span className="p-stat-label">Total Winnings</span><span className="p-stat-val green">₹{s.totalWon.toFixed(2)}</span></div>
                 <div className="p-stat-row"><span className="p-stat-label">Profit / Loss</span><span className={`p-stat-val ${profit>=0?'green':'red'}`}>{profit>=0?'+':''}₹{profit.toFixed(2)}</span></div>
+
+                {/* ── Sponsor / Beneficiary info — above Streak Records ── */}
+                {(s.sponsorGiven > 0 || s.sponseeReceived > 0) && (
+                  <div style={{borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:8,marginTop:4,marginBottom:4}}>
+                    {s.sponsorGiven > 0 && (
+                      <div className="p-stat-row" style={{paddingBottom:4}}>
+                        <span className="p-stat-label" style={{color:'#9b59b6'}}>🎁 Sponsor Amount</span>
+                        <div style={{textAlign:'right'}}>
+                          <span className="p-stat-val" style={{color:'#9b59b6'}}>₹{s.sponsorGiven.toFixed(2)}</span>
+                          <div style={{fontSize:9,color:'var(--text2)'}}>Paid for others' fees</div>
+                        </div>
+                      </div>
+                    )}
+                    {s.sponseeReceived > 0 && (
+                      <div className="p-stat-row">
+                        <span className="p-stat-label" style={{color:'#3498db'}}>🤝 Beneficiary Amount</span>
+                        <div style={{textAlign:'right'}}>
+                          <span className="p-stat-val" style={{color:'#3498db'}}>₹{s.sponseeReceived.toFixed(2)}</span>
+                          <div style={{fontSize:9,color:'var(--text2)'}}>Fee paid by sponsors</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* ── Streak Stats ── */}
                 {(s.highestWinStreak > 0 || s.highestLossStreak > 0) && (
@@ -1096,35 +1131,7 @@ function PlayerStats({ matches, h2hPlayers, setH2hPlayers }) {
                     </div>
                   )
                 })()}
-                {s.activeDeposits > 0 && (
-                  <div className="p-stat-row" style={{borderBottom:'1px solid rgba(52,152,219,0.3)',paddingBottom:'8px',marginBottom:'8px'}}>
-                    <span className="p-stat-label" style={{color:'#3498db',fontWeight:'bold'}}>💰 Active Deposit</span>
-                    <div style={{textAlign:'right'}}>
-                      <span className="p-stat-val" style={{color:'#3498db'}}>₹{s.activeDeposits}</span>
-                      <div style={{fontSize:'9px',color:'var(--text2)'}}>Match pending/ongoing</div>
-                    </div>
-                  </div>
-                )}
                 {s.carryFwd > 0 && <div className="p-stat-row"><span className="p-stat-label">Carry Forward</span><span className="p-stat-val"><span className="cf-tag">₹{s.carryFwd.toFixed(2)} pending</span></span></div>}
-                {/* Sponsor / Sponsee info — only shown when relevant */}
-                {s.sponsorGiven > 0 && (
-                  <div className="p-stat-row" style={{borderTop:'1px solid rgba(155,89,182,0.2)',paddingTop:8,marginTop:4}}>
-                    <span className="p-stat-label" style={{color:'#9b59b6'}}>🎁 Sponsor Amount</span>
-                    <div style={{textAlign:'right'}}>
-                      <span className="p-stat-val" style={{color:'#9b59b6'}}>₹{s.sponsorGiven.toFixed(2)}</span>
-                      <div style={{fontSize:9,color:'var(--text2)'}}>Paid for others' fees</div>
-                    </div>
-                  </div>
-                )}
-                {s.sponseeReceived > 0 && (
-                  <div className="p-stat-row" style={{borderTop: s.sponsorGiven > 0 ? 'none' : '1px solid rgba(52,152,219,0.2)', paddingTop: s.sponsorGiven > 0 ? 0 : 8, marginTop: s.sponsorGiven > 0 ? 0 : 4}}>
-                    <span className="p-stat-label" style={{color:'#3498db'}}>🤝 Beneficiary Amount</span>
-                    <div style={{textAlign:'right'}}>
-                      <span className="p-stat-val" style={{color:'#3498db'}}>₹{s.sponseeReceived.toFixed(2)}</span>
-                      <div style={{fontSize:9,color:'var(--text2)'}}>Fee paid by sponsors</div>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )
