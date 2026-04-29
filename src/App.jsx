@@ -3629,10 +3629,419 @@ function MatchHighlights({ matches, highlightsData }) {
   )
 }
 // ─────────────────────────────────────────────────────────────
+
+// ─── IPL 2024 HISTORICAL DATA ────────────────────────────────
+const IPL_2024_PLAYERS = ['Ashish', 'Prabhat', 'Sudhir', 'Swapnil']
+const IPL_2024_COLORS  = ['#f5a623', '#e74c3c', '#00cec9', '#fd9644']
+
+const IPL_2024_MATCHES = [{"matchno":8,"teams":"SRHvsMI","teamwon":"SRH","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Sudhir","rank2":"Ashish","rank3":"Prabhat","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":9,"teams":"RRvsDC","teamwon":"RR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Swapnil","rank2":"Prabhat","rank3":"Ashish","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":1}}},{"matchno":10,"teams":"RCBvsKKR","teamwon":"KKR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Swapnil","rank2":"Prabhat","rank3":"Ashish","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":1}}},{"matchno":11,"teams":"LSGvsPBKS","teamwon":"LSG","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Ashish","rank2":"Prabhat","rank3":"Sudhir","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":12,"teams":"GTvsSRH","teamwon":"GT","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Sudhir","rank3":"Swapnil","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":3}}},{"matchno":13,"teams":"DCvsCSK","teamwon":"DC","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Swapnil","rank3":"Prabhat","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":14,"teams":"MIvsRR","teamwon":"RR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Sudhir","rank2":"Prabhat","rank3":"Ashish","rank4":"Swapnil","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":4}}},{"matchno":15,"teams":"RCBvsLSG","teamwon":"LSG","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Sudhir","rank2":"Prabhat","rank3":"Ashish","rank4":"Swapnil","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":4}}},{"matchno":16,"teams":"DCvsKKR","teamwon":"KKR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Swapnil","rank3":"Sudhir","rank4":"Prabhat","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":4},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":17,"teams":"GTvsPBKS","teamwon":"PBKS","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Prabhat","rank2":"Sudhir","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":18,"teams":"SRHvsCSK","teamwon":"SRH","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Swapnil","rank3":"Sudhir","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":19,"teams":"RRvsRCB","teamwon":"RR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Prabhat","rank3":"Swapnil","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":3}}},{"matchno":20,"teams":"MIvsDC","teamwon":"MI","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Sudhir","rank2":"Swapnil","rank3":"Ashish","rank4":"Prabhat","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":4},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":21,"teams":"LSGvsGT","teamwon":"LSG","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Sudhir","rank2":"Swapnil","rank3":"Ashish","rank4":"Prabhat","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":4},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":22,"teams":"CSKvsKKR","teamwon":"CSK","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Swapnil","rank3":"Prabhat","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":23,"teams":"PBKSvsSRH","teamwon":"SRH","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Sudhir","rank3":"Swapnil","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":3}}},{"matchno":24,"teams":"RRvsGT","teamwon":"GT","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Prabhat","rank2":"Sudhir","rank3":"Swapnil","rank4":null,"transferred":true,"players":{"Ashish":{"joined":false,"paid":false,"points":0,"rank":null},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":3}}},{"matchno":25,"teams":"MIvsRCB","teamwon":"MI","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Sudhir","rank2":"Prabhat","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":26,"teams":"LSGvsDC","teamwon":"DC","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Sudhir","rank2":"Prabhat","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":27,"teams":"PBKSvsRR","teamwon":"RR","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Ashish","rank2":"Prabhat","rank3":"Sudhir","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":28,"teams":"KKRvsLSG","teamwon":"KKR","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Sudhir","rank2":"Prabhat","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":29,"teams":"MIvsCSK","teamwon":"CSK","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Ashish","rank2":"Prabhat","rank3":"Sudhir","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":30,"teams":"RCBvsSRH","teamwon":"SRH","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Sudhir","rank2":"Prabhat","rank3":"Swapnil","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":3}}},{"matchno":31,"teams":"KKRvsRR","teamwon":"RR","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Ashish","rank2":"Prabhat","rank3":"Sudhir","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":32,"teams":"GTvsDC","teamwon":"DC","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Ashish","rank3":"Sudhir","rank4":"Swapnil","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":4}}},{"matchno":33,"teams":"PBKSvsMI","teamwon":"MI","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Ashish","rank2":"Prabhat","rank3":"Sudhir","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":34,"teams":"LSGvsCSK","teamwon":"LSG","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Swapnil","rank3":"Sudhir","rank4":"Prabhat","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":4},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":35,"teams":"DCvsSRH","teamwon":"SRH","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Prabhat","rank2":"Sudhir","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":36,"teams":"KKRvsRCB","teamwon":"KKR","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":null,"rank2":"Prabhat","rank3":"Sudhir","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":37,"teams":"PBKSvsGT","teamwon":"GT","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Prabhat","rank3":"Sudhir","rank4":"Swapnil","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":4}}},{"matchno":38,"teams":"MIvsRR","teamwon":"RR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Sudhir","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":null}}},{"matchno":39,"teams":"CSKvsLSG","teamwon":"LSG","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Ashish","rank3":"Sudhir","rank4":"Swapnil","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":4}}},{"matchno":40,"teams":"DCvsGT","teamwon":"DC","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Sudhir","rank3":"Prabhat","rank4":"Swapnil","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":4}}},{"matchno":41,"teams":"SRHvsRCB","teamwon":"RCB","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Swapnil","rank2":"Prabhat","rank3":"Sudhir","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":1}}},{"matchno":42,"teams":"KKRvsPBKS","teamwon":"PBKS","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Sudhir","rank2":"Ashish","rank3":"Swapnil","rank4":"Prabhat","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":4},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":3}}},{"matchno":43,"teams":"DCvsMI","teamwon":"DC","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Sudhir","rank2":"Swapnil","rank3":"Ashish","rank4":"Prabhat","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":4},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":44,"teams":"LSGvsRR","teamwon":"RR","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Prabhat","rank2":"Sudhir","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":45,"teams":"GTvsRCB","teamwon":"RCB","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Sudhir","rank2":"Prabhat","rank3":"Swapnil","rank4":null,"transferred":true,"players":{"Ashish":{"joined":false,"paid":false,"points":0,"rank":null},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":3}}},{"matchno":46,"teams":"CSKvsSRH","teamwon":"CSK","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Ashish","rank2":"Sudhir","rank3":"Prabhat","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":47,"teams":"DCvsKKR","teamwon":"KKR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Swapnil","rank2":"Sudhir","rank3":"Prabhat","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":1}}},{"matchno":48,"teams":"MIvsLSG","teamwon":"LSG","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Swapnil","rank3":"Ashish","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":49,"teams":"CSKvsPBKS","teamwon":"PBKS","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Swapnil","rank3":"Sudhir","rank4":"Prabhat","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":4},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":50,"teams":"SRHvsRR","teamwon":"SRH","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Swapnil","rank2":"Sudhir","rank3":"Ashish","rank4":"Prabhat","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":4},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":1}}},{"matchno":51,"teams":"MIvsKKR","teamwon":"KKR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Swapnil","rank2":"Ashish","rank3":"Prabhat","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":1}}},{"matchno":52,"teams":"RCBvsGT","teamwon":"RCB","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Ashish","rank3":"Swapnil","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":3}}},{"matchno":53,"teams":"PBKSvsCSK","teamwon":"CSK","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Swapnil","rank3":"Sudhir","rank4":"Prabhat","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":4},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":54,"teams":"LSGvsKKR","teamwon":"KKR","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Prabhat","rank2":"Ashish","rank3":"Sudhir","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":55,"teams":"MIvsSRH","teamwon":"MI","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Sudhir","rank2":"Prabhat","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":56,"teams":"DCvsRR","teamwon":"DC","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Prabhat","rank2":"Ashish","rank3":"Sudhir","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":57,"teams":"SRHvsLSG","teamwon":"SRH","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Ashish","rank2":"Swapnil","rank3":"Prabhat","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":58,"teams":"PBKSvsRCB","teamwon":"RCB","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Ashish","rank2":"Sudhir","rank3":"Prabhat","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":59,"teams":"GTvsCSK","teamwon":"GT","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Swapnil","rank3":"Sudhir","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":60,"teams":"KKRvsMI","teamwon":"KKR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Sudhir","rank2":"Prabhat","rank3":"Swapnil","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":3}}},{"matchno":61,"teams":"CSKvsRR","teamwon":"CSK","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Ashish","rank2":"Sudhir","rank3":"Prabhat","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":62,"teams":"RCBvsDC","teamwon":"RCB","contest":"yes","joinedCount":2,"fee":30,"pool":54,"winner":"Prabhat","rank2":"Sudhir","rank3":null,"rank4":null,"transferred":true,"players":{"Ashish":{"joined":false,"paid":false,"points":0,"rank":null},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":63,"teams":"GTvsKKR","teamwon":"","contest":"no","joinedCount":0,"fee":30,"pool":0,"winner":null,"rank2":null,"rank3":null,"rank4":null,"transferred":null,"players":{"Ashish":{"joined":false,"paid":false,"points":0,"rank":null},"Prabhat":{"joined":false,"paid":false,"points":0,"rank":null},"Sudhir":{"joined":false,"paid":false,"points":0,"rank":null},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":64,"teams":"DCvsLSG","teamwon":"DC","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Sudhir","rank2":"Ashish","rank3":"Prabhat","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":65,"teams":"RRvsPBKS","teamwon":"PBKS","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Swapnil","rank2":"Ashish","rank3":"Prabhat","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":1}}},{"matchno":66,"teams":"SRHvsGT","teamwon":"","contest":"no","joinedCount":0,"fee":30,"pool":0,"winner":null,"rank2":null,"rank3":null,"rank4":null,"transferred":null,"players":{"Ashish":{"joined":false,"paid":false,"points":0,"rank":null},"Prabhat":{"joined":false,"paid":false,"points":0,"rank":null},"Sudhir":{"joined":false,"paid":false,"points":0,"rank":null},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":67,"teams":"MIvsLSG","teamwon":"MI","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Prabhat","rank2":"Sudhir","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":68,"teams":"RCBvsCSK","teamwon":"RCB","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Sudhir","rank2":"Ashish","rank3":"Prabhat","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":2},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":3},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":1},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":69,"teams":"SRHvsPBKS","teamwon":"SRH","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Swapnil","rank3":"Sudhir","rank4":"Ashish","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":4},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":70,"teams":"RRvsKKR","teamwon":"","contest":"no","joinedCount":0,"fee":30,"pool":0,"winner":null,"rank2":null,"rank3":null,"rank4":null,"transferred":null,"players":{"Ashish":{"joined":false,"paid":false,"points":0,"rank":null},"Prabhat":{"joined":false,"paid":false,"points":0,"rank":null},"Sudhir":{"joined":false,"paid":false,"points":0,"rank":null},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":71,"teams":"KKRvsSRH","teamwon":"KKR","contest":"yes","joinedCount":4,"fee":30,"pool":108,"winner":"Prabhat","rank2":"Swapnil","rank3":"Ashish","rank4":"Sudhir","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":4},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":2}}},{"matchno":72,"teams":"RRvsRCB","teamwon":"RR","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Prabhat","rank2":"Sudhir","rank3":"Ashish","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":73,"teams":"SRHvsRR","teamwon":"SRH","contest":"yes","joinedCount":3,"fee":30,"pool":81,"winner":"Ashish","rank2":"Prabhat","rank3":"Sudhir","rank4":null,"transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":1},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":2},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":3},"Swapnil":{"joined":false,"paid":false,"points":0,"rank":null}}},{"matchno":74,"teams":"KKRvsSRH","teamwon":"KKR","contest":"yes","joinedCount":4,"fee":50,"pool":180,"winner":"Prabhat","rank2":"Sudhir","rank3":"Ashish","rank4":"Swapnil","transferred":true,"players":{"Ashish":{"joined":true,"paid":true,"points":0,"rank":3},"Prabhat":{"joined":true,"paid":true,"points":0,"rank":1},"Sudhir":{"joined":true,"paid":true,"points":0,"rank":2},"Swapnil":{"joined":true,"paid":true,"points":0,"rank":4}}}]
+
+// ─── HISTORIC PRIZE CALCULATOR (rank-based, no points) ─────
+function calcHistoricPrizes(m) {
+  const fee = parseFloat(m.fee) || 0
+  const pool = m.pool || 0
+  // For IPL 2024: winner takes the pool (1 winner only)
+  return { 1: pool, winnerCountLimit: 1, totalPool: pool }
+}
+
+// ─── HISTORIC PLAYER STATS ─────────────────────────────────
+function computeHistoricStats(matches, players) {
+  let stats = {}
+  players.forEach(p => {
+    stats[p] = {
+      matchesPlayed: 0, paidContests: 0, wins: 0,
+      totalInvested: 0, totalWon: 0,
+      recentForm: [], winsRank1: 0,
+      currentWinStreak: 0, currentLossStreak: 0,
+      highestWinStreak: 0, highestLossStreak: 0,
+    }
+  })
+
+  matches.forEach(m => {
+    const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
+    if (!done || m.contest !== 'yes') return
+
+    players.forEach(p => {
+      const pd = m.players[p]
+      if (!pd?.joined || !pd?.paid) return
+      const s = stats[p]
+      s.matchesPlayed++
+      s.paidContests++
+      s.totalInvested += m.fee
+
+      const rank = pd.rank
+      const isWin = rank === 1
+      if (isWin) {
+        s.wins++
+        s.winsRank1++
+        s.totalWon += m.pool
+        s.recentForm.push('win1')
+        s.currentWinStreak++
+        s.currentLossStreak = 0
+        if (s.currentWinStreak > s.highestWinStreak) s.highestWinStreak = s.currentWinStreak
+      } else {
+        s.recentForm.push('loss')
+        s.currentLossStreak++
+        s.currentWinStreak = 0
+        if (s.currentLossStreak > s.highestLossStreak) s.highestLossStreak = s.currentLossStreak
+      }
+    })
+  })
+
+  players.forEach(p => {
+    stats[p].recentForm = stats[p].recentForm.slice(-5)
+  })
+  return stats
+}
+
+// ─── HISTORIC MATCH LOG ─────────────────────────────────────
+function HistoricMatchLog({ matches, players }) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const ROWS = 8
+  const totalPages = Math.ceil(matches.length / ROWS)
+  useEffect(() => { setCurrentPage(Math.ceil(matches.length / ROWS) || 1) }, [matches.length])
+  const paginated = matches.slice((currentPage-1)*ROWS, currentPage*ROWS)
+
+  const totalPool = useMemo(() => matches.filter(m=>m.contest==='yes').reduce((s,m)=>s+m.pool,0), [matches])
+  const totalContests = useMemo(() => matches.filter(m=>m.contest==='yes').length, [matches])
+  const abandoned = useMemo(() => matches.filter(m=>m.contest==='no' && m.teamwon==='').length, [matches])
+
+  return (
+    <div className="section">
+      <div className="sec-title">🏏 IPL 2024 — Match Log</div>
+      <div style={{background:'linear-gradient(135deg,rgba(255,107,0,0.08),rgba(255,200,0,0.05))',border:'1px solid rgba(255,140,0,0.25)',borderRadius:12,padding:'10px 16px',marginBottom:16,fontSize:12,color:'#ffaa44',textAlign:'center',letterSpacing:0.5}}>
+        📜 HISTORICAL SEASON — All matches completed · Points not tracked in 2024
+      </div>
+
+      <div className="totals-bar">
+        <div className="total-chip"><div className="total-chip-label">Total Matches</div><div className="total-chip-val">{matches.length}</div></div>
+        <div className="total-chip"><div className="total-chip-label">Contests Played</div><div className="total-chip-val">{totalContests}</div></div>
+        <div className="total-chip"><div className="total-chip-label">Total Pool</div><div className="total-chip-val">₹{totalPool}</div></div>
+        <div className="total-chip"><div className="total-chip-label">Abandoned</div><div className="total-chip-val">{abandoned}</div></div>
+        <div className="total-chip"><div className="total-chip-label">Payouts</div><div className="total-chip-val" style={{color:'var(--green)'}}>All Done ✅</div></div>
+      </div>
+
+      {totalPages > 1 && (
+        <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:8,marginBottom:10,padding:'8px 12px',background:'rgba(255,255,255,0.03)',borderRadius:10,border:'1px solid rgba(255,255,255,0.07)'}}>
+          <span style={{fontSize:12,color:'#8899bb'}}>Page <b>{currentPage}</b> of <b>{totalPages}</b></span>
+          <div style={{display:'flex',gap:5}}>
+            <button style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.05)',color:'#8899bb',cursor:'pointer',fontFamily:'Rajdhani,sans-serif',fontWeight:700,fontSize:12}} disabled={currentPage===1} onClick={()=>setCurrentPage(1)}>«</button>
+            <button style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.05)',color:'#8899bb',cursor:'pointer',fontFamily:'Rajdhani,sans-serif',fontWeight:700,fontSize:12}} disabled={currentPage===1} onClick={()=>setCurrentPage(p=>p-1)}>‹</button>
+            {Array.from({length:totalPages},(_,i)=>i+1).map(pg=>(
+              <button key={pg} style={{padding:'4px 10px',borderRadius:6,border:pg===currentPage?'1px solid rgba(255,140,0,0.5)':'1px solid rgba(255,255,255,0.12)',background:pg===currentPage?'rgba(255,140,0,0.2)':'rgba(255,255,255,0.05)',color:pg===currentPage?'#ffa040':'#8899bb',cursor:'pointer',fontFamily:'Rajdhani,sans-serif',fontWeight:700,fontSize:12}} onClick={()=>setCurrentPage(pg)}>{pg}</button>
+            ))}
+            <button style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.05)',color:'#8899bb',cursor:'pointer',fontFamily:'Rajdhani,sans-serif',fontWeight:700,fontSize:12}} disabled={currentPage===totalPages} onClick={()=>setCurrentPage(p=>p+1)}>›</button>
+            <button style={{padding:'4px 10px',borderRadius:6,border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.05)',color:'#8899bb',cursor:'pointer',fontFamily:'Rajdhani,sans-serif',fontWeight:700,fontSize:12}} disabled={currentPage===totalPages} onClick={()=>setCurrentPage(totalPages)}>»</button>
+          </div>
+        </div>
+      )}
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {['Match','Teams','Team Won','Match Time','Contest','Joined','Fee(₹)','Pool(₹)','Fantasy Winner','Payout','Transferred'].map(h=><th key={h}>{h}</th>)}
+              {players.map(p=><th key={p}><div style={{fontSize:11,whiteSpace:'nowrap'}}>{p}<br/><span style={{color:'var(--text2)',fontSize:9}}>J/P/Rk</span></div></th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {paginated.map((m,idx)=>{
+              const done = m.teamwon && m.teamwon.trim() !== ''
+              const abandoned2024 = !done && m.contest === 'no'
+              return (
+                <tr key={idx}>
+                  <td><span className="match-no-badge">#{m.matchno}</span></td>
+                  <td><span className="team-tag">{m.teams}</span></td>
+                  <td style={{fontWeight:700,fontSize:11}}>{m.teamwon || (abandoned2024?<span style={{color:'#e74c3c',fontSize:10}}>Abandoned</span>:'—')}</td>
+                  <td><div className="completed-badge">✅ Completed</div></td>
+                  <td>{m.contest==='yes'?<span className="won-badge">YES</span>:<span className="lost-badge">NO</span>}</td>
+                  <td style={{fontSize:11}}>{m.contest==='yes'?`${m.joinedCount}/4`:'—'}</td>
+                  <td style={{fontSize:11}}>₹{m.fee}</td>
+                  <td style={{color:'var(--green)',fontWeight:700,fontSize:11}}>₹{m.pool||0}</td>
+                  <td style={{fontSize:11}}>
+                    {m.winner?<div style={{display:'flex',alignItems:'center',gap:4}}><span>🥇</span><b>{m.winner}</b></div>:'—'}
+                  </td>
+                  <td style={{fontSize:11,color:'var(--green)'}}>
+                    {m.contest==='yes'&&m.winner?`₹${m.pool}`:'—'}
+                  </td>
+                  <td>
+                    {m.contest==='yes'&&m.winner?<span className="transfer-done" style={{fontSize:10}}>✅ Done</span>:'—'}
+                  </td>
+                  {players.map(p=>{
+                    const pd = m.players[p]
+                    if (!pd?.joined) return <td key={p} style={{color:'var(--text2)',fontSize:13}}>—</td>
+                    const rank = pd.rank
+                    const isWin = rank === 1
+                    return (
+                      <td key={p}>
+                        <div className={isWin?'rank-1-box':''}>
+                          <div style={{fontSize:9}}>✅ Joined</div>
+                          <div style={{fontSize:9}} className="paid-yes">💰 Paid</div>
+                          <div style={{fontSize:10}} className={`rank-${rank||'—'}`}>#{rank||'—'}</div>
+                        </div>
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── HISTORIC PLAYER STATS ─────────────────────────────────
+function HistoricPlayerStats({ matches, players, colors }) {
+  const stats = useMemo(() => computeHistoricStats(matches, players), [matches, players])
+
+  return (
+    <div className="section">
+      <div className="sec-title">👤 IPL 2024 — Player Stats</div>
+      <div className="player-cards">
+        {players.map((p,i) => {
+          const s = stats[p]
+          const profit = s.totalWon - s.totalInvested
+          const winpct = s.paidContests > 0 ? ((s.wins / s.paidContests) * 100).toFixed(1) : '0.0'
+          const color = colors[i] || COLORS[i] || '#f5a623'
+          return (
+            <div className="p-card" key={p}>
+              <div className="p-card-header">
+                <div className="p-avatar" style={{borderColor:color,color:color,background:`${color}22`}}>{p[0]}</div>
+                <div style={{flex:1}}>
+                  <div className="p-name">{p}</div>
+                  <div className="p-winpct">Win Rate: <span>{winpct}%</span> ({s.wins}/{s.paidContests} paid)</div>
+                  <div style={{display:'flex',gap:12,marginTop:4}}>
+                    <div style={{fontSize:11,color:'var(--text)'}}>🥇 1st: <span style={{color:'#FFD700',fontWeight:'bold'}}>{s.winsRank1}</span></div>
+                  </div>
+                  <div className="form-strip">
+                    <span className="form-label">Form:</span>
+                    {s.recentForm.length===0
+                      ?<span style={{fontSize:11,color:'var(--text2)'}}>No data</span>
+                      :s.recentForm.map((r,ri)=>{
+                        if(r==='win1') return <div key={ri} className="form-icon form-win1" title="1st Place">🥇</div>
+                        return <div key={ri} className="form-icon form-loss" title="Did not win">❌</div>
+                      })
+                    }
+                  </div>
+                </div>
+              </div>
+              <div className="p-card-body">
+                {[
+                  ['Matches Played', s.matchesPlayed,'accent'],
+                  ['Paid Contests', s.paidContests,''],
+                  ['Matches Won 🥇', s.wins,'', color],
+                ].map(([label,val,cls,c])=>(
+                  <div className="p-stat-row" key={label}>
+                    <span className="p-stat-label">{label}</span>
+                    <span className={`p-stat-val${cls?' '+cls:''}`} style={c?{color:c}:{}}>{val}</span>
+                  </div>
+                ))}
+                <div className="p-stat-row"><span className="p-stat-label">Total Invested</span><span className="p-stat-val red">₹{s.totalInvested}</span></div>
+                <div className="p-stat-row"><span className="p-stat-label">Total Winnings</span><span className="p-stat-val green">₹{s.totalWon}</span></div>
+                <div className="p-stat-row"><span className="p-stat-label">Profit / Loss</span><span className={`p-stat-val ${profit>=0?'green':'red'}`}>{profit>=0?'+':''}₹{profit.toFixed(0)}</span></div>
+                {(s.highestWinStreak>0||s.highestLossStreak>0)&&(
+                  <div style={{borderTop:'1px solid rgba(255,255,255,0.07)',paddingTop:8,marginTop:4}}>
+                    <div style={{fontSize:9,letterSpacing:2,textTransform:'uppercase',color:'#8899bb',marginBottom:5}}>Streak Records</div>
+                    <div style={{display:'flex',gap:8}}>
+                      <div style={{flex:1,background:'rgba(46,204,113,0.08)',border:'1px solid rgba(46,204,113,0.2)',borderRadius:8,padding:'5px 8px',textAlign:'center'}}>
+                        <div style={{fontSize:9,color:'#8899bb'}}>🔥 BEST WIN STREAK</div>
+                        <div style={{fontSize:20,fontWeight:900,color:'#2ecc71',fontFamily:"'Orbitron',sans-serif",lineHeight:1.2}}>{s.highestWinStreak}</div>
+                      </div>
+                      <div style={{flex:1,background:'rgba(231,76,60,0.08)',border:'1px solid rgba(231,76,60,0.2)',borderRadius:8,padding:'5px 8px',textAlign:'center'}}>
+                        <div style={{fontSize:9,color:'#8899bb'}}>💀 WORST LOSS STREAK</div>
+                        <div style={{fontSize:20,fontWeight:900,color:'#e74c3c',fontFamily:"'Orbitron',sans-serif",lineHeight:1.2}}>{s.highestLossStreak}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── HISTORIC LEADERBOARD ───────────────────────────────────
+function HistoricLeaderboard({ matches, players, colors }) {
+  const stats = useMemo(() => computeHistoricStats(matches, players), [matches, players])
+  const ranked = useMemo(() => {
+    return [...players]
+      .map(p => ({ name:p, ...stats[p], profit: stats[p].totalWon - stats[p].totalInvested }))
+      .sort((a,b) => b.profit !== a.profit ? b.profit - a.profit : b.totalWon - a.totalWon)
+  }, [stats, players])
+
+  return (
+    <div className="section">
+      <div className="sec-title">🏆 IPL 2024 — Final Leaderboard</div>
+      <div style={{background:'linear-gradient(135deg,rgba(255,107,0,0.08),rgba(255,200,0,0.05))',border:'1px solid rgba(255,140,0,0.25)',borderRadius:12,padding:'10px 16px',marginBottom:16,fontSize:12,color:'#ffaa44',textAlign:'center'}}>
+        🏁 Season Closed — KKR won IPL 2024 · Final Standings
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              {['Rank','Player','Contests','Wins 🥇','Win%','Invested','Won','Profit/Loss'].map(h=><th key={h}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {ranked.map((r,i)=>{
+              const color = colors[players.indexOf(r.name)] || '#f5a623'
+              const pct = r.paidContests>0?(r.wins/r.paidContests*100).toFixed(1):'0.0'
+              const medals = ['🥇','🎖️','🏅','']
+              return (
+                <tr key={r.name} style={i===0?{background:'rgba(255,140,0,0.08)'}:{}}>
+                  <td><span style={{fontSize:18}}>{medals[i]||`#${i+1}`}</span></td>
+                  <td><div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:'50%',border:`2px solid ${color}`,background:`${color}22`,display:'flex',alignItems:'center',justifyContent:'center',fontWeight:900,color,fontSize:13}}>{r.name[0]}</div>
+                    <b style={{color}}>{r.name}</b>
+                  </div></td>
+                  <td style={{textAlign:'center'}}>{r.paidContests}</td>
+                  <td style={{textAlign:'center',color:'#FFD700',fontWeight:700}}>{r.wins}</td>
+                  <td style={{textAlign:'center'}}>{pct}%</td>
+                  <td style={{color:'var(--red)'}}>₹{r.totalInvested}</td>
+                  <td style={{color:'var(--green)',fontWeight:700}}>₹{r.totalWon}</td>
+                  <td><span style={{fontWeight:700,color:r.profit>=0?'var(--green)':'var(--red)'}}>{r.profit>=0?'+':''}₹{r.profit.toFixed(0)}</span></td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+// ─── HISTORIC GRAPHS ────────────────────────────────────────
+function HistoricGraphs({ matches, players, colors }) {
+  const stats = useMemo(() => computeHistoricStats(matches, players), [matches, players])
+
+  // Win count bar chart
+  const winsData = {
+    labels: players,
+    datasets: [{
+      label: 'Wins',
+      data: players.map(p=>stats[p].wins),
+      backgroundColor: colors.map(c=>c+'bb'),
+      borderColor: colors,
+      borderWidth: 2
+    }]
+  }
+
+  // Pool collected (total invested per player) vs won
+  const investVsWonData = {
+    labels: players,
+    datasets: [
+      { label: 'Invested', data: players.map(p=>stats[p].totalInvested), backgroundColor: 'rgba(231,76,60,0.6)', borderColor: '#e74c3c', borderWidth:2 },
+      { label: 'Won', data: players.map(p=>stats[p].totalWon), backgroundColor: 'rgba(46,204,113,0.6)', borderColor: '#2ecc71', borderWidth:2 }
+    ]
+  }
+
+  // Cumulative wins across matches
+  const completedMatches = matches.filter(m=>m.contest==='yes'&&m.teamwon)
+  const cumWinData = {
+    labels: completedMatches.map(m=>`M${m.matchno}`),
+    datasets: players.map((p,i)=>{
+      let cum = 0
+      return {
+        label:p,
+        data: completedMatches.map(m=>{ if(m.players[p]?.rank===1) cum++; return cum }),
+        borderColor: colors[i], backgroundColor: colors[i]+'33', tension:0.4, fill:false, pointRadius:3
+      }
+    })
+  }
+
+  return (
+    <div className="section">
+      <div className="sec-title">📊 IPL 2024 — Season Graphs</div>
+      <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:20}}>
+        <div style={{background:'var(--card)',borderRadius:12,padding:16,border:'1px solid var(--border)'}}>
+          <div style={{fontFamily:'Bebas Neue',letterSpacing:2,fontSize:14,color:'var(--accent)',marginBottom:12}}>TOTAL WINS</div>
+          <div style={{height:220}}><Bar data={winsData} options={chartOpts('',true)} /></div>
+        </div>
+        <div style={{background:'var(--card)',borderRadius:12,padding:16,border:'1px solid var(--border)'}}>
+          <div style={{fontFamily:'Bebas Neue',letterSpacing:2,fontSize:14,color:'var(--accent)',marginBottom:12}}>INVESTED vs WON (₹)</div>
+          <div style={{height:220}}><Bar data={investVsWonData} options={chartOpts('₹',true)} /></div>
+        </div>
+        <div style={{background:'var(--card)',borderRadius:12,padding:16,border:'1px solid var(--border)',gridColumn:'1/-1'}}>
+          <div style={{fontFamily:'Bebas Neue',letterSpacing:2,fontSize:14,color:'var(--accent)',marginBottom:12}}>CUMULATIVE WINS ACROSS SEASON</div>
+          <div style={{height:240}}><Line data={cumWinData} options={chartOpts('',true)} /></div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── HISTORIC SEASON VIEW ────────────────────────────────────
+function HistoricSeasonView({ season }) {
+  const [activeTab, setActiveTab] = useState('matchlog')
+
+  let matches, players, colors, seasonLabel, themeColor, icon
+  if (season === 'ipl2024') {
+    matches = IPL_2024_MATCHES
+    players = IPL_2024_PLAYERS
+    colors  = IPL_2024_COLORS
+    seasonLabel = 'IPL 2024'
+    themeColor  = '#ff6b00'
+    icon = '🏏'
+  }
+
+  const tabs = [
+    { id:'matchlog',    label:'📋 Match Log' },
+    { id:'playerstats', label:'👤 Player Stats' },
+    { id:'leaderboard', label:'🏆 Leaderboard' },
+    { id:'graphs',      label:'📊 Graphs' },
+  ]
+
+  return (
+    <div>
+      {/* Historic Season Banner */}
+      <div style={{
+        background:`linear-gradient(135deg, rgba(255,107,0,0.15), rgba(255,200,0,0.07))`,
+        borderBottom:`2px solid ${themeColor}44`,
+        padding:'12px 20px',
+        display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10
+      }}>
+        <div style={{display:'flex',alignItems:'center',gap:12}}>
+          <span style={{fontSize:28}}>{icon}</span>
+          <div>
+            <div style={{fontFamily:'Bebas Neue',fontSize:22,letterSpacing:3,color:themeColor}}>{seasonLabel} — ARCHIVES</div>
+            <div style={{fontSize:11,color:'#8899bb',letterSpacing:1}}>📜 Historical Data · Season Completed · Read-only view</div>
+          </div>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          {players.map((p,i)=>(
+            <div key={p} style={{background:`${colors[i]}22`,border:`1px solid ${colors[i]}66`,borderRadius:20,padding:'4px 12px',fontSize:11,color:colors[i],fontWeight:700}}>{p}</div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sub-nav */}
+      <nav style={{borderBottom:'1px solid var(--border)',background:'var(--nav)'}}>
+        <div className="nav-inner">
+          {tabs.map(t=>(
+            <button key={t.id} className={`nav-btn${activeTab===t.id?' active':''}`} style={activeTab===t.id?{color:themeColor,borderColor:`${themeColor}66`}:{}} onClick={()=>setActiveTab(t.id)}>{t.label}</button>
+          ))}
+        </div>
+      </nav>
+
+      <div style={activeTab==='matchlog'    ? {} : {display:'none'}}><HistoricMatchLog    matches={matches} players={players} /></div>
+      <div style={activeTab==='playerstats' ? {} : {display:'none'}}><HistoricPlayerStats matches={matches} players={players} colors={colors} /></div>
+      <div style={activeTab==='leaderboard' ? {} : {display:'none'}}><HistoricLeaderboard matches={matches} players={players} colors={colors} /></div>
+      <div style={activeTab==='graphs'      ? {} : {display:'none'}}><HistoricGraphs      matches={matches} players={players} colors={colors} /></div>
+    </div>
+  )
+}
+
+
+// ─────────────────────────────────────────────────────────────
 export default function App() {
   const [matches, setMatches]         = useState([])
-  const [fantasyData, setFantasyData] = useState({})   // { matchNo: { youtubeUrl, notes } }
-  const [highlightsData, setHighlightsData] = useState({}) // { matchNo: [{ type, url, label }] }
+  const [fantasyData, setFantasyData] = useState({})
+  const [highlightsData, setHighlightsData] = useState({})
   const [h2hPlayers, setH2hPlayers]   = useState({ p1: null, p2: null })
   const [loading, setLoading]         = useState(false)
   const [activeSection, setActiveSection] = useState('matchlog')
@@ -3641,6 +4050,7 @@ export default function App() {
   const [refreshLeft, setRefreshLeft] = useState(DAILY_LIMIT)
   const [isCooldown, setIsCooldown]   = useState(false)
   const [btnText, setBtnText]         = useState('⟳ Refresh')
+  const [activeSeason, setActiveSeason] = useState('2026')
   const lastVersionRef = useRef(null)
 
   const [adminView, setAdminView] = useState(() => {
@@ -3723,6 +4133,11 @@ export default function App() {
     ...(hasHighlights ? [{ id:'highlights', label:'🎬 Highlights' }] : []),
   ]
 
+  const seasons = [
+    { id:'2026', label:'🏏 IPL 2026', badge:'LIVE', badgeColor:'#2ecc71' },
+    { id:'ipl2024', label:'📜 IPL 2024', badge:'ARCHIVE', badgeColor:'#ff6b00' },
+  ]
+
   return (
     <>
       {adminView === 'login' && (
@@ -3742,7 +4157,7 @@ export default function App() {
 
       <div style={adminView !== 'public' ? { display:'none' } : {}}>
         <div className="watermark">#PbDawn</div>
-        {loading && <div className="loading-overlay"><div className="spinner"/><div className="loading-text">Loading live data...</div></div>}
+        {loading && activeSeason === '2026' && <div className="loading-overlay"><div className="spinner"/><div className="loading-text">Loading live data...</div></div>}
 
         {/* HEADER */}
         <header>
@@ -3750,65 +4165,90 @@ export default function App() {
             <div className="logo-area">
               <div className="logo-icon">🏏</div>
               <div>
-                <div className="title-main">VOIS Panthers IPL 2026</div>
-                <div className="title-sub"><span className="title-live-dot"/>&nbsp;Fantasy League · MyCircle11</div>
+                <div className="title-main">VOIS Panthers Fantasy League</div>
+                <div className="title-sub"><span className="title-live-dot"/>&nbsp;{activeSeason === '2026' ? 'IPL 2026 · Live Season' : 'Season Archives · Historical Data'}</div>
               </div>
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:6}}>
-              <div className="season-badge">IPL 2026</div>
-              <button
-                onClick={() => setAdminView('login')}
-                title="Admin Login"
-                style={{
-                  fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:11,letterSpacing:1,
-                  padding:'4px 10px',borderRadius:16,border:'1px solid rgba(231,76,60,0.5)',
-                  background:'rgba(231,76,60,0.1)',color:'#e74c3c',cursor:'pointer',
-                  textTransform:'uppercase',transition:'all 0.2s',whiteSpace:'nowrap'
-                }}
-              >🔐 Admin</button>
+            <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+              {/* Season Switcher */}
+              <div style={{display:'flex',gap:4,alignItems:'center',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:20,padding:'3px 6px'}}>
+                {seasons.map(s=>(
+                  <button key={s.id} onClick={()=>setActiveSeason(s.id)} style={{
+                    fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:10,letterSpacing:0.5,
+                    padding:'3px 10px',borderRadius:14,border:'none',cursor:'pointer',
+                    whiteSpace:'nowrap',transition:'all 0.2s',
+                    background: activeSeason===s.id ? `${s.badgeColor}33` : 'transparent',
+                    color: activeSeason===s.id ? s.badgeColor : '#8899bb',
+                    boxShadow: activeSeason===s.id ? `0 0 12px ${s.badgeColor}44` : 'none',
+                  }}>
+                    {s.label}
+                    <span style={{marginLeft:4,fontSize:8,padding:'1px 5px',borderRadius:8,background:activeSeason===s.id?s.badgeColor:'rgba(255,255,255,0.1)',color:activeSeason===s.id?'#000':'#8899bb',verticalAlign:'middle'}}>{s.badge}</span>
+                  </button>
+                ))}
+              </div>
+              {activeSeason === '2026' && (
+                <button
+                  onClick={() => setAdminView('login')}
+                  title="Admin Login"
+                  style={{
+                    fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:11,letterSpacing:1,
+                    padding:'4px 10px',borderRadius:16,border:'1px solid rgba(231,76,60,0.5)',
+                    background:'rgba(231,76,60,0.1)',color:'#e74c3c',cursor:'pointer',
+                    textTransform:'uppercase',transition:'all 0.2s',whiteSpace:'nowrap'
+                  }}
+                >🔐 Admin</button>
+              )}
             </div>
           </div>
         </header>
 
-        {/* TICKER */}
-        <div className="ticker-bar">
-          <div className="ticker-left">
-            <div className="live-pill">
-              <span className={`live-dot${liveState.dot?' '+liveState.dot:''}`}/>
-              <span>{liveState.label}</span>
+        {/* Show historic view when an archive season is selected */}
+        {activeSeason !== '2026' ? (
+          <HistoricSeasonView season={activeSeason} />
+        ) : (
+          <>
+            {/* TICKER */}
+            <div className="ticker-bar">
+              <div className="ticker-left">
+                <div className="live-pill">
+                  <span className={`live-dot${liveState.dot?' '+liveState.dot:''}`}/>
+                  <span>{liveState.label}</span>
+                </div>
+                <span className="ticker-info">{liveState.info}</span>
+              </div>
+              <div style={{display:'flex',alignItems:'center',gap:10}}>
+                <span className="ticker-time">{clock}</span>
+              </div>
             </div>
-            <span className="ticker-info">{liveState.info}</span>
-          </div>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <span className="ticker-time">{clock}</span>
-          </div>
-        </div>
 
-        <MarketSentimentTicker matches={matches} />
-        <TVNewsBulletin matches={matches} />
+            <MarketSentimentTicker matches={matches} />
+            <TVNewsBulletin matches={matches} />
 
-        {/* NAV */}
-        <nav>
-          <div className="nav-inner">
-            {navItems.map(n => (
-              <button key={n.id} className={`nav-btn${activeSection===n.id?' active':''}`} onClick={() => setActiveSection(n.id)}>{n.label}</button>
-            ))}
-          </div>
-        </nav>
+            {/* NAV */}
+            <nav>
+              <div className="nav-inner">
+                {navItems.map(n => (
+                  <button key={n.id} className={`nav-btn${activeSection===n.id?' active':''}`} onClick={() => setActiveSection(n.id)}>{n.label}</button>
+                ))}
+              </div>
+            </nav>
 
-        {/* SECTIONS — use CSS display:none instead of unmounting for speed */}
-        <div style={activeSection==='matchlog'    ? {} : {display:'none'}}><MatchLog    matches={matches} /></div>
-        <div style={activeSection==='playerstats' ? {} : {display:'none'}}><PlayerStats matches={matches} h2hPlayers={h2hPlayers} setH2hPlayers={setH2hPlayers} /></div>
-        <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} /></div>
-        <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
-        <div style={activeSection==='stockindex'  ? {} : {display:'none'}}><PlayerStockIndex matches={matches} /></div>
-        <div style={activeSection==='fantasy'     ? {} : {display:'none'}}><FantasySuggestions matches={matches} fantasyData={fantasyData} /></div>
-        <div style={activeSection==='highlights'  ? {} : {display:'none'}}><MatchHighlights matches={matches} highlightsData={highlightsData} /></div>
+            {/* SECTIONS */}
+            <div style={activeSection==='matchlog'    ? {} : {display:'none'}}><MatchLog    matches={matches} /></div>
+            <div style={activeSection==='playerstats' ? {} : {display:'none'}}><PlayerStats matches={matches} h2hPlayers={h2hPlayers} setH2hPlayers={setH2hPlayers} /></div>
+            <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} /></div>
+            <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
+            <div style={activeSection==='stockindex'  ? {} : {display:'none'}}><PlayerStockIndex matches={matches} /></div>
+            <div style={activeSection==='fantasy'     ? {} : {display:'none'}}><FantasySuggestions matches={matches} fantasyData={fantasyData} /></div>
+            <div style={activeSection==='highlights'  ? {} : {display:'none'}}><MatchHighlights matches={matches} highlightsData={highlightsData} /></div>
+
+            {h2hPlayers.p1 && h2hPlayers.p2 && (
+              <H2HModal p1={h2hPlayers.p1} p2={h2hPlayers.p2} matches={matches} onClose={() => setH2hPlayers({ p1: null, p2: null })} />
+            )}
+          </>
+        )}
 
         <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
-        {h2hPlayers.p1 && h2hPlayers.p2 && (
-          <H2HModal p1={h2hPlayers.p1} p2={h2hPlayers.p2} matches={matches} onClose={() => setH2hPlayers({ p1: null, p2: null })} />
-        )}
       </div>
     </>
   )
