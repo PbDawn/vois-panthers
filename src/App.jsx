@@ -4013,7 +4013,12 @@ function HistoricLeaderboard({ matches, seasonPlayers, seasonConfig, seasonColor
                   <td style={{padding:'10px 12px',fontFamily:"'Orbitron',sans-serif",fontSize:16}}>{medal}</td>
                   <td style={{padding:'10px 12px'}}>
                     <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <div style={{width:32,height:32,borderRadius:'50%',background:`${pColor}22`,border:`2px solid ${pColor}`,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:pColor}}>{s.name[0]}</div>
+                      <div style={{width:32,height:32,borderRadius:'50%',background:`${pColor}22`,border:`2px solid ${pColor}`,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                        {PLAYER_IMAGES[s.name]
+                          ? <img src={PLAYER_IMAGES[s.name]} alt={s.name} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';e.target.nextSibling.style.display='flex'}} />
+                          : null}
+                        <div style={{display: PLAYER_IMAGES[s.name] ? 'none' : 'flex',width:'100%',height:'100%',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:16,color:pColor}}>{s.name[0]}</div>
+                      </div>
                       <span style={{fontWeight:700,color:'var(--text)'}}>{s.name}</span>
                     </div>
                   </td>
@@ -4058,9 +4063,14 @@ function HistoricPlayerStats({ matches, seasonPlayers, seasonConfig, seasonColor
               <div className="p-card-header">
                 <div style={{
                   width:44,height:44,borderRadius:'50%',background:`${pColor}22`,
-                  border:`3px solid ${pColor}`,display:'flex',alignItems:'center',
-                  justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:pColor
-                }}>{p[0]}</div>
+                  border:`3px solid ${pColor}`,overflow:'hidden',flexShrink:0,
+                  display:'flex',alignItems:'center',justifyContent:'center',
+                }}>
+                  {PLAYER_IMAGES[p]
+                    ? <img src={PLAYER_IMAGES[p]} alt={p} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';e.target.nextSibling.style.display='flex'}} />
+                    : null}
+                  <div style={{display: PLAYER_IMAGES[p] ? 'none' : 'flex',width:'100%',height:'100%',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:22,color:pColor}}>{p[0]}</div>
+                </div>
                 <div style={{flex:1}}>
                   <div className="p-name">{p}</div>
                   <div className="p-winpct">Win Rate: <span>{winpct}%</span> ({s.wins}/{s.paidContests} paid)</div>
@@ -4292,7 +4302,12 @@ function HistoricStockIndex({ matches, seasonPlayers, seasonConfig, seasonColors
       </div>
       <div style={{background:`linear-gradient(135deg,${playerColor}15,transparent)`,border:`1px solid ${playerColor}44`,borderRadius:16,padding:'16px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:20,flexWrap:'wrap'}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
-          <div style={{width:52,height:52,borderRadius:'50%',background:`${playerColor}22`,border:`3px solid ${playerColor}`,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:26,color:playerColor}}>{selectedPlayer[0]}</div>
+          <div style={{width:52,height:52,borderRadius:'50%',background:`${playerColor}22`,border:`3px solid ${playerColor}`,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+            {PLAYER_IMAGES[selectedPlayer]
+              ? <img src={PLAYER_IMAGES[selectedPlayer]} alt={selectedPlayer} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';e.target.nextSibling.style.display='flex'}} />
+              : null}
+            <div style={{display: PLAYER_IMAGES[selectedPlayer] ? 'none' : 'flex',width:'100%',height:'100%',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:26,color:playerColor}}>{selectedPlayer[0]}</div>
+          </div>
           <div>
             <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:22,letterSpacing:3,color:playerColor}}>{selectedPlayer}</div>
             <div style={{fontSize:10,color:'#8899bb',letterSpacing:1}}>PLAYER STOCK INDEX</div>
@@ -4677,17 +4692,22 @@ function AllTimeStats({ liveMatches }) {
   // Aggregate totals banner
   const grandTotals = useMemo(() => {
     const allP = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
-    let totalMatches = 0, totalContests = 0, totalInvested = 0, totalWon = 0, totalWins = 0
+    let totalContestEntries = 0, totalInvested = 0, totalWon = 0, totalWins = 0
     allP.forEach(p => {
       const t = totals[p]
-      totalMatches  += t.totalMatches
-      totalContests += t.paidContests
+      totalContestEntries += t.paidContests
       totalInvested += t.invested
       totalWon      += t.winnings
       totalWins     += t.wins
     })
-    return { totalMatches, totalContests, totalInvested, totalWon, totalWins }
-  }, [totals])
+    // Distinct match counts per season from historic data + live matches
+    const ipl2024Matches = (HISTORIC_DATA.ipl2024 || []).length
+    const ct2025Matches  = (HISTORIC_DATA.ct2025  || []).length
+    const ipl2025Matches = (HISTORIC_DATA.ipl2025 || []).length
+    const ipl2026Matches = (liveMatches || []).filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—').length
+    const totalDistinctMatches = ipl2024Matches + ct2025Matches + ipl2025Matches + ipl2026Matches
+    return { totalMatches: totalDistinctMatches, totalContests: totalContestEntries, totalInvested, totalWon, totalWins }
+  }, [totals, liveMatches])
 
   const toggleSort = (key) => {
     if (sortBy === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
@@ -4715,7 +4735,7 @@ function AllTimeStats({ liveMatches }) {
       <div className="totals-bar" style={{marginBottom:16}}>
         {[
           ['Seasons',  '4'],
-          ['Player Appearances', grandTotals.totalMatches],
+          ['Total Matched Contested', grandTotals.totalMatches],
           ['Paid Contests',    grandTotals.totalContests],
           ['Total Invested',   `₹${grandTotals.totalInvested.toLocaleString()}`],
           ['Total Paid Out',   `₹${grandTotals.totalWon.toFixed(0)}`],
@@ -4801,10 +4821,14 @@ function AllTimeStats({ liveMatches }) {
                   <div style={{
                     width:52, height:52, borderRadius:'50%',
                     background:`${pColor}22`, border:`3px solid ${pColor}`,
-                    display:'flex', alignItems:'center', justifyContent:'center',
-                    fontFamily:"'Bebas Neue',sans-serif", fontSize:24, color:pColor,
+                    overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center',
                     flexShrink:0,
-                  }}>{p[0]}</div>
+                  }}>
+                    {PLAYER_IMAGES[p]
+                      ? <img src={PLAYER_IMAGES[p]} alt={p} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';e.target.nextSibling.style.display='flex'}} />
+                      : null}
+                    <div style={{display: PLAYER_IMAGES[p] ? 'none' : 'flex',width:'100%',height:'100%',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:24,color:pColor}}>{p[0]}</div>
+                  </div>
 
                   {/* Name + seasons */}
                   <div style={{flex:1,minWidth:120}}>
@@ -5040,7 +5064,12 @@ function AllTimeStats({ liveMatches }) {
                     <td style={{padding:'10px 12px',fontSize:16}}>{medal}</td>
                     <td style={{padding:'10px 12px'}}>
                       <div style={{display:'flex',alignItems:'center',gap:8}}>
-                        <div style={{width:30,height:30,borderRadius:'50%',background:`${pColor}22`,border:`2px solid ${pColor}`,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:pColor,flexShrink:0}}>{p[0]}</div>
+                        <div style={{width:30,height:30,borderRadius:'50%',background:`${pColor}22`,border:`2px solid ${pColor}`,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          {PLAYER_IMAGES[p]
+                            ? <img src={PLAYER_IMAGES[p]} alt={p} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{e.target.style.display='none';e.target.nextSibling.style.display='flex'}} />
+                            : null}
+                          <div style={{display: PLAYER_IMAGES[p] ? 'none' : 'flex',width:'100%',height:'100%',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:pColor}}>{p[0]}</div>
+                        </div>
                         <span style={{fontWeight:700,color:'var(--text)',whiteSpace:'nowrap'}}>{p}</span>
                       </div>
                     </td>
