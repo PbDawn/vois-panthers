@@ -4692,21 +4692,28 @@ function AllTimeStats({ liveMatches }) {
   // Aggregate totals banner
   const grandTotals = useMemo(() => {
     const allP = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
-    let totalContestEntries = 0, totalInvested = 0, totalWon = 0, totalWins = 0
+    let totalInvested = 0, totalWon = 0, totalWins = 0
     allP.forEach(p => {
       const t = totals[p]
-      totalContestEntries += t.paidContests
       totalInvested += t.invested
       totalWon      += t.winnings
       totalWins     += t.wins
     })
     // Distinct match counts per season from historic data + live matches
+    const countContests = (arr) => (arr || []).filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—' && m.contest === 'yes').length
+    const ipl2024Contests = countContests(HISTORIC_DATA.ipl2024)
+    const ct2025Contests  = countContests(HISTORIC_DATA.ct2025)
+    const ipl2025Contests = countContests(HISTORIC_DATA.ipl2025)
+    const ipl2026Contests = countContests(liveMatches)
+    const totalDistinctContests = ipl2024Contests + ct2025Contests + ipl2025Contests + ipl2026Contests
+
     const ipl2024Matches = (HISTORIC_DATA.ipl2024 || []).length
     const ct2025Matches  = (HISTORIC_DATA.ct2025  || []).length
     const ipl2025Matches = (HISTORIC_DATA.ipl2025 || []).length
     const ipl2026Matches = (liveMatches || []).filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—').length
     const totalDistinctMatches = ipl2024Matches + ct2025Matches + ipl2025Matches + ipl2026Matches
-    return { totalMatches: totalDistinctMatches, totalContests: totalContestEntries, totalInvested, totalWon, totalWins }
+
+    return { totalMatches: totalDistinctMatches, totalContests: totalDistinctContests, totalInvested, totalWon, totalWins }
   }, [totals, liveMatches])
 
   const toggleSort = (key) => {
