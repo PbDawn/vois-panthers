@@ -4376,6 +4376,746 @@ function HistoricSeasonView({ seasonId, activeSection }) {
 }
 
 
+
+// ═══════════════════════════════════════════════════════════════
+// ALL-TIME PLAYER HISTORY — Cross-season aggregated stats
+// ═══════════════════════════════════════════════════════════════
+
+const ALL_SEASONS_META = [
+  { id: 'ipl2024', label: 'IPL 2024',            short: '2024', accent: '#9b59b6', icon: '🏏' },
+  { id: 'ct2025',  label: 'Champions Trophy 2025',short: 'CT25', accent: '#00cec9', icon: '🏆' },
+  { id: 'ipl2025', label: 'IPL 2025',            short: '2025', accent: '#fd9644', icon: '🏏' },
+  { id: 'ipl2026', label: 'IPL 2026',            short: '2026', accent: '#f5a623', icon: '🏏', isLive: true },
+]
+
+// Player colour roster — consistent across seasons
+const ALL_PLAYER_COLORS = {
+  Ashish:  '#f5a623',
+  Kalpesh: '#3498db',
+  Nilesh:  '#3498db',
+  Prabhat: '#e74c3c',
+  Pritam:  '#e056fd',
+  Sudhir:  '#2ecc71',
+  Swapnil: '#fd9644',
+}
+
+const SORT_OPTIONS = [
+  { value: 'profit',       label: '💰 Net Profit' },
+  { value: 'wins',         label: '🏆 Total Wins' },
+  { value: 'winPct',       label: '📈 Win Rate %' },
+  { value: 'paidContests', label: '🎯 Paid Contests' },
+  { value: 'invested',     label: '💸 Total Invested' },
+  { value: 'roi',          label: '📊 ROI %' },
+  { value: 'bestPts',      label: '⚡ Best Points (Single Match)' },
+  { value: 'avgPts',       label: '🎖️ Avg Points / Match' },
+  { value: 'winStreak',    label: '🔥 Best Win Streak' },
+  { value: 'totalMatches', label: '🗓️ Matches Played' },
+]
+
+function computeAllTimeStats(liveMatches) {
+  // All players across all time
+  const allPlayers = ['Ashish', 'Kalpesh', 'Nilesh', 'Prabhat', 'Pritam', 'Sudhir', 'Swapnil']
+
+  // per-player, per-season breakdown
+  const seasonBreakdown = {} // player → { seasonId → stats }
+  const totals = {}          // player → aggregated
+
+  allPlayers.forEach(p => {
+    totals[p] = {
+      player: p,
+      totalMatches: 0, paidContests: 0, wins: 0, winsRank1: 0, winsRank2: 0,
+      invested: 0, winnings: 0,
+      bestPts: 0, totalPtsSum: 0, ptsMatchCount: 0,
+      highestWinStreak: 0, highestLossStreak: 0,
+      seasonsPlayed: [],
+      currentWinStreak: 0, currentLossStreak: 0,
+    }
+    seasonBreakdown[p] = {}
+  })
+
+  // Helper — process a season's matches into per-player stats
+  const processSeason = (seasonId, matches, players, calcPrizeFn) => {
+    const seasonStats = {}
+    players.forEach(p => {
+      seasonStats[p] = {
+        matches: 0, paidContests: 0, wins: 0, winsRank1: 0, winsRank2: 0,
+        invested: 0, winnings: 0,
+        bestPts: 0, totalPtsSum: 0, ptsMatchCount: 0,
+        highestWinStreak: 0, currentWinStreak: 0,
+        highestLossStreak: 0, currentLossStreak: 0,
+      }
+    })
+
+    matches.forEach(m => {
+      const isComplete = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
+      if (!isComplete || m.contest !== 'yes') return
+      const prizes = calcPrizeFn(m, seasonId)
+      const paidRanks = prizes._paidRanks || {}
+
+      players.forEach(p => {
+        const pd = m.players?.[p]
+        if (!pd?.joined || !pd?.paid) return
+        const s = seasonStats[p]
+        s.matches++
+        s.paidContests++
+        s.invested += m.fee
+        if (pd.points > 0) {
+          s.totalPtsSum += pd.points
+          s.ptsMatchCount++
+          if (pd.points > s.bestPts) s.bestPts = pd.points
+        }
+        const pR = paidRanks[p] || 0
+        if (pR === 1) {
+          s.wins++; s.winsRank1++
+          s.winnings += prizes[1] || 0
+          s.currentWinStreak++; s.currentLossStreak = 0
+          if (s.currentWinStreak > s.highestWinStreak) s.highestWinStreak = s.currentWinStreak
+        } else if (pR === 2 && prizes.winnerCountLimit === 2) {
+          s.wins++; s.winsRank2++
+          s.winnings += prizes[2] || 0
+          s.currentWinStreak++; s.currentLossStreak = 0
+          if (s.currentWinStreak > s.highestWinStreak) s.highestWinStreak = s.currentWinStreak
+        } else {
+          s.currentLossStreak++; s.currentWinStreak = 0
+          if (s.currentLossStreak > s.highestLossStreak) s.highestLossStreak = s.currentLossStreak
+        }
+      })
+    })
+    return seasonStats
+  }
+
+  // ── IPL 2024 ──
+  const s2024Players = ['Ashish','Prabhat','Sudhir','Swapnil']
+  const s2024 = processSeason('ipl2024', HISTORIC_DATA.ipl2024, s2024Players, calculateHistoricPrizes)
+  s2024Players.forEach(p => {
+    const s = s2024[p]
+    if (s.paidContests > 0) totals[p].seasonsPlayed.push('ipl2024')
+    seasonBreakdown[p]['ipl2024'] = s
+    totals[p].totalMatches  += s.matches
+    totals[p].paidContests  += s.paidContests
+    totals[p].wins          += s.wins
+    totals[p].winsRank1     += s.winsRank1
+    totals[p].winsRank2     += s.winsRank2
+    totals[p].invested      += s.invested
+    totals[p].winnings      += s.winnings
+    totals[p].totalPtsSum   += s.totalPtsSum
+    totals[p].ptsMatchCount += s.ptsMatchCount
+    if (s.bestPts > totals[p].bestPts) totals[p].bestPts = s.bestPts
+    if (s.highestWinStreak > totals[p].highestWinStreak) totals[p].highestWinStreak = s.highestWinStreak
+    if (s.highestLossStreak > totals[p].highestLossStreak) totals[p].highestLossStreak = s.highestLossStreak
+  })
+
+  // ── CT 2025 ──
+  const sCTPlayers = ['Ashish','Prabhat','Sudhir','Swapnil']
+  const sCT = processSeason('ct2025', HISTORIC_DATA.ct2025, sCTPlayers, calculateHistoricPrizes)
+  sCTPlayers.forEach(p => {
+    const s = sCT[p]
+    if (s.paidContests > 0) { if (!totals[p].seasonsPlayed.includes('ct2025')) totals[p].seasonsPlayed.push('ct2025') }
+    seasonBreakdown[p]['ct2025'] = s
+    totals[p].totalMatches  += s.matches
+    totals[p].paidContests  += s.paidContests
+    totals[p].wins          += s.wins
+    totals[p].winsRank1     += s.winsRank1
+    totals[p].winsRank2     += s.winsRank2
+    totals[p].invested      += s.invested
+    totals[p].winnings      += s.winnings
+    totals[p].totalPtsSum   += s.totalPtsSum
+    totals[p].ptsMatchCount += s.ptsMatchCount
+    if (s.bestPts > totals[p].bestPts) totals[p].bestPts = s.bestPts
+    if (s.highestWinStreak > totals[p].highestWinStreak) totals[p].highestWinStreak = s.highestWinStreak
+    if (s.highestLossStreak > totals[p].highestLossStreak) totals[p].highestLossStreak = s.highestLossStreak
+  })
+
+  // ── IPL 2025 ──
+  const s2025Players = ['Ashish','Nilesh','Prabhat','Sudhir','Swapnil']
+  const s2025 = processSeason('ipl2025', HISTORIC_DATA.ipl2025, s2025Players, calculateHistoricPrizes)
+  s2025Players.forEach(p => {
+    const s = s2025[p]
+    if (s.paidContests > 0) { if (!totals[p].seasonsPlayed.includes('ipl2025')) totals[p].seasonsPlayed.push('ipl2025') }
+    seasonBreakdown[p]['ipl2025'] = s
+    totals[p].totalMatches  += s.matches
+    totals[p].paidContests  += s.paidContests
+    totals[p].wins          += s.wins
+    totals[p].winsRank1     += s.winsRank1
+    totals[p].winsRank2     += s.winsRank2
+    totals[p].invested      += s.invested
+    totals[p].winnings      += s.winnings
+    totals[p].totalPtsSum   += s.totalPtsSum
+    totals[p].ptsMatchCount += s.ptsMatchCount
+    if (s.bestPts > totals[p].bestPts) totals[p].bestPts = s.bestPts
+    if (s.highestWinStreak > totals[p].highestWinStreak) totals[p].highestWinStreak = s.highestWinStreak
+    if (s.highestLossStreak > totals[p].highestLossStreak) totals[p].highestLossStreak = s.highestLossStreak
+  })
+
+  // ── IPL 2026 (live) — use computePlayerStats which handles real data ──
+  if (liveMatches && liveMatches.length > 0) {
+    const liveStats = computePlayerStats(liveMatches)
+    PLAYERS.forEach(p => {
+      const s = liveStats[p]
+      if (!s) return
+      const sData = {
+        matches: s.matchesPlayed, paidContests: s.paidContests, wins: s.wins,
+        winsRank1: s.winsRank1 || 0, winsRank2: s.winsRank2 || 0,
+        invested: s.totalInvested, winnings: s.totalWon,
+        bestPts: s.bestPoints, totalPtsSum: s.totalPointsSum, ptsMatchCount: s.pointsMatchCount,
+        highestWinStreak: s.highestWinStreak, currentWinStreak: s.currentWinStreak,
+        highestLossStreak: s.highestLossStreak, currentLossStreak: s.currentLossStreak,
+      }
+      seasonBreakdown[p]['ipl2026'] = sData
+      if (s.paidContests > 0) { if (!totals[p].seasonsPlayed.includes('ipl2026')) totals[p].seasonsPlayed.push('ipl2026') }
+      totals[p].totalMatches  += sData.matches
+      totals[p].paidContests  += sData.paidContests
+      totals[p].wins          += sData.wins
+      totals[p].winsRank1     += sData.winsRank1
+      totals[p].winsRank2     += sData.winsRank2
+      totals[p].invested      += sData.invested
+      totals[p].winnings      += parseFloat(sData.winnings || 0)
+      totals[p].totalPtsSum   += sData.totalPtsSum
+      totals[p].ptsMatchCount += sData.ptsMatchCount
+      if (sData.bestPts > totals[p].bestPts) totals[p].bestPts = sData.bestPts
+      if (sData.highestWinStreak > totals[p].highestWinStreak) totals[p].highestWinStreak = sData.highestWinStreak
+      if (sData.highestLossStreak > totals[p].highestLossStreak) totals[p].highestLossStreak = sData.highestLossStreak
+    })
+  }
+
+  return { totals, seasonBreakdown }
+}
+
+// ── Mini sparkline-style season bar ──
+function SeasonBar({ seasonId, sData, accent }) {
+  if (!sData || sData.paidContests === 0) return (
+    <div style={{fontSize:10,color:'#444',fontStyle:'italic',padding:'3px 0'}}>Did not play</div>
+  )
+  const profit = sData.winnings - sData.invested
+  const winPct = sData.paidContests > 0 ? ((sData.wins / sData.paidContests) * 100).toFixed(0) : 0
+  return (
+    <div style={{
+      display:'flex', alignItems:'center', gap:10, padding:'5px 10px',
+      background:'rgba(255,255,255,0.03)', borderRadius:8,
+      borderLeft:`3px solid ${accent}`, marginBottom:4, flexWrap:'wrap'
+    }}>
+      <span style={{fontSize:11,color:accent,fontWeight:700,minWidth:36}}>{ALL_SEASONS_META.find(s=>s.id===seasonId)?.short || seasonId}</span>
+      <span style={{fontSize:10,color:'#8899bb'}}>{sData.paidContests} paid</span>
+      <span style={{fontSize:10,color:'#f5a623',fontWeight:700}}>{sData.wins}W</span>
+      <span style={{fontSize:10,color:'#8899bb'}}>{winPct}%</span>
+      <span style={{fontSize:10,color:profit>=0?'#2ecc71':'#e74c3c',fontWeight:700,marginLeft:'auto'}}>
+        {profit>=0?'+':''}₹{profit.toFixed(0)}
+      </span>
+    </div>
+  )
+}
+
+// ── Rank medal badge ──
+function RankBadge({ rank }) {
+  if (rank === 1) return <span style={{fontSize:22}}>🥇</span>
+  if (rank === 2) return <span style={{fontSize:22}}>🥈</span>
+  if (rank === 3) return <span style={{fontSize:22}}>🥉</span>
+  return (
+    <span style={{
+      fontFamily:"'Orbitron',sans-serif", fontSize:16, fontWeight:900,
+      color:'#8899bb', minWidth:28, textAlign:'center'
+    }}>#{rank}</span>
+  )
+}
+
+// ─── ALL TIME STATS MAIN COMPONENT ───────────────────────────
+function AllTimeStats({ liveMatches }) {
+  const [sortBy, setSortBy] = useState('profit')
+  const [sortDir, setSortDir] = useState('desc')
+  const [expandedPlayer, setExpandedPlayer] = useState(null)
+  const [filterSeason, setFilterSeason] = useState('all') // 'all' or a season id
+  const [viewMode, setViewMode] = useState('cards') // 'cards' | 'table'
+
+  const { totals, seasonBreakdown } = useMemo(
+    () => computeAllTimeStats(liveMatches),
+    [liveMatches]
+  )
+
+  // Filter: if season selected, only show players from that season
+  const activePlayers = useMemo(() => {
+    const allP = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
+    if (filterSeason === 'all') {
+      return allP.filter(p => totals[p].paidContests > 0)
+    }
+    const meta = ALL_SEASONS_META.find(s => s.id === filterSeason)
+    return allP.filter(p => {
+      const sd = seasonBreakdown[p]?.[filterSeason]
+      return sd && sd.paidContests > 0
+    })
+  }, [filterSeason, totals, seasonBreakdown])
+
+  // Build sort key for each player
+  const getVal = (p, key) => {
+    const t = filterSeason === 'all' ? totals[p] : (seasonBreakdown[p]?.[filterSeason] || {})
+    const invested = t.invested || 0
+    const winnings = t.winnings || 0
+    const paidContests = t.paidContests || 0
+    switch (key) {
+      case 'profit':       return winnings - invested
+      case 'wins':         return t.wins || 0
+      case 'winPct':       return paidContests > 0 ? (t.wins || 0) / paidContests : 0
+      case 'paidContests': return paidContests
+      case 'invested':     return invested
+      case 'roi':          return invested > 0 ? ((winnings - invested) / invested) * 100 : 0
+      case 'bestPts':      return t.bestPts || 0
+      case 'avgPts':       return t.ptsMatchCount > 0 ? t.totalPtsSum / t.ptsMatchCount : 0
+      case 'winStreak':    return t.highestWinStreak || 0
+      case 'totalMatches': return t.matches || t.totalMatches || 0
+      default:             return 0
+    }
+  }
+
+  const ranked = useMemo(() => {
+    return [...activePlayers]
+      .sort((a, b) => sortDir === 'desc' ? getVal(b, sortBy) - getVal(a, sortBy) : getVal(a, sortBy) - getVal(b, sortBy))
+  }, [activePlayers, sortBy, sortDir, filterSeason, totals, seasonBreakdown])
+
+  // Aggregate totals banner
+  const grandTotals = useMemo(() => {
+    const allP = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
+    let totalMatches = 0, totalContests = 0, totalInvested = 0, totalWon = 0, totalWins = 0
+    allP.forEach(p => {
+      const t = totals[p]
+      totalMatches  += t.totalMatches
+      totalContests += t.paidContests
+      totalInvested += t.invested
+      totalWon      += t.winnings
+      totalWins     += t.wins
+    })
+    return { totalMatches, totalContests, totalInvested, totalWon, totalWins }
+  }, [totals])
+
+  const toggleSort = (key) => {
+    if (sortBy === key) setSortDir(d => d === 'desc' ? 'asc' : 'desc')
+    else { setSortBy(key); setSortDir('desc') }
+  }
+
+  const accentForSeason = (sid) => ALL_SEASONS_META.find(s=>s.id===sid)?.accent || '#f5a623'
+
+  return (
+    <div className="section">
+      {/* ── Page Title ── */}
+      <div className="sec-title" style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}}>
+        <span>🌐 All-Time Player History</span>
+        <div style={{display:'flex',gap:8}}>
+          <button
+            onClick={()=>setViewMode(v=>v==='cards'?'table':'cards')}
+            style={{fontFamily:"'Rajdhani',sans-serif",fontWeight:800,fontSize:11,padding:'5px 12px',
+              borderRadius:16,border:'1px solid rgba(255,255,255,0.15)',background:'rgba(255,255,255,0.06)',
+              color:'#8899bb',cursor:'pointer',letterSpacing:0.5}}
+          >{viewMode==='cards'?'📋 Table View':'🃏 Card View'}</button>
+        </div>
+      </div>
+
+      {/* ── Grand totals band ── */}
+      <div className="totals-bar" style={{marginBottom:16}}>
+        {[
+          ['Seasons',  '4'],
+          ['Combined Matches', grandTotals.totalMatches],
+          ['Paid Contests',    grandTotals.totalContests],
+          ['Total Invested',   `₹${grandTotals.totalInvested.toLocaleString()}`],
+          ['Total Paid Out',   `₹${grandTotals.totalWon.toFixed(0)}`],
+          ['Total Wins',       grandTotals.totalWins],
+        ].map(([label, val]) => (
+          <div key={label} className="total-chip">
+            <div className="total-chip-label">{label}</div>
+            <div className="total-chip-val">{val}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Controls row ── */}
+      <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'center',marginBottom:18}}>
+        {/* Season filter */}
+        <div style={{display:'flex',gap:6,alignItems:'center',flexWrap:'wrap'}}>
+          <span style={{fontSize:10,color:'#8899bb',letterSpacing:2,textTransform:'uppercase'}}>Season:</span>
+          {[{id:'all',label:'🌐 All Time',accent:'#f5a623'}, ...ALL_SEASONS_META].map(s => (
+            <button
+              key={s.id}
+              onClick={() => { setFilterSeason(s.id); setExpandedPlayer(null) }}
+              style={{
+                fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:11,
+                padding:'4px 11px',borderRadius:16,cursor:'pointer',
+                border: filterSeason===s.id ? `1.5px solid ${s.accent||'#f5a623'}` : '1px solid rgba(255,255,255,0.1)',
+                background: filterSeason===s.id ? `${s.accent||'#f5a623'}22` : 'rgba(255,255,255,0.03)',
+                color: filterSeason===s.id ? (s.accent||'#f5a623') : '#8899bb',
+                transition:'all 0.15s', whiteSpace:'nowrap',
+              }}
+            >{s.label || s.short}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Sort controls ── */}
+      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:16}}>
+        <span style={{fontSize:10,color:'#8899bb',letterSpacing:2,textTransform:'uppercase',whiteSpace:'nowrap'}}>Sort by:</span>
+        <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+          {SORT_OPTIONS.map(opt => {
+            const isActive = sortBy === opt.value
+            return (
+              <button
+                key={opt.value}
+                onClick={() => toggleSort(opt.value)}
+                style={{
+                  fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:11,
+                  padding:'4px 10px',borderRadius:14,cursor:'pointer',
+                  border: isActive ? '1.5px solid #f5a623' : '1px solid rgba(255,255,255,0.1)',
+                  background: isActive ? 'rgba(245,166,35,0.15)' : 'rgba(255,255,255,0.03)',
+                  color: isActive ? '#f5a623' : '#8899bb',
+                  transition:'all 0.15s', whiteSpace:'nowrap',
+                  display:'flex', alignItems:'center', gap:4,
+                }}
+              >
+                {opt.label}
+                {isActive && <span style={{fontSize:10}}>{sortDir==='desc'?'↓':'↑'}</span>}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* ═══ CARD VIEW ═══ */}
+      {viewMode === 'cards' && (
+        <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          {ranked.map((p, rankIdx) => {
+            const t = filterSeason === 'all' ? totals[p] : (seasonBreakdown[p]?.[filterSeason] || {})
+            const invested = t.invested || 0
+            const winnings = parseFloat(t.winnings || 0)
+            const paidContests = t.paidContests || 0
+            const wins = t.wins || 0
+            const winsRank1 = t.winsRank1 || 0
+            const winsRank2 = t.winsRank2 || 0
+            const profit = winnings - invested
+            const winPct = paidContests > 0 ? ((wins / paidContests) * 100).toFixed(1) : '0.0'
+            const roi = invested > 0 ? ((profit / invested) * 100).toFixed(1) : '0.0'
+            const avgPts = (t.ptsMatchCount || 0) > 0 ? (t.totalPtsSum / t.ptsMatchCount).toFixed(1) : '—'
+            const totalMatchesVal = t.matches || t.totalMatches || 0
+            const pColor = ALL_PLAYER_COLORS[p] || '#f5a623'
+            const isExpanded = expandedPlayer === p
+            const seasonsPlayedAll = totals[p].seasonsPlayed || []
+            const sortVal = getVal(p, sortBy)
+
+            return (
+              <div
+                key={p}
+                style={{
+                  background: `linear-gradient(135deg, ${pColor}0d, #0d1525 60%)`,
+                  border: `1px solid ${isExpanded ? pColor : pColor+'33'}`,
+                  borderRadius: 16, overflow:'hidden',
+                  boxShadow: isExpanded ? `0 0 20px ${pColor}22` : 'none',
+                  transition:'all 0.2s',
+                }}
+              >
+                {/* Card Header — always visible */}
+                <div
+                  onClick={() => setExpandedPlayer(isExpanded ? null : p)}
+                  style={{
+                    display:'flex', alignItems:'center', gap:14, padding:'14px 18px',
+                    cursor:'pointer', flexWrap:'wrap',
+                  }}
+                >
+                  {/* Rank */}
+                  <div style={{minWidth:36,textAlign:'center'}}>
+                    <RankBadge rank={rankIdx+1} />
+                  </div>
+
+                  {/* Avatar */}
+                  <div style={{
+                    width:52, height:52, borderRadius:'50%',
+                    background:`${pColor}22`, border:`3px solid ${pColor}`,
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontFamily:"'Bebas Neue',sans-serif", fontSize:24, color:pColor,
+                    flexShrink:0,
+                  }}>{p[0]}</div>
+
+                  {/* Name + seasons */}
+                  <div style={{flex:1,minWidth:120}}>
+                    <div style={{fontFamily:"'Bebas Neue',sans-serif",fontSize:20,letterSpacing:2,color:pColor}}>{p}</div>
+                    <div style={{display:'flex',gap:4,flexWrap:'wrap',marginTop:3}}>
+                      {seasonsPlayedAll.map(sid => (
+                        <span key={sid} style={{
+                          fontSize:9,padding:'1px 6px',borderRadius:8,
+                          background:`${accentForSeason(sid)}20`,
+                          color:accentForSeason(sid),
+                          border:`1px solid ${accentForSeason(sid)}44`,
+                          letterSpacing:0.5,
+                        }}>
+                          {ALL_SEASONS_META.find(s=>s.id===sid)?.short || sid}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Key stats strip */}
+                  <div style={{display:'flex',gap:20,flexWrap:'wrap',alignItems:'center'}}>
+                    {[
+                      { label:'Paid', val: paidContests },
+                      { label:'Wins', val: wins, color: pColor },
+                      { label:'Win%', val: `${winPct}%` },
+                      { label:'Profit', val: `${profit>=0?'+':''}₹${profit.toFixed(0)}`, color: profit>=0?'#2ecc71':'#e74c3c' },
+                      { label:'ROI', val: `${roi>=0?'+':''}${roi}%`, color: parseFloat(roi)>=0?'#2ecc71':'#e74c3c' },
+                    ].map(({label,val,color})=>(
+                      <div key={label} style={{textAlign:'center',minWidth:44}}>
+                        <div style={{fontSize:9,color:'#8899bb',letterSpacing:1,textTransform:'uppercase'}}>{label}</div>
+                        <div style={{fontSize:14,fontWeight:800,color:color||'var(--text)',fontFamily:"'Orbitron',sans-serif",marginTop:1}}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Sort value highlight */}
+                  <div style={{
+                    textAlign:'center', minWidth:64,
+                    background:`${pColor}15`, border:`1px solid ${pColor}33`,
+                    borderRadius:10, padding:'6px 12px',
+                  }}>
+                    <div style={{fontSize:8,color:'#8899bb',letterSpacing:1,textTransform:'uppercase',marginBottom:2}}>
+                      {SORT_OPTIONS.find(o=>o.value===sortBy)?.label.replace(/^.*? /,'')||sortBy}
+                    </div>
+                    <div style={{fontSize:16,fontWeight:900,color:pColor,fontFamily:"'Orbitron',sans-serif"}}>
+                      {sortBy==='profit'||sortBy==='invested'?`₹${Math.abs(sortVal).toFixed(0)}`:
+                       sortBy==='winPct'||sortBy==='roi'?`${sortVal.toFixed(1)}%`:
+                       sortBy==='avgPts'||sortBy==='bestPts'?sortVal.toFixed(1):
+                       sortVal}
+                    </div>
+                  </div>
+
+                  {/* Expand chevron */}
+                  <div style={{fontSize:18,color:'#8899bb',transition:'transform 0.2s',transform:isExpanded?'rotate(180deg)':'none'}}>⌄</div>
+                </div>
+
+                {/* ── Expanded detail ── */}
+                {isExpanded && (
+                  <div style={{borderTop:`1px solid ${pColor}22`,padding:'16px 18px',background:'rgba(0,0,0,0.2)'}}>
+                    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(300px,1fr))',gap:16}}>
+
+                      {/* Overall stats block */}
+                      <div>
+                        <div style={{fontSize:10,letterSpacing:3,textTransform:'uppercase',color:'#8899bb',marginBottom:10}}>
+                          {filterSeason==='all'?'All-Time Totals':ALL_SEASONS_META.find(s=>s.id===filterSeason)?.label}
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                          {[
+                            ['🗓️ Matches Played',  totalMatchesVal],
+                            ['🎯 Paid Contests',    paidContests],
+                            ['🏆 Total Wins',       wins],
+                            ['🥇 1st Place',        winsRank1],
+                            ['🥈 2nd Place',        winsRank2],
+                            ['📈 Win Rate',         `${winPct}%`],
+                            ['💸 Total Invested',   `₹${invested.toLocaleString()}`],
+                            ['💰 Total Winnings',   `₹${winnings.toFixed(0)}`],
+                            ['📊 Net Profit',       `${profit>=0?'+':''}₹${profit.toFixed(0)}`],
+                            ['🔁 ROI',              `${roi>=0?'+':''}${roi}%`],
+                            ['⚡ Best Points',      t.bestPts > 0 ? t.bestPts : '—'],
+                            ['📐 Avg Points',       avgPts],
+                            ['🔥 Best Win Streak',  t.highestWinStreak || 0],
+                            ['💀 Worst Loss Streak',t.highestLossStreak || 0],
+                          ].map(([label,val])=>(
+                            <div key={label} style={{
+                              display:'flex',justifyContent:'space-between',alignItems:'center',
+                              padding:'5px 8px',background:'rgba(255,255,255,0.03)',
+                              borderRadius:6,fontSize:11,
+                            }}>
+                              <span style={{color:'#8899bb'}}>{label}</span>
+                              <span style={{
+                                fontWeight:700, color:
+                                  label.includes('Profit')||label.includes('ROI') ? (profit>=0?'#2ecc71':'#e74c3c') :
+                                  label.includes('Win') ? pColor :
+                                  label.includes('Invest') ? '#e74c3c' :
+                                  label.includes('Winning') ? '#2ecc71' : 'var(--text)',
+                              }}>{val}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Season-by-season breakdown (only for All Time view) */}
+                      {filterSeason === 'all' && (
+                        <div>
+                          <div style={{fontSize:10,letterSpacing:3,textTransform:'uppercase',color:'#8899bb',marginBottom:10}}>Season Breakdown</div>
+                          {ALL_SEASONS_META.map(sm => (
+                            <SeasonBar key={sm.id} seasonId={sm.id} sData={seasonBreakdown[p]?.[sm.id]} accent={sm.accent} />
+                          ))}
+                          {/* Seasons not played info */}
+                          {ALL_SEASONS_META.filter(sm => !seasonsPlayedAll.includes(sm.id)).length > 0 && (
+                            <div style={{marginTop:8,fontSize:10,color:'#555',fontStyle:'italic'}}>
+                              Not in: {ALL_SEASONS_META.filter(sm=>!seasonsPlayedAll.includes(sm.id)).map(sm=>sm.short).join(', ')}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Win breakdown visual */}
+                      <div>
+                        <div style={{fontSize:10,letterSpacing:3,textTransform:'uppercase',color:'#8899bb',marginBottom:10}}>Win Type Breakdown</div>
+                        <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
+                          {[
+                            {label:'🥇 1st Place', count:winsRank1, color:'#FFD700'},
+                            {label:'🥈 2nd Place', count:winsRank2, color:'#C0C0C0'},
+                          ].map(({label,count,color})=>(
+                            <div key={label} style={{
+                              flex:1,minWidth:100,textAlign:'center',
+                              background:`${color}11`,border:`1px solid ${color}44`,
+                              borderRadius:10,padding:'10px 8px',
+                            }}>
+                              <div style={{fontSize:10,color:'#8899bb',marginBottom:4}}>{label}</div>
+                              <div style={{fontSize:28,fontWeight:900,color,fontFamily:"'Orbitron',sans-serif"}}>{count}</div>
+                              <div style={{fontSize:9,color:'#8899bb',marginTop:2}}>
+                                {paidContests>0?`${((count/paidContests)*100).toFixed(0)}% of paid`:'—'}
+                              </div>
+                            </div>
+                          ))}
+                          <div style={{
+                            flex:1,minWidth:100,textAlign:'center',
+                            background:'rgba(231,76,60,0.08)',border:'1px solid rgba(231,76,60,0.2)',
+                            borderRadius:10,padding:'10px 8px',
+                          }}>
+                            <div style={{fontSize:10,color:'#8899bb',marginBottom:4}}>❌ Losses</div>
+                            <div style={{fontSize:28,fontWeight:900,color:'#e74c3c',fontFamily:"'Orbitron',sans-serif"}}>{paidContests - wins}</div>
+                            <div style={{fontSize:9,color:'#8899bb',marginTop:2}}>
+                              {paidContests>0?`${(((paidContests-wins)/paidContests)*100).toFixed(0)}% of paid`:'—'}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Pnl bar visual */}
+                        {invested > 0 && (
+                          <div style={{marginTop:14}}>
+                            <div style={{fontSize:10,color:'#8899bb',marginBottom:6}}>💹 Invested vs Returned</div>
+                            <div style={{position:'relative',height:18,borderRadius:9,background:'rgba(231,76,60,0.15)',overflow:'hidden'}}>
+                              <div style={{
+                                position:'absolute',left:0,top:0,bottom:0,
+                                width:`${Math.min((winnings/Math.max(invested,winnings))*100,100)}%`,
+                                background: profit >= 0
+                                  ? 'linear-gradient(90deg,#2ecc71,#27ae60)'
+                                  : 'linear-gradient(90deg,#e74c3c,#c0392b)',
+                                borderRadius:9,transition:'width 0.6s ease',
+                              }}/>
+                              <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',fontSize:10,fontWeight:700,color:'#fff',letterSpacing:0.5}}>
+                                ₹{winnings.toFixed(0)} / ₹{invested.toFixed(0)}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* ═══ TABLE VIEW ═══ */}
+      {viewMode === 'table' && (
+        <div style={{overflowX:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+            <thead>
+              <tr style={{background:'rgba(255,255,255,0.04)',borderBottom:'1px solid #1e2d50'}}>
+                {[
+                  {key:'rank',    label:'#'},
+                  {key:'player',  label:'Player'},
+                  {key:'seasons', label:'Seasons'},
+                  {key:'totalMatches', label:'Matches'},
+                  {key:'paidContests', label:'Paid'},
+                  {key:'wins',    label:'Wins'},
+                  {key:'winsRank1',label:'🥇'},
+                  {key:'winsRank2',label:'🥈'},
+                  {key:'winPct',  label:'Win%'},
+                  {key:'invested',label:'Invested'},
+                  {key:'winnings',label:'Winnings'},
+                  {key:'profit',  label:'Profit'},
+                  {key:'roi',     label:'ROI%'},
+                  {key:'bestPts', label:'Best Pts'},
+                  {key:'avgPts',  label:'Avg Pts'},
+                  {key:'winStreak',label:'🔥 Streak'},
+                ].map(col => {
+                  const isSorted = SORT_OPTIONS.find(o=>o.value===col.key)
+                  return (
+                    <th
+                      key={col.key}
+                      onClick={isSorted ? ()=>toggleSort(col.key) : undefined}
+                      style={{
+                        padding:'10px 12px',textAlign:'left',fontSize:10,color:'#8899bb',
+                        fontFamily:"'Rajdhani',sans-serif",letterSpacing:1,whiteSpace:'nowrap',
+                        cursor:isSorted?'pointer':'default',
+                        color: sortBy===col.key?'#f5a623':'#8899bb',
+                        borderBottom:'2px solid '+(sortBy===col.key?'#f5a623':'#1e2d50'),
+                      }}
+                    >
+                      {col.label}{sortBy===col.key?sortDir==='desc'?'↓':'↑':''}
+                    </th>
+                  )
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {ranked.map((p, ri) => {
+                const t = filterSeason === 'all' ? totals[p] : (seasonBreakdown[p]?.[filterSeason] || {})
+                const invested = t.invested || 0
+                const winnings = parseFloat(t.winnings || 0)
+                const paidContests = t.paidContests || 0
+                const wins = t.wins || 0
+                const profit = winnings - invested
+                const winPct = paidContests > 0 ? ((wins / paidContests) * 100).toFixed(1) : '0.0'
+                const roi = invested > 0 ? ((profit / invested) * 100).toFixed(1) : '0.0'
+                const avgPts = (t.ptsMatchCount || 0) > 0 ? (t.totalPtsSum / t.ptsMatchCount).toFixed(1) : '—'
+                const totalMatchesVal = t.matches || t.totalMatches || 0
+                const pColor = ALL_PLAYER_COLORS[p] || '#f5a623'
+                const seasonsP = totals[p].seasonsPlayed || []
+                const medal = ri===0?'🥇':ri===1?'🥈':ri===2?'🥉':`#${ri+1}`
+
+                return (
+                  <tr key={p} style={{borderBottom:'1px solid rgba(255,255,255,0.04)',transition:'background 0.15s'}}>
+                    <td style={{padding:'10px 12px',fontSize:16}}>{medal}</td>
+                    <td style={{padding:'10px 12px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{width:30,height:30,borderRadius:'50%',background:`${pColor}22`,border:`2px solid ${pColor}`,display:'flex',alignItems:'center',justifyContent:'center',fontFamily:"'Bebas Neue',sans-serif",fontSize:15,color:pColor,flexShrink:0}}>{p[0]}</div>
+                        <span style={{fontWeight:700,color:'var(--text)',whiteSpace:'nowrap'}}>{p}</span>
+                      </div>
+                    </td>
+                    <td style={{padding:'10px 12px'}}>
+                      <div style={{display:'flex',gap:3,flexWrap:'wrap'}}>
+                        {seasonsP.map(sid=>(
+                          <span key={sid} style={{fontSize:8,padding:'1px 5px',borderRadius:6,background:`${accentForSeason(sid)}20`,color:accentForSeason(sid),border:`1px solid ${accentForSeason(sid)}44`}}>
+                            {ALL_SEASONS_META.find(s=>s.id===sid)?.short||sid}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td style={{padding:'10px 12px',color:'var(--text2)'}}>{totalMatchesVal}</td>
+                    <td style={{padding:'10px 12px',color:'var(--text2)'}}>{paidContests}</td>
+                    <td style={{padding:'10px 12px',color:pColor,fontWeight:700}}>{wins}</td>
+                    <td style={{padding:'10px 12px',color:'#FFD700',fontWeight:700}}>{t.winsRank1||0}</td>
+                    <td style={{padding:'10px 12px',color:'#C0C0C0',fontWeight:700}}>{t.winsRank2||0}</td>
+                    <td style={{padding:'10px 12px',color:'var(--text2)'}}>{winPct}%</td>
+                    <td style={{padding:'10px 12px',color:'#e74c3c'}}>₹{invested.toLocaleString()}</td>
+                    <td style={{padding:'10px 12px',color:'#2ecc71'}}>₹{winnings.toFixed(0)}</td>
+                    <td style={{padding:'10px 12px',fontWeight:700,color:profit>=0?'#2ecc71':'#e74c3c'}}>{profit>=0?'+':''}₹{profit.toFixed(0)}</td>
+                    <td style={{padding:'10px 12px',color:parseFloat(roi)>=0?'#2ecc71':'#e74c3c'}}>{roi>=0?'+':''}{roi}%</td>
+                    <td style={{padding:'10px 12px',color:'#f5a623'}}>{t.bestPts>0?t.bestPts:'—'}</td>
+                    <td style={{padding:'10px 12px',color:'var(--text2)'}}>{avgPts}</td>
+                    <td style={{padding:'10px 12px',color:'#f5a623',fontWeight:700}}>{t.highestWinStreak||0}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* ── Footer note ── */}
+      <div style={{marginTop:20,padding:'10px 14px',background:'rgba(255,255,255,0.02)',borderRadius:10,border:'1px solid rgba(255,255,255,0.06)',fontSize:11,color:'#8899bb',lineHeight:1.7}}>
+        <b style={{color:'var(--text)'}}>ℹ️ Notes:</b> IPL 2024 & Champions Trophy 2025 data has no Dream11 points (not recorded). 
+        Nilesh joined from IPL 2025 (Match 32 onwards). Kalpesh &amp; Pritam joined IPL 2026. 
+        Rank-based index is used for IPL 2024 stock charts. 
+        IPL 2026 stats update live from the cloud.
+      </div>
+    </div>
+  )
+}
+
+
 // ─────────────────────────────────────────────────────────────
 export default function App() {
   const [matches, setMatches]         = useState([])
@@ -4470,12 +5210,14 @@ export default function App() {
     { id:'stockindex',  label:'📈 Stock Index' },
     { id:'fantasy',     label:'🎯 Fantasy Tips' },
     ...(hasHighlights ? [{ id:'highlights', label:'🎬 Highlights' }] : []),
+    { id:'alltime',     label:'🌐 All-Time Stats' },
   ] : [
     { id:'matchlog',    label:'📋 Match Log' },
     { id:'playerstats', label:'👤 Player Stats' },
     { id:'leaderboard', label:'🏆 Leaderboard' },
     { id:'graphs',      label:'📊 Graphs' },
     { id:'stockindex',  label:'📈 Stock Index' },
+    { id:'alltime',     label:'🌐 All-Time Stats' },
   ]
 
   return (
@@ -4562,9 +5304,13 @@ export default function App() {
             <div style={activeSection==='stockindex'  ? {} : {display:'none'}}><PlayerStockIndex matches={matches} /></div>
             <div style={activeSection==='fantasy'     ? {} : {display:'none'}}><FantasySuggestions matches={matches} fantasyData={fantasyData} /></div>
             <div style={activeSection==='highlights'  ? {} : {display:'none'}}><MatchHighlights matches={matches} highlightsData={highlightsData} /></div>
+            <div style={activeSection==='alltime'      ? {} : {display:'none'}}><AllTimeStats liveMatches={matches} /></div>
           </>
         ) : (
-          <HistoricSeasonView seasonId={activeSeason} activeSection={activeSection} />
+          <>
+            <HistoricSeasonView seasonId={activeSeason} activeSection={activeSection} />
+            <div style={activeSection==='alltime' ? {} : {display:'none'}}><AllTimeStats liveMatches={matches} /></div>
+          </>
         )}
 
         <div className="pb-footer">&copy;&trade; Designed and Developed by <span>Prabhat Singh</span></div>
