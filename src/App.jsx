@@ -4448,15 +4448,19 @@ function computeAllTimeStats(liveMatches) {
 
     matches.forEach(m => {
       const isComplete = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
+      // Pass 1: count all joined matches (for total matches count)
+      players.forEach(p => {
+        const pd = m.players?.[p]
+        if (pd?.joined) seasonStats[p].matches++
+      })
+      // Pass 2: only process contest=yes completed matches for financial stats
       if (!isComplete || m.contest !== 'yes') return
       const prizes = calcPrizeFn(m, seasonId)
       const paidRanks = prizes._paidRanks || {}
-
       players.forEach(p => {
         const pd = m.players?.[p]
         if (!pd?.joined || !pd?.paid) return
         const s = seasonStats[p]
-        s.matches++
         s.paidContests++
         s.invested += m.fee
         if (pd.points > 0) {
@@ -4711,7 +4715,7 @@ function AllTimeStats({ liveMatches }) {
       <div className="totals-bar" style={{marginBottom:16}}>
         {[
           ['Seasons',  '4'],
-          ['Combined Matches', grandTotals.totalMatches],
+          ['Player Appearances', grandTotals.totalMatches],
           ['Paid Contests',    grandTotals.totalContests],
           ['Total Invested',   `₹${grandTotals.totalInvested.toLocaleString()}`],
           ['Total Paid Out',   `₹${grandTotals.totalWon.toFixed(0)}`],
@@ -4746,33 +4750,7 @@ function AllTimeStats({ liveMatches }) {
         </div>
       </div>
 
-      {/* ── Sort controls ── */}
-      <div style={{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center',marginBottom:16}}>
-        <span style={{fontSize:10,color:'#8899bb',letterSpacing:2,textTransform:'uppercase',whiteSpace:'nowrap'}}>Sort by:</span>
-        <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
-          {SORT_OPTIONS.map(opt => {
-            const isActive = sortBy === opt.value
-            return (
-              <button
-                key={opt.value}
-                onClick={() => toggleSort(opt.value)}
-                style={{
-                  fontFamily:"'Rajdhani',sans-serif",fontWeight:700,fontSize:11,
-                  padding:'4px 10px',borderRadius:14,cursor:'pointer',
-                  border: isActive ? '1.5px solid #f5a623' : '1px solid rgba(255,255,255,0.1)',
-                  background: isActive ? 'rgba(245,166,35,0.15)' : 'rgba(255,255,255,0.03)',
-                  color: isActive ? '#f5a623' : '#8899bb',
-                  transition:'all 0.15s', whiteSpace:'nowrap',
-                  display:'flex', alignItems:'center', gap:4,
-                }}
-              >
-                {opt.label}
-                {isActive && <span style={{fontSize:10}}>{sortDir==='desc'?'↓':'↑'}</span>}
-              </button>
-            )
-          })}
-        </div>
-      </div>
+
 
       {/* ═══ CARD VIEW ═══ */}
       {viewMode === 'cards' && (
@@ -4789,7 +4767,7 @@ function AllTimeStats({ liveMatches }) {
             const winPct = paidContests > 0 ? ((wins / paidContests) * 100).toFixed(1) : '0.0'
             const roi = invested > 0 ? ((profit / invested) * 100).toFixed(1) : '0.0'
             const avgPts = (t.ptsMatchCount || 0) > 0 ? (t.totalPtsSum / t.ptsMatchCount).toFixed(1) : '—'
-            const totalMatchesVal = t.matches || t.totalMatches || 0
+            const totalMatchesVal = t.totalMatches !== undefined ? t.totalMatches : (t.matches || 0)
             const pColor = ALL_PLAYER_COLORS[p] || '#f5a623'
             const isExpanded = expandedPlayer === p
             const seasonsPlayedAll = totals[p].seasonsPlayed || []
@@ -4853,7 +4831,7 @@ function AllTimeStats({ liveMatches }) {
                       { label:'Wins', val: wins, color: pColor },
                       { label:'Win%', val: `${winPct}%` },
                       { label:'Profit', val: `${profit>=0?'+':''}₹${profit.toFixed(0)}`, color: profit>=0?'#2ecc71':'#e74c3c' },
-                      { label:'ROI', val: `${roi>=0?'+':''}${roi}%`, color: parseFloat(roi)>=0?'#2ecc71':'#e74c3c' },
+                      { label:'ROI', val: `${parseFloat(roi)>=0?'+':''}${roi}%`, color: parseFloat(roi)>=0?'#2ecc71':'#e74c3c' },
                     ].map(({label,val,color})=>(
                       <div key={label} style={{textAlign:'center',minWidth:44}}>
                         <div style={{fontSize:9,color:'#8899bb',letterSpacing:1,textTransform:'uppercase'}}>{label}</div>
@@ -4862,20 +4840,16 @@ function AllTimeStats({ liveMatches }) {
                     ))}
                   </div>
 
-                  {/* Sort value highlight */}
+                  {/* Profit highlight box */}
                   <div style={{
-                    textAlign:'center', minWidth:64,
-                    background:`${pColor}15`, border:`1px solid ${pColor}33`,
-                    borderRadius:10, padding:'6px 12px',
+                    textAlign:'center', minWidth:72,
+                    background: profit>=0 ? 'rgba(46,204,113,0.1)' : 'rgba(231,76,60,0.1)',
+                    border: `1px solid ${profit>=0?'rgba(46,204,113,0.3)':'rgba(231,76,60,0.3)'}`,
+                    borderRadius:10, padding:'6px 12px', flexShrink:0,
                   }}>
-                    <div style={{fontSize:8,color:'#8899bb',letterSpacing:1,textTransform:'uppercase',marginBottom:2}}>
-                      {SORT_OPTIONS.find(o=>o.value===sortBy)?.label.replace(/^.*? /,'')||sortBy}
-                    </div>
-                    <div style={{fontSize:16,fontWeight:900,color:pColor,fontFamily:"'Orbitron',sans-serif"}}>
-                      {sortBy==='profit'||sortBy==='invested'?`₹${Math.abs(sortVal).toFixed(0)}`:
-                       sortBy==='winPct'||sortBy==='roi'?`${sortVal.toFixed(1)}%`:
-                       sortBy==='avgPts'||sortBy==='bestPts'?sortVal.toFixed(1):
-                       sortVal}
+                    <div style={{fontSize:8,color:'#8899bb',letterSpacing:1,textTransform:'uppercase',marginBottom:2}}>NET PROFIT</div>
+                    <div style={{fontSize:16,fontWeight:900,color:profit>=0?'#2ecc71':'#e74c3c',fontFamily:"'Orbitron',sans-serif"}}>
+                      {profit>=0?'+':''}₹{profit.toFixed(0)}
                     </div>
                   </div>
 
@@ -4904,7 +4878,7 @@ function AllTimeStats({ liveMatches }) {
                             ['💸 Total Invested',   `₹${invested.toLocaleString()}`],
                             ['💰 Total Winnings',   `₹${winnings.toFixed(0)}`],
                             ['📊 Net Profit',       `${profit>=0?'+':''}₹${profit.toFixed(0)}`],
-                            ['🔁 ROI',              `${roi>=0?'+':''}${roi}%`],
+                            ['🔁 ROI',              `${parseFloat(roi)>=0?'+':''}${roi}%`],
                             ['⚡ Best Points',      t.bestPts > 0 ? t.bestPts : '—'],
                             ['📐 Avg Points',       avgPts],
                             ['🔥 Best Win Streak',  t.highestWinStreak || 0],
@@ -5030,20 +5004,16 @@ function AllTimeStats({ liveMatches }) {
                   {key:'avgPts',  label:'Avg Pts'},
                   {key:'winStreak',label:'🔥 Streak'},
                 ].map(col => {
-                  const isSorted = SORT_OPTIONS.find(o=>o.value===col.key)
                   return (
                     <th
                       key={col.key}
-                      onClick={isSorted ? ()=>toggleSort(col.key) : undefined}
                       style={{
-                        padding:'10px 12px',textAlign:'left',fontSize:10,color:'#8899bb',
+                        padding:'10px 12px',textAlign:'left',fontSize:10,
                         fontFamily:"'Rajdhani',sans-serif",letterSpacing:1,whiteSpace:'nowrap',
-                        cursor:isSorted?'pointer':'default',
-                        color: sortBy===col.key?'#f5a623':'#8899bb',
-                        borderBottom:'2px solid '+(sortBy===col.key?'#f5a623':'#1e2d50'),
+                        color:'#8899bb',borderBottom:'1px solid #1e2d50',
                       }}
                     >
-                      {col.label}{sortBy===col.key?sortDir==='desc'?'↓':'↑':''}
+                      {col.label}
                     </th>
                   )
                 })}
@@ -5060,7 +5030,7 @@ function AllTimeStats({ liveMatches }) {
                 const winPct = paidContests > 0 ? ((wins / paidContests) * 100).toFixed(1) : '0.0'
                 const roi = invested > 0 ? ((profit / invested) * 100).toFixed(1) : '0.0'
                 const avgPts = (t.ptsMatchCount || 0) > 0 ? (t.totalPtsSum / t.ptsMatchCount).toFixed(1) : '—'
-                const totalMatchesVal = t.matches || t.totalMatches || 0
+                const totalMatchesVal = t.totalMatches !== undefined ? t.totalMatches : (t.matches || 0)
                 const pColor = ALL_PLAYER_COLORS[p] || '#f5a623'
                 const seasonsP = totals[p].seasonsPlayed || []
                 const medal = ri===0?'🥇':ri===1?'🥈':ri===2?'🥉':`#${ri+1}`
@@ -5092,7 +5062,7 @@ function AllTimeStats({ liveMatches }) {
                     <td style={{padding:'10px 12px',color:'#e74c3c'}}>₹{invested.toLocaleString()}</td>
                     <td style={{padding:'10px 12px',color:'#2ecc71'}}>₹{winnings.toFixed(0)}</td>
                     <td style={{padding:'10px 12px',fontWeight:700,color:profit>=0?'#2ecc71':'#e74c3c'}}>{profit>=0?'+':''}₹{profit.toFixed(0)}</td>
-                    <td style={{padding:'10px 12px',color:parseFloat(roi)>=0?'#2ecc71':'#e74c3c'}}>{roi>=0?'+':''}{roi}%</td>
+                    <td style={{padding:'10px 12px',color:parseFloat(roi)>=0?'#2ecc71':'#e74c3c'}}>{parseFloat(roi)>=0?'+':''}{roi}%</td>
                     <td style={{padding:'10px 12px',color:'#f5a623'}}>{t.bestPts>0?t.bestPts:'—'}</td>
                     <td style={{padding:'10px 12px',color:'var(--text2)'}}>{avgPts}</td>
                     <td style={{padding:'10px 12px',color:'#f5a623',fontWeight:700}}>{t.highestWinStreak||0}</td>
