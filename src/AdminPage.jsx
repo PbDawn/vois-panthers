@@ -1,11 +1,18 @@
 // ═══════════════════════════════════════════════════════════════
 // AdminPage.jsx — Admin Panel with Fantasy Tips Editor
+//
+// CHANGES:
+//  1. Added new "🔮 Predictions" tab — PredictionAdmin component
+//  2. PredictionAdmin lets admin enter actual session scores per match
+//     and auto-computes winners + saves to PRED_BIN_ID (separate bin)
+//  3. Results ONLY appear on public PredictionTab once admin saves actuals
 // ═══════════════════════════════════════════════════════════════
 
 import { useEffect, useState, useCallback } from 'react'
 
 const JSONBIN_BASE     = 'https://api.jsonbin.io/v3/b'
-const HARDCODED_BIN_ID = '69c84b985fdde574550bf9f7'
+const HARDCODED_BIN_ID = '69c84b985fdde574550bf9f7'   // main app bin
+const PRED_BIN_ID      = '69f4599e856a6821899363fd'   // prediction bin (same as PredictionTab.jsx)
 const PLAYERS = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
 
 function isSessionValid() {
@@ -85,7 +92,6 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
 
   useEffect(() => { setMatches(initialMatches || []) }, [initialMatches])
 
-  // ── Sponsor amount helpers ──
   const getSponsorTotal = (player) => {
     const pd = form.players[player]
     if (!pd?.sponsored) return 0
@@ -96,7 +102,6 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
     return fee - getSponsorTotal(player)
   }
 
-  // ── Player checkbox handlers ──
   const handleJoined = (player, checked) => {
     setForm(f => {
       const pd = { ...f.players[player], joined: checked }
@@ -116,7 +121,7 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
   const handleSponsored = (player, checked) => {
     setForm(f => {
       const pd = { ...f.players[player], sponsored: checked }
-      if (checked) { pd.paid = true } // sponsored always implies paid
+      if (checked) { pd.paid = true }
       else { pd.sponsorDetails = [] }
       return { ...f, players: { ...f.players, [player]: pd } }
     })
@@ -150,7 +155,6 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
     })
   }
 
-  // ── Load match into form for editing ──
   const loadMatch = (m) => {
     const players = {}
     PLAYERS.forEach(p => {
@@ -176,7 +180,6 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
 
   const clearForm = () => { setForm(emptyForm()); setEditMatchno(null); setSaveMsg('') }
 
-  // ── Cloud save ──
   const saveToCloud = async (newMatches) => {
     setSaving(true); setSaveMsg('')
     try {
@@ -203,7 +206,6 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
 
   const handleSaveMatch = async () => {
     if (!form.matchno) { setSaveMsg('❌ Match No. is required'); return }
-    // Build clean player data
     const players = {}
     PLAYERS.forEach(p => {
       const pd = form.players[p]
@@ -215,7 +217,6 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
         points: parseFloat(pd.points) || 0
       }
     })
-    // Compute joined ranks
     const joinedRanks = {}
     const joined = PLAYERS.filter(p => players[p].joined && players[p].points > 0)
       .sort((a,b) => players[b].points - players[a].points)
@@ -255,15 +256,25 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
 
   const fee = parseFloat(form.fee) || 0
 
+  // ── calcPrizes helper (copied from MatchLog in App.jsx for transfer management) ──
+  function calcPrizes(m) {
+    const joined = PLAYERS.filter(p => m.players?.[p]?.joined && m.players?.[p]?.paid)
+    const n = joined.length
+    const pool = n * (m.fee || 0)
+    const winnerCountLimit = n >= 5 ? 2 : 1
+    const paidRanks = m.joinedRanks || {}
+    const prize1 = winnerCountLimit === 2 ? parseFloat((pool * 0.65).toFixed(2)) : pool
+    const prize2 = winnerCountLimit === 2 ? parseFloat((pool * 0.35).toFixed(2)) : 0
+    return { 1: prize1, 2: prize2, winnerCountLimit, pool, _paidRanks: paidRanks }
+  }
+
   return (
     <div style={{ padding: '16px 20px', color: '#e8eaf6', fontFamily: "'Rajdhani', sans-serif", maxWidth: 1100, margin: '0 auto' }}>
-      {/* ── Form ── */}
       <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,166,35,0.25)', borderRadius: 14, padding: '20px 24px', marginBottom: 24 }}>
         <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 3, color: '#f5a623', marginBottom: 16 }}>
           {editMatchno ? `✏️ EDITING MATCH #${editMatchno}` : '➕ ADD / EDIT MATCH'}
         </div>
 
-        {/* Match Details */}
         <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#f5a623', marginBottom: 12, textTransform: 'uppercase' }}>Match Details</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 12 }}>
@@ -305,12 +316,11 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
           )}
         </div>
 
-        {/* Player Details */}
         {form.contest === 'yes' && (
           <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 2, color: '#f5a623', marginBottom: 6, textTransform: 'uppercase' }}>Player Details</div>
             <div style={{ fontSize: 11, color: '#8899bb', marginBottom: 12 }}>
-              ✅ Joined = played the contest &nbsp;|&nbsp; 💰 Paid = paid the match fee &nbsp;|&nbsp; 🎁 Sponsored = someone else paid for this player &nbsp;|&nbsp; Enter MyCircle11 points
+              ✅ Joined = played the contest &nbsp;|&nbsp; 💰 Paid = paid the match fee &nbsp;|&nbsp; 🎁 Sponsored = someone else paid
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
               {PLAYERS.map(player => {
@@ -325,7 +335,6 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
                     border: `1px solid ${pd.sponsored ? 'rgba(155,89,182,0.4)' : pd.joined ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)'}`,
                     borderRadius: 10, padding: '12px 14px'
                   }}>
-                    {/* Joined checkbox */}
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 8 }}>
                       <input type="checkbox" checked={pd.joined} onChange={e => handleJoined(player, e.target.checked)}
                         style={{ width: 16, height: 16, accentColor: '#f5a623' }} />
@@ -334,7 +343,6 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
 
                     {pd.joined && (
                       <>
-                        {/* Paid + Sponsored row */}
                         <div style={{ display: 'flex', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
                           <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12 }}>
                             <input type="checkbox" checked={pd.paid} onChange={e => handlePaid(player, e.target.checked)}
@@ -349,51 +357,50 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
                           </label>
                         </div>
 
-                        {/* Sponsor details */}
                         {pd.sponsored && (
                           <div style={{ background: 'rgba(155,89,182,0.1)', border: '1px solid rgba(155,89,182,0.25)', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
                             <div style={{ fontSize: 10, color: '#c39bd3', fontWeight: 700, letterSpacing: 1, marginBottom: 8 }}>
-                              🎁 SPONSOR BREAKDOWN — Fee: ₹{fee} &nbsp;|&nbsp;
-                              Covered: ₹{sponsorTotal.toFixed(2)} &nbsp;|&nbsp;
-                              <span style={{ color: remaining <= 0 ? '#2ecc71' : '#f5a623' }}>Remaining: ₹{remaining.toFixed(2)}</span>
+                              SPONSOR DETAILS
                             </div>
-                            {(pd.sponsorDetails || []).map((d, idx) => (
-                              <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-                                <select value={d.sponsor} onChange={e => handleSponsorDetail(player, idx, 'sponsor', e.target.value)}
-                                  style={{ ...inputStyle, flex: 2, fontSize: 11, padding: '5px 8px' }}>
+                            {(pd.sponsorDetails || []).map((sd, idx) => (
+                              <div key={idx} style={{ display: 'flex', gap: 6, marginBottom: 6, alignItems: 'center' }}>
+                                <select
+                                  value={sd.sponsor}
+                                  onChange={e => handleSponsorDetail(player, idx, 'sponsor', e.target.value)}
+                                  style={{ ...inputStyle, flex: 2, fontSize: 11 }}
+                                >
                                   <option value="">— Sponsor —</option>
                                   {otherPlayers.map(op => <option key={op} value={op}>{op}</option>)}
                                 </select>
-                                <input type="number" value={d.amount} placeholder="₹"
-                                  min={0} max={Math.max(0, remaining + (parseFloat(d.amount) || 0))}
-                                  onChange={e => {
-                                    const maxAmt = remaining + (parseFloat(d.amount) || 0)
-                                    const val = Math.min(parseFloat(e.target.value) || 0, maxAmt)
-                                    handleSponsorDetail(player, idx, 'amount', val)
-                                  }}
-                                  style={{ ...inputStyle, flex: 1, fontSize: 11, padding: '5px 8px' }} />
-                                <button onClick={() => removeSponsorRow(player, idx)}
-                                  style={{ background: 'rgba(231,76,60,0.2)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>✕</button>
+                                <input
+                                  type="number" placeholder="₹" min="0"
+                                  value={sd.amount}
+                                  onChange={e => handleSponsorDetail(player, idx, 'amount', e.target.value)}
+                                  style={{ ...inputStyle, flex: 1, fontSize: 11 }}
+                                />
+                                <button onClick={() => removeSponsorRow(player, idx)} style={{ ...btnStyle('#e74c3c'), padding: '4px 8px' }}>✕</button>
                               </div>
                             ))}
-                            {remaining > 0 && (
-                              <button onClick={() => addSponsorRow(player)}
-                                style={{ background: 'rgba(155,89,182,0.2)', color: '#c39bd3', border: '1px solid rgba(155,89,182,0.3)', borderRadius: 6, padding: '5px 12px', cursor: 'pointer', fontSize: 11, marginTop: 4 }}>
-                                ➕ Add Sponsor
-                              </button>
-                            )}
-                            {remaining <= 0 && (
-                              <div style={{ fontSize: 10, color: '#2ecc71', marginTop: 4 }}>✅ Full fee covered by sponsors</div>
-                            )}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+                              <button onClick={() => addSponsorRow(player)} style={{ ...btnStyle('#9b59b6'), fontSize: 10 }}>+ Add Sponsor</button>
+                              {sponsorTotal > 0 && (
+                                <span style={{ fontSize: 10, color: remaining <= 0 ? '#2ecc71' : '#e74c3c' }}>
+                                  Covered: ₹{sponsorTotal} / ₹{fee} {remaining <= 0 ? '✅' : `(₹${remaining} short)`}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         )}
 
-                        {/* Points */}
                         <div>
-                          <label style={{ ...labelStyle, marginBottom: 3 }}>Points</label>
-                          <input type="number" step="0.01" value={pd.points}
+                          <label style={{ ...labelStyle, fontSize: 10 }}>Points</label>
+                          <input
+                            type="number" step="0.01" min="0"
+                            value={pd.points}
                             onChange={e => setForm(f => ({ ...f, players: { ...f.players, [player]: { ...f.players[player], points: e.target.value } } }))}
-                            style={{ ...inputStyle, fontSize: 13 }} />
+                            style={{ ...inputStyle, fontSize: 13, fontWeight: 700 }}
+                            placeholder="0.00"
+                          />
                         </div>
                       </>
                     )}
@@ -404,95 +411,47 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
           </div>
         )}
 
-        {/* Action buttons */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button onClick={handleSaveMatch} disabled={saving} style={{
-            fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 13, letterSpacing: 1,
-            padding: '10px 24px', borderRadius: 9, cursor: saving ? 'wait' : 'pointer',
-            background: saving ? 'rgba(46,204,113,0.1)' : 'rgba(46,204,113,0.2)',
-            color: '#2ecc71', border: '1px solid rgba(46,204,113,0.4)'
-          }}>
-            {saving ? '⏳ Saving...' : '💾 SAVE MATCH'}
-          </button>
-          <button onClick={clearForm} style={{
-            fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13,
-            padding: '10px 20px', borderRadius: 9, cursor: 'pointer',
-            background: 'rgba(231,76,60,0.1)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.3)'
-          }}>🗑 CLEAR FORM</button>
-          {saveMsg && (
-            <span style={{ fontSize: 12, color: saveMsg.startsWith('✅') ? '#2ecc71' : '#e74c3c' }}>{saveMsg}</span>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            onClick={handleSaveMatch}
+            disabled={saving}
+            style={{ fontFamily: "'Rajdhani',sans-serif", fontWeight: 800, fontSize: 14, padding: '10px 24px', borderRadius: 10, cursor: 'pointer', background: 'rgba(245,166,35,0.2)', color: '#f5a623', border: '1px solid rgba(245,166,35,0.5)', opacity: saving ? 0.6 : 1 }}
+          >{saving ? '⏳ Saving...' : editMatchno ? '💾 Update Match' : '➕ Add Match'}</button>
+          {editMatchno && (
+            <button onClick={clearForm} style={{ ...btnStyle('#8899bb'), fontSize: 12, padding: '9px 16px' }}>✕ Cancel Edit</button>
           )}
+          {saveMsg && <span style={{ fontSize: 12, color: saveMsg.startsWith('✅') ? '#2ecc71' : '#e74c3c' }}>{saveMsg}</span>}
         </div>
       </div>
 
-      {/* ── Transfer Management Table ── */}
-      <TransferTable matches={matches} saveToCloud={saveToCloud} setMatches={setMatches} saving={saving} />
-
-      {/* ── Match List ── */}
-      <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 3, color: '#f5a623', marginBottom: 12, marginTop: 28 }}>
-        📋 SAVED MATCHES ({matches.length})
+      {/* Match list */}
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, letterSpacing: 3, color: '#f5a623', marginBottom: 12 }}>
+        📋 MATCH LIST ({matches.length})
       </div>
-      {matches.length === 0 && (
-        <div style={{ textAlign: 'center', color: '#8899bb', padding: 32, border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 10 }}>No matches yet. Add one above.</div>
-      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {[...matches].sort((a,b) => parseInt(b.matchno) - parseInt(a.matchno)).map(m => {
-          const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
-          const isOpen = expandedMatch === m.matchno
-          const sponsoredPlayers = PLAYERS.filter(p => m.players?.[p]?.sponsored)
-
+          const prizes = calcPrizes(m)
+          const isExpanded = expandedMatch === m.matchno
           return (
-            <div key={m.matchno} style={{
-              background: 'rgba(255,255,255,0.03)',
-              border: `1px solid ${done ? 'rgba(46,204,113,0.2)' : 'rgba(245,166,35,0.2)'}`,
-              borderRadius: 10, overflow: 'hidden'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', flexWrap: 'wrap', cursor: 'pointer' }}
-                onClick={() => setExpandedMatch(isOpen ? null : m.matchno)}>
-                <span style={{ fontWeight: 800, fontSize: 13, color: done ? '#2ecc71' : '#f5a623' }}>#{m.matchno}</span>
-                <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{m.teams || '—'}</span>
-                <span style={{ fontSize: 11, color: '#8899bb' }}>{m.date}</span>
-                {done && <span style={{ fontSize: 10, color: '#2ecc71', background: 'rgba(46,204,113,0.1)', borderRadius: 4, padding: '2px 6px' }}>✅ {m.teamwon}</span>}
-                {sponsoredPlayers.length > 0 && (
-                  <span style={{ fontSize: 10, color: '#c39bd3', background: 'rgba(155,89,182,0.1)', borderRadius: 4, padding: '2px 6px' }}>
-                    🎁 {sponsoredPlayers.join(', ')} sponsored
-                  </span>
-                )}
-                <span style={{ fontSize: 12, color: '#8899bb' }}>{isOpen ? '▲' : '▼'}</span>
-              </div>
-
-              {isOpen && (
-                <div style={{ padding: '0 14px 14px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10, marginBottom: 10 }}>
-                    {PLAYERS.map(p => {
-                      const pd = m.players?.[p]
-                      if (!pd?.joined) return null
-                      return (
-                        <span key={p} style={{
-                          fontSize: 11, padding: '3px 8px', borderRadius: 6,
-                          background: pd.sponsored ? 'rgba(155,89,182,0.15)' : pd.paid ? 'rgba(46,204,113,0.1)' : 'rgba(231,76,60,0.1)',
-                          color: pd.sponsored ? '#c39bd3' : pd.paid ? '#2ecc71' : '#e74c3c',
-                          border: `1px solid ${pd.sponsored ? 'rgba(155,89,182,0.3)' : pd.paid ? 'rgba(46,204,113,0.2)' : 'rgba(231,76,60,0.2)'}`
-                        }}>
-                          {p}: {pd.sponsored ? '🎁 Sponsored' : pd.paid ? '💰 Paid' : '❌ Unpaid'} · {pd.points || 0} pts
-                        </span>
-                      )
-                    })}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => { loadMatch(m); setExpandedMatch(null) }} style={{ ...btnStyle('#f5a623'), fontSize: 12, padding: '7px 16px' }}>✏️ Edit</button>
-                    {deleteConfirm === m.matchno ? (
-                      <>
-                        <span style={{ fontSize: 11, color: '#e74c3c', alignSelf: 'center' }}>Confirm delete?</span>
-                        <button onClick={() => handleDeleteMatch(m.matchno)} style={{ ...btnStyle('#e74c3c'), fontSize: 12, padding: '7px 14px' }}>Yes, Delete</button>
-                        <button onClick={() => setDeleteConfirm(null)} style={{ ...btnStyle('#8899bb'), fontSize: 12, padding: '7px 14px' }}>Cancel</button>
-                      </>
-                    ) : (
-                      <button onClick={() => setDeleteConfirm(m.matchno)} style={{ ...btnStyle('#e74c3c'), fontSize: 12, padding: '7px 14px' }}>🗑 Delete</button>
-                    )}
-                  </div>
+            <div key={m.matchno} style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', flexWrap: 'wrap', cursor: 'pointer' }} onClick={() => setExpandedMatch(isExpanded ? null : m.matchno)}>
+                <span style={{ fontWeight: 800, color: '#f5a623', fontSize: 13 }}>#{m.matchno}</span>
+                <span style={{ fontWeight: 700, flex: 1 }}>{m.teams || '—'}</span>
+                <span style={{ fontSize: 11, color: '#8899bb' }}>{formatDate(m.date)}</span>
+                {m.teamwon && <span style={chipStyle('#2ecc71')}>✅ {m.teamwon}</span>}
+                <div style={{ display: 'flex', gap: 6 }} onClick={e => e.stopPropagation()}>
+                  <button onClick={() => loadMatch(m)} style={btnStyle('#f5a623')}>✏️ Edit</button>
+                  {deleteConfirm === m.matchno ? (
+                    <>
+                      <button onClick={() => handleDeleteMatch(m.matchno)} style={btnStyle('#e74c3c')}>✅ Confirm</button>
+                      <button onClick={() => setDeleteConfirm(null)} style={btnStyle('#8899bb')}>✕</button>
+                    </>
+                  ) : (
+                    <button onClick={() => setDeleteConfirm(m.matchno)} style={btnStyle('#e74c3c')}>🗑</button>
+                  )}
                 </div>
-              )}
+                <span style={{ color: '#8899bb', fontSize: 11 }}>{isExpanded ? '▲' : '▼'}</span>
+              </div>
             </div>
           )
         })}
@@ -501,188 +460,466 @@ function MatchLogAdmin({ matches: initialMatches, onMatchesSave }) {
   )
 }
 
-// ─── PRIZE CALCULATOR (mirrors App.jsx logic) ────────────────
-function calcPrizes(m) {
-  const paidCount = PLAYERS.filter(p => m.players?.[p]?.joined && m.players?.[p]?.paid).length
-  const fee = parseFloat(m.fee) || 0
-  const matchNum = parseInt(m.matchno) || 0
-  let pot1 = 0, pot2 = 0, winnerCountLimit = 0
-  if (matchNum >= 3) {
-    if (matchNum >= 26 && paidCount === 5) {
-      // From match 26 onwards: 5 paid players → 2 winners (1st gets fee*4, 2nd gets fee*1)
-      pot1 = fee * 4; pot2 = fee * 1; winnerCountLimit = 2
-    } else if (paidCount >= 2 && paidCount <= 5) { pot1 = fee * paidCount; winnerCountLimit = 1 }
-    else if (paidCount === 6) { pot1 = fee * 4; pot2 = fee * 2; winnerCountLimit = 2 }
-    else if (paidCount === 7) { pot1 = fee * 5; pot2 = fee * 2; winnerCountLimit = 2 }
+// ─── PREDICTION ADMIN ────────────────────────────────────────
+// Lets admin enter actual session results for completed matches
+// and auto-computes + saves winners to the PRED_BIN_ID bin
+
+const SESSION_COUNT = 5
+const BASE_BET = 10
+
+function getTeams(m) {
+  if (!m?.teams) return ['Team 1', 'Team 2']
+  const parts = m.teams.split(' vs ').map(s => s.trim())
+  return parts.length === 2 ? parts : [parts[0] || 'Team 1', parts[1] || 'Team 2']
+}
+
+function calcSessionResult(joined, predictions, sessionKey, actual, betPerPerson) {
+  const participants = joined.filter(p => predictions[p]?.[sessionKey] !== undefined)
+  if (participants.length === 0) return { winners: [], losers: [], each: 0, noWinner: true, refund: false, carryForwardAmount: betPerPerson * joined.length }
+
+  const pool = betPerPerson * participants.length
+  let winners = []
+
+  if (sessionKey === 's1' || sessionKey === 's5') {
+    const correctTeam = actual.team
+    const correct = participants.filter(p => predictions[p][sessionKey]?.team === correctTeam)
+    const allSame = new Set(participants.map(p => predictions[p][sessionKey]?.team)).size === 1
+    if (allSame) {
+      if (correct.length === participants.length) {
+        return { winners: [], losers: [], each: 0, noWinner: true, refund: sessionKey === 's5', carryForwardAmount: pool }
+      } else {
+        if (sessionKey === 's5') return { winners: [], losers: [], each: 0, noWinner: true, refund: true, carryForwardAmount: 0, pool }
+        return { winners: [], losers: [], each: 0, noWinner: true, refund: false, carryForwardAmount: pool }
+      }
+    }
+    winners = correct
+    if (winners.length === 0) {
+      if (sessionKey === 's5') return { winners: [], losers: [], each: 0, noWinner: true, refund: true, carryForwardAmount: 0, pool }
+      return { winners: [], losers: [], each: 0, noWinner: true, refund: false, carryForwardAmount: pool }
+    }
   } else {
-    pot1 = fee * paidCount
-    winnerCountLimit = paidCount >= 1 ? 1 : 0
+    const actualRuns = actual.runs
+    const diffs = participants.map(p => ({
+      p, runDiff: Math.abs((predictions[p][sessionKey]?.runs || 0) - actualRuns),
+      predWkts: predictions[p][sessionKey]?.wkts || 0
+    }))
+    const minDiff = Math.min(...diffs.map(d => d.runDiff))
+    let closest = diffs.filter(d => d.runDiff === minDiff)
+    const minWkt = Math.min(...closest.map(d => d.predWkts))
+    winners = closest.filter(d => d.predWkts === minWkt).map(d => d.p)
   }
-  const eligiblePaid = PLAYERS
-    .filter(p => m.players?.[p]?.paid && m.players?.[p]?.points > 0)
-    .map(p => ({ name: p, points: m.players[p].points }))
-    .sort((a, b) => b.points - a.points)
-  let paidRanks = {}, cr = 1
-  eligiblePaid.forEach((p, i) => {
-    if (i > 0 && p.points < eligiblePaid[i-1].points) cr++
-    paidRanks[p.name] = cr
-  })
-  const r1Count = eligiblePaid.filter(p => paidRanks[p.name] === 1).length
-  const r2Count = eligiblePaid.filter(p => paidRanks[p.name] === 2).length
+
+  const losers = participants.filter(p => !winners.includes(p))
+  const each = winners.length > 0 ? pool / winners.length : 0
+  return { winners, losers, each: parseFloat(each.toFixed(2)), noWinner: winners.length === 0, refund: false, carryForwardAmount: 0, pool }
+}
+
+function emptyActuals() {
   return {
-    1: r1Count > 0 ? pot1 / r1Count : 0,
-    2: (winnerCountLimit === 2 && r2Count > 0) ? pot2 / r2Count : 0,
-    winnerCountLimit, totalPool: pot1 + pot2, _paidRanks: paidRanks
+    s1: { team: '' },
+    s2: { runs: '', wkts: '' },
+    s3: { runs: '', wkts: '' },
+    s4: { runs: '', wkts: '' },
+    s5: { team: '' },
   }
 }
 
-// ─── TRANSFER TABLE COMPONENT ────────────────────────────────
-function TransferTable({ matches, saveToCloud, setMatches, saving }) {
-  // Only show completed contest matches that have winners
-  const rows = []
-  matches.forEach(m => {
-    const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
-    if (!done || m.contest !== 'yes') return
-    const prizes = calcPrizes(m)
-    const paidRanks = prizes._paidRanks || {}
-    PLAYERS.forEach(p => {
-      const rank = paidRanks[p]
-      const isR1 = rank === 1
-      const isR2 = rank === 2 && prizes.winnerCountLimit === 2
-      if (!isR1 && !isR2) return
-      const prize = isR1 ? prizes[1] : prizes[2]
-      if (!prize || prize <= 0) return
-      const tVal = m.transferred
-      const isDone = typeof tVal === 'object' && tVal !== null
-        ? tVal[p] === true
-        : tVal === true
-      rows.push({ m, player: p, rank: isR1 ? 1 : 2, prize, isDone })
-    })
+async function fetchPredBin() {
+  try {
+    const r = await fetch(`${JSONBIN_BASE}/${PRED_BIN_ID}/latest`, { headers: { 'X-Bin-Meta': 'false' } })
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const d = await r.json()
+    return d.predictions || {}
+  } catch (e) {
+    console.error('PredFetch:', e)
+    return null
+  }
+}
+
+async function savePredBin(predictions) {
+  const r = await fetch(`${JSONBIN_BASE}/${PRED_BIN_ID}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ predictions })
   })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return true
+}
 
-  // Sort: pending first, then by match number desc
-  rows.sort((a, b) => {
-    if (a.isDone !== b.isDone) return a.isDone ? 1 : -1
-    return parseInt(b.m.matchno) - parseInt(a.m.matchno)
-  })
+function PredictionAdmin({ matches }) {
+  const completedMatches = matches.filter(m => m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—')
+    .sort((a, b) => parseInt(b.matchno) - parseInt(a.matchno))
 
-  const pendingCount = rows.filter(r => !r.isDone).length
-  const doneCount = rows.filter(r => r.isDone).length
+  const [allPredData, setAllPredData] = useState(null) // null = not loaded yet
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
+  const [selectedMatch, setSelectedMatch] = useState(null) // matchno string
+  const [actuals, setActuals] = useState(emptyActuals())
+  const [preview, setPreview] = useState(null) // computed results preview
 
-  const toggleTransfer = async (m, player) => {
-    // Compute new transferred value
-    const currentT = m.transferred
-    let newT
-    if (typeof currentT === 'object' && currentT !== null) {
-      newT = { ...currentT, [player]: !currentT[player] }
+  const loadPredData = async () => {
+    setLoading(true)
+    setSaveMsg('')
+    const data = await fetchPredBin()
+    if (data === null) {
+      setSaveMsg('❌ Could not load prediction bin. Check PRED_BIN_ID.')
     } else {
-      // Migrate scalar → object keyed by each winner
-      const prizes = calcPrizes(m)
-      const paidRanks = prizes._paidRanks || {}
-      newT = {}
-      PLAYERS.forEach(p => {
-        const r = paidRanks[p]
-        if (r === 1 || (r === 2 && prizes.winnerCountLimit === 2)) {
-          if (p === player) {
-            newT[p] = !(currentT === true)
-          } else {
-            newT[p] = currentT === true
-          }
-        }
-      })
+      setAllPredData(data)
+      setSaveMsg('')
     }
-
-    const newMatches = matches.map(mm =>
-      String(mm.matchno) === String(m.matchno) ? { ...mm, transferred: newT } : mm
-    )
-    setMatches(newMatches)
-    await saveToCloud(newMatches)
+    setLoading(false)
   }
 
-  if (rows.length === 0) return null
+  useEffect(() => { loadPredData() }, [])
+
+  const selectMatch = (matchno) => {
+    setSelectedMatch(matchno)
+    setPreview(null)
+    setSaveMsg('')
+    // Pre-fill actuals if already saved
+    const existing = allPredData?.[matchno]?.actuals
+    if (existing) {
+      setActuals({
+        s1: existing.s1 || { team: '' },
+        s2: existing.s2 || { runs: '', wkts: '' },
+        s3: existing.s3 || { runs: '', wkts: '' },
+        s4: existing.s4 || { runs: '', wkts: '' },
+        s5: existing.s5 || { team: '' },
+      })
+    } else {
+      setActuals(emptyActuals())
+    }
+  }
+
+  const computePreview = () => {
+    if (!selectedMatch || !allPredData) return
+    const mpData = allPredData[selectedMatch] || {}
+    const playerPredictions = mpData.playerPredictions || {}
+    const joined = PLAYERS.filter(p => playerPredictions[p] && Object.keys(playerPredictions[p]).length > 0)
+
+    const results = {}
+    let carry = 0
+    for (let i = 0; i < SESSION_COUNT; i++) {
+      const sk = `s${i + 1}`
+      const betPerPerson = BASE_BET + (joined.length > 0 ? carry / joined.length : carry)
+      const actual = actuals[sk]
+      // Validate actual is filled
+      const isTeam = sk === 's1' || sk === 's5'
+      if (isTeam && !actual?.team) { results[sk] = null; continue }
+      if (!isTeam && (actual?.runs === '' || actual?.wkts === '')) { results[sk] = null; continue }
+
+      const actualParsed = isTeam
+        ? { team: actual.team }
+        : { runs: parseInt(actual.runs), wkts: parseInt(actual.wkts) }
+
+      const r = calcSessionResult(joined, playerPredictions, sk, actualParsed, betPerPerson)
+      results[sk] = r
+
+      if (r.noWinner && !r.refund && r.carryForwardAmount > 0) {
+        const remaining = SESSION_COUNT - i - 1
+        carry = remaining > 0 ? r.carryForwardAmount / remaining : 0
+      } else {
+        carry = 0
+      }
+    }
+    setPreview({ results, joined })
+  }
+
+  const saveActualsAndResults = async () => {
+    if (!selectedMatch || !allPredData) return
+    setSaving(true); setSaveMsg('')
+    try {
+      const mpData = allPredData[selectedMatch] || {}
+      const playerPredictions = mpData.playerPredictions || {}
+      const joined = PLAYERS.filter(p => playerPredictions[p] && Object.keys(playerPredictions[p]).length > 0)
+
+      // Build parsed actuals
+      const parsedActuals = {}
+      for (let i = 1; i <= SESSION_COUNT; i++) {
+        const sk = `s${i}`
+        const isTeam = sk === 's1' || sk === 's5'
+        parsedActuals[sk] = isTeam
+          ? { team: actuals[sk].team }
+          : { runs: parseInt(actuals[sk].runs) || 0, wkts: parseInt(actuals[sk].wkts) || 0 }
+      }
+
+      // Recompute results with carry
+      const results = {}
+      let carry = 0
+      for (let i = 0; i < SESSION_COUNT; i++) {
+        const sk = `s${i + 1}`
+        const betPerPerson = BASE_BET + (joined.length > 0 ? carry / joined.length : carry)
+        const isTeam = sk === 's1' || sk === 's5'
+        const actual = parsedActuals[sk]
+        const r = calcSessionResult(joined, playerPredictions, sk, actual, betPerPerson)
+        results[sk] = r
+        if (r.noWinner && !r.refund && r.carryForwardAmount > 0) {
+          const remaining = SESSION_COUNT - i - 1
+          carry = remaining > 0 ? r.carryForwardAmount / remaining : 0
+        } else { carry = 0 }
+      }
+
+      const updated = {
+        ...allPredData,
+        [selectedMatch]: {
+          ...mpData,
+          actuals: parsedActuals,
+          results,
+          resultsUpdatedAt: new Date().toISOString()
+        }
+      }
+
+      await savePredBin(updated)
+      setAllPredData(updated)
+      setPreview({ results, joined })
+      setSaveMsg('✅ Actuals + results saved! Public Prediction tab will now show winners.')
+    } catch (e) {
+      setSaveMsg(`❌ ${e.message}`)
+    }
+    setSaving(false)
+  }
+
+  const clearResults = async () => {
+    if (!selectedMatch || !allPredData) return
+    if (!window.confirm(`Clear all actuals and results for Match #${selectedMatch}? Players will no longer see winners.`)) return
+    setSaving(true); setSaveMsg('')
+    try {
+      const mpData = { ...allPredData[selectedMatch] }
+      delete mpData.actuals
+      delete mpData.results
+      delete mpData.resultsUpdatedAt
+      const updated = { ...allPredData, [selectedMatch]: mpData }
+      await savePredBin(updated)
+      setAllPredData(updated)
+      setActuals(emptyActuals())
+      setPreview(null)
+      setSaveMsg('🗑 Results cleared. Players will see "Awaiting Admin Results" again.')
+    } catch (e) { setSaveMsg(`❌ ${e.message}`) }
+    setSaving(false)
+  }
+
+  const sessionLabels = (m) => {
+    const [t1, t2] = getTeams(m)
+    return [
+      { key: 's1', label: `S1: Toss Winner (${t1} vs ${t2})`, isTeam: true },
+      { key: 's2', label: 'S2: PP1 — 1st Innings (Runs & Wkts)', isTeam: false },
+      { key: 's3', label: 'S3: 1st Innings Final Score (Runs & Wkts)', isTeam: false },
+      { key: 's4', label: 'S4: PP1 — 2nd Innings (Runs & Wkts)', isTeam: false },
+      { key: 's5', label: `S5: Match Winner (${t1} vs ${t2})`, isTeam: true },
+    ]
+  }
+
+  const selMatch = selectedMatch ? matches.find(m => String(m.matchno) === String(selectedMatch)) : null
+  const teams = selMatch ? getTeams(selMatch) : ['Team 1', 'Team 2']
 
   return (
-    <div style={{ marginBottom: 28 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
-        <div style={{ fontFamily: "'Bebas Neue',sans-serif", fontSize: 18, letterSpacing: 3, color: '#f5a623' }}>
-          💸 TRANSFER MANAGEMENT
-        </div>
-        <span style={{ fontSize: 11, background: 'rgba(231,76,60,0.15)', color: '#e74c3c', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>
-          {pendingCount} Pending
-        </span>
-        <span style={{ fontSize: 11, background: 'rgba(46,204,113,0.1)', color: '#2ecc71', border: '1px solid rgba(46,204,113,0.25)', borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>
-          {doneCount} Done
-        </span>
+    <div style={{ padding: '16px 20px', color: '#e8eaf6', fontFamily: "'Rajdhani', sans-serif" }}>
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 3, color: '#f5a623', marginBottom: 4 }}>
+        🔮 PREDICTION RESULTS MANAGER
+      </div>
+      <div style={{ fontSize: 12, color: '#8899bb', marginBottom: 16, lineHeight: 1.7 }}>
+        Enter actual scores for each session after a match is complete.<br/>
+        Winners are <b style={{ color: '#f5a623' }}>only shown to players once you save actuals here</b>. Predictions stay locked until then.
       </div>
 
-      <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontFamily: "'Rajdhani',sans-serif", fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: 'rgba(245,166,35,0.08)', borderBottom: '1px solid rgba(245,166,35,0.2)' }}>
-              {['Match', 'Date', 'Teams', 'Winner', 'Rank', 'Prize (₹)', 'Status', 'Action'].map(h => (
-                <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#f5a623', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => {
-              const { m, player, rank, prize, isDone } = row
-              return (
-                <tr key={`${m.matchno}-${player}`} style={{
-                  background: idx % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                  borderBottom: '1px solid rgba(255,255,255,0.04)',
-                  transition: 'background 0.15s'
-                }}>
-                  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#f5a623' }}>#{m.matchno}</td>
-                  <td style={{ padding: '10px 14px', color: '#8899bb', fontSize: 11, whiteSpace: 'nowrap' }}>{m.date || '—'}</td>
-                  <td style={{ padding: '10px 14px', color: '#e8eaf6', whiteSpace: 'nowrap' }}>{m.teams || '—'}</td>
-                  <td style={{ padding: '10px 14px', fontWeight: 700, color: '#e8eaf6' }}>{player}</td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4,
-                      background: rank === 1 ? 'rgba(255,215,0,0.15)' : 'rgba(192,192,192,0.15)',
-                      color: rank === 1 ? '#FFD700' : '#C0C0C0',
-                      border: `1px solid ${rank === 1 ? 'rgba(255,215,0,0.3)' : 'rgba(192,192,192,0.3)'}`
-                    }}>
-                      {rank === 1 ? '🥇 1st' : '🥈 2nd'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 14px', fontWeight: 800, color: '#2ecc71', fontSize: 14 }}>₹{prize.toFixed(2)}</td>
-                  <td style={{ padding: '10px 14px' }}>
-                    {isDone
-                      ? <span style={{ fontSize: 11, color: '#2ecc71', background: 'rgba(46,204,113,0.1)', border: '1px solid rgba(46,204,113,0.3)', borderRadius: 6, padding: '3px 10px', fontWeight: 700 }}>✅ Done</span>
-                      : <span style={{ fontSize: 11, color: '#e74c3c', background: 'rgba(231,76,60,0.1)', border: '1px solid rgba(231,76,60,0.3)', borderRadius: 6, padding: '3px 10px', fontWeight: 700 }}>⏳ Pending</span>
-                    }
-                  </td>
-                  <td style={{ padding: '10px 14px' }}>
-                    <button
-                      onClick={() => toggleTransfer(m, player)}
-                      disabled={saving}
-                      style={{
-                        fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 11,
-                        padding: '5px 14px', borderRadius: 7, cursor: saving ? 'wait' : 'pointer',
-                        background: isDone ? 'rgba(231,76,60,0.12)' : 'rgba(46,204,113,0.15)',
-                        color: isDone ? '#e74c3c' : '#2ecc71',
-                        border: `1px solid ${isDone ? 'rgba(231,76,60,0.35)' : 'rgba(46,204,113,0.35)'}`,
-                        transition: 'all 0.15s', whiteSpace: 'nowrap',
-                        opacity: saving ? 0.6 : 1
-                      }}
-                    >
-                      {saving ? '⏳...' : isDone ? '↩ Mark Pending' : '✅ Mark Done'}
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          onClick={loadPredData}
+          disabled={loading}
+          style={{ ...btnStyle('#3498db'), fontSize: 12, padding: '7px 16px' }}
+        >{loading ? '⏳ Loading...' : '⟳ Reload Prediction Data'}</button>
+        {allPredData !== null && (
+          <span style={{ fontSize: 11, color: '#2ecc71' }}>
+            ✅ Loaded {Object.keys(allPredData).length} match(es) from prediction bin
+          </span>
+        )}
       </div>
 
-      {pendingCount === 0 && (
-        <div style={{ textAlign: 'center', fontSize: 11, color: '#2ecc71', marginTop: 8, letterSpacing: 1 }}>
-          🎉 All payouts transferred!
+      {saveMsg && (
+        <div style={{ fontSize: 12, marginBottom: 14, padding: '8px 12px', borderRadius: 8, color: saveMsg.startsWith('✅') ? '#2ecc71' : saveMsg.startsWith('🗑') ? '#f5a623' : '#e74c3c', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {saveMsg}
         </div>
       )}
+
+      {completedMatches.length === 0 ? (
+        <div style={{ fontSize: 12, color: '#8899bb', padding: 24, textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 10 }}>
+          No completed matches found. Matches need "Team Won" to be filled in Match Log first.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          {/* Match selector */}
+          <div style={{ minWidth: 220 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: '#8899bb', textTransform: 'uppercase', marginBottom: 8 }}>Select Match</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {completedMatches.map(m => {
+                const hasResults = !!(allPredData?.[String(m.matchno)]?.actuals)
+                const isSelected = String(selectedMatch) === String(m.matchno)
+                const participantCount = Object.keys(allPredData?.[String(m.matchno)]?.playerPredictions || {}).length
+                return (
+                  <div
+                    key={m.matchno}
+                    onClick={() => selectMatch(String(m.matchno))}
+                    style={{
+                      padding: '10px 14px', borderRadius: 10, cursor: 'pointer', transition: 'all 0.15s',
+                      border: `1px solid ${isSelected ? 'rgba(245,166,35,0.5)' : 'rgba(255,255,255,0.08)'}`,
+                      background: isSelected ? 'rgba(245,166,35,0.1)' : 'rgba(255,255,255,0.02)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
+                      <span style={{ fontWeight: 800, color: isSelected ? '#f5a623' : '#e8eaf6', fontSize: 13 }}>
+                        #{m.matchno} {m.teams}
+                      </span>
+                      {hasResults
+                        ? <span style={chipStyle('#2ecc71')}>✅ Done</span>
+                        : <span style={chipStyle('#e74c3c')}>⏳ Pending</span>
+                      }
+                    </div>
+                    <div style={{ fontSize: 10, color: '#8899bb', marginTop: 3 }}>
+                      {m.teamwon} Won · {participantCount} prediction participant(s)
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Actuals form */}
+          {selectedMatch && selMatch && (
+            <div style={{ flex: 1, minWidth: 300 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#f5a623', marginBottom: 14, fontFamily: "'Rajdhani',sans-serif" }}>
+                Match #{selectedMatch}: {selMatch.teams} — Enter Actuals
+              </div>
+
+              {allPredData?.[selectedMatch]?.resultsUpdatedAt && (
+                <div style={{ fontSize: 11, color: '#8899bb', marginBottom: 10 }}>
+                  Last saved: {new Date(allPredData[selectedMatch].resultsUpdatedAt).toLocaleString('en-IN')}
+                </div>
+              )}
+
+              {sessionLabels(selMatch).map(({ key, label, isTeam }) => (
+                <div key={key} style={{ marginBottom: 14, background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '12px 14px' }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: '#e8eaf6', marginBottom: 8, fontFamily: "'Rajdhani',sans-serif" }}>
+                    {label}
+                  </div>
+                  {isTeam ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {teams.map(team => (
+                        <button
+                          key={team}
+                          onClick={() => setActuals(a => ({ ...a, [key]: { team } }))}
+                          style={{
+                            flex: 1, padding: '8px', borderRadius: 8, cursor: 'pointer',
+                            border: actuals[key]?.team === team ? '2px solid #f5a623' : '2px solid rgba(255,255,255,0.1)',
+                            background: actuals[key]?.team === team ? 'rgba(245,166,35,0.15)' : 'rgba(255,255,255,0.04)',
+                            color: actuals[key]?.team === team ? '#f5a623' : '#aaa',
+                            fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 13
+                          }}
+                        >{team}</button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ ...labelStyle, fontSize: 10 }}>Actual Runs</label>
+                        <input
+                          type="number" min="0" step="1"
+                          value={actuals[key]?.runs ?? ''}
+                          onChange={e => setActuals(a => ({ ...a, [key]: { ...a[key], runs: e.target.value } }))}
+                          style={inputStyle}
+                          placeholder="e.g. 58"
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ ...labelStyle, fontSize: 10 }}>Actual Wickets</label>
+                        <input
+                          type="number" min="0" max="10" step="1"
+                          value={actuals[key]?.wkts ?? ''}
+                          onChange={e => setActuals(a => ({ ...a, [key]: { ...a[key], wkts: e.target.value } }))}
+                          style={inputStyle}
+                          placeholder="e.g. 3"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Who participated */}
+              <div style={{ marginBottom: 14, padding: '10px 14px', background: 'rgba(52,152,219,0.06)', border: '1px solid rgba(52,152,219,0.2)', borderRadius: 10 }}>
+                <div style={{ fontSize: 11, color: '#3498db', fontWeight: 700, marginBottom: 6 }}>👥 Participants in this match:</div>
+                {Object.keys(allPredData?.[selectedMatch]?.playerPredictions || {}).length === 0
+                  ? <div style={{ fontSize: 11, color: '#8899bb' }}>No predictions submitted yet for this match.</div>
+                  : Object.keys(allPredData?.[selectedMatch]?.playerPredictions || {}).map(p => (
+                    <span key={p} style={{ display: 'inline-block', margin: '2px 4px', padding: '2px 8px', borderRadius: 4, background: 'rgba(52,152,219,0.15)', color: '#3498db', fontSize: 11, fontWeight: 700 }}>{p}</span>
+                  ))
+                }
+              </div>
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+                <button
+                  onClick={computePreview}
+                  style={{ ...btnStyle('#e056fd'), fontSize: 12, padding: '8px 18px' }}
+                >🔍 Preview Results</button>
+                <button
+                  onClick={saveActualsAndResults}
+                  disabled={saving}
+                  style={{ ...btnStyle('#2ecc71'), fontSize: 12, padding: '8px 18px', opacity: saving ? 0.6 : 1 }}
+                >{saving ? '⏳ Saving...' : '💾 Save & Publish Results'}</button>
+                {allPredData?.[selectedMatch]?.actuals && (
+                  <button
+                    onClick={clearResults}
+                    disabled={saving}
+                    style={{ ...btnStyle('#e74c3c'), fontSize: 12, padding: '8px 18px' }}
+                  >🗑 Clear Results</button>
+                )}
+              </div>
+
+              {/* Preview panel */}
+              {preview && (
+                <div style={{ marginTop: 4, background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '14px 16px' }}>
+                  <div style={{ fontWeight: 800, color: '#f5a623', marginBottom: 10, fontFamily: "'Rajdhani',sans-serif", fontSize: 14 }}>
+                    🔮 Results Preview (Participants: {preview.joined.join(', ') || 'None'})
+                  </div>
+                  {['s1','s2','s3','s4','s5'].map((sk, i) => {
+                    const r = preview.results[sk]
+                    if (!r) return (
+                      <div key={sk} style={{ fontSize: 12, color: '#8899bb', marginBottom: 6, padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.02)' }}>
+                        Session {i+1}: ⚠️ Actual not filled — skipped
+                      </div>
+                    )
+                    return (
+                      <div key={sk} style={{ marginBottom: 8, padding: '8px 12px', borderRadius: 8, background: r.noWinner ? 'rgba(231,76,60,0.07)' : 'rgba(46,204,113,0.07)', border: `1px solid ${r.noWinner ? 'rgba(231,76,60,0.25)' : 'rgba(46,204,113,0.25)'}` }}>
+                        <div style={{ fontWeight: 700, fontSize: 12, marginBottom: 3, color: r.noWinner ? '#e74c3c' : '#2ecc71' }}>
+                          Session {i+1}: {r.refund ? '🔄 Refund' : r.noWinner ? '📤 No Winner' : `🏆 ${r.winners.join(', ')} wins`}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#aaa' }}>
+                          {r.refund
+                            ? `₹${r.pool?.toFixed(2)} refunded`
+                            : r.noWinner
+                            ? `₹${r.carryForwardAmount?.toFixed(2)} carry forward`
+                            : `Each winner gets ₹${r.each?.toFixed(2)} from pool of ₹${r.pool?.toFixed(2)}`
+                          }
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ marginTop: 20, background: 'rgba(52,152,219,0.06)', border: '1px dashed rgba(52,152,219,0.25)', borderRadius: 10, padding: '12px 16px', fontSize: 11, color: '#8899bb', lineHeight: 1.9 }}>
+        <div style={{ color: '#3498db', fontWeight: 700, marginBottom: 4, fontSize: 12 }}>💡 Workflow</div>
+        <div>1. Select a completed match from the left panel</div>
+        <div>2. Enter the <b style={{ color: '#f5a623' }}>actual result</b> for each of the 5 sessions</div>
+        <div>3. Click <b style={{ color: '#e056fd' }}>Preview Results</b> to verify winners before publishing</div>
+        <div>4. Click <b style={{ color: '#2ecc71' }}>Save & Publish Results</b> — players will immediately see winners on the public page</div>
+        <div>5. To undo: click <b style={{ color: '#e74c3c' }}>Clear Results</b> to revert to "Awaiting Admin Results" state</div>
+      </div>
     </div>
   )
 }
@@ -709,65 +946,36 @@ function FantasyTipsAdmin({ matches, fantasyData, onFantasyDataSave }) {
   }
 
   const cancelEdit = () => {
-    setEditMatchNo(null)
-    setEditUrl('')
-    setEditNotes('')
-    setSaveMsg('')
+    setEditMatchNo(null); setEditUrl(''); setEditNotes(''); setSaveMsg('')
   }
 
   const saveToCloud = async (newData) => {
-    setSaving(true)
-    setSaveMsg('')
+    setSaving(true); setSaveMsg('')
     try {
-      // Fetch current full bin data
       let binData = {}
-      const getRes = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}/latest`, {
-        headers: { 'X-Bin-Meta': 'false' }
-      })
-      if (getRes.ok) {
-        binData = await getRes.json()
-      } else {
-        const getRes2 = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}/latest`)
-        if (getRes2.ok) { const d = await getRes2.json(); binData = d.record || d }
+      const getRes = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}/latest`, { headers: { 'X-Bin-Meta': 'false' } })
+      if (getRes.ok) { binData = await getRes.json() }
+      else {
+        const r2 = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}/latest`)
+        if (r2.ok) { const d = await r2.json(); binData = d.record || d }
       }
-
       const updated = { ...binData, fantasyData: newData }
-
-      // Try to get admin key from session for auth
       let headers = { 'Content-Type': 'application/json' }
       try {
         const raw = sessionStorage.getItem('vois_admin_session')
-        if (raw) {
-          const s = JSON.parse(raw)
-          if (s.key) headers['X-Master-Key'] = s.key
-        }
+        if (raw) { const s = JSON.parse(raw); if (s.key) headers['X-Master-Key'] = s.key }
       } catch {}
-
-      const putRes = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify(updated)
-      })
-      if (!putRes.ok) throw new Error(`Save failed (${putRes.status}) — check bin permissions`)
+      const putRes = await fetch(`${JSONBIN_BASE}/${HARDCODED_BIN_ID}`, { method: 'PUT', headers, body: JSON.stringify(updated) })
+      if (!putRes.ok) throw new Error(`Save failed (${putRes.status})`)
       setSaveMsg('✅ Saved successfully! Public page will update on next refresh.')
       onFantasyDataSave(newData)
-    } catch (err) {
-      setSaveMsg(`❌ ${err.message}`)
-    } finally {
-      setSaving(false)
-    }
+    } catch (err) { setSaveMsg(`❌ ${err.message}`) }
+    finally { setSaving(false) }
   }
 
   const handleSave = async () => {
     if (editMatchNo === null) return
-    const newData = {
-      ...localData,
-      [editMatchNo]: {
-        ...(localData[editMatchNo] || {}),
-        youtubeUrl: editUrl.trim(),
-        notes: editNotes.trim()
-      }
-    }
+    const newData = { ...localData, [editMatchNo]: { ...(localData[editMatchNo] || {}), youtubeUrl: editUrl.trim(), notes: editNotes.trim() } }
     setLocalData(newData)
     await saveToCloud(newData)
   }
@@ -788,7 +996,7 @@ function FantasyTipsAdmin({ matches, fantasyData, onFantasyDataSave }) {
         🎯 FANTASY TIPS MANAGER
       </div>
       <div style={{ fontSize: 12, color: '#8899bb', marginBottom: 20 }}>
-        Add YouTube video URLs and match notes for upcoming matches. Only upcoming (not yet started) matches with a YouTube URL will be visible to the public.
+        Add YouTube video URLs and match notes for upcoming matches.
       </div>
 
       {matches.length === 0 && (
@@ -812,7 +1020,6 @@ function FantasyTipsAdmin({ matches, fantasyData, onFantasyDataSave }) {
               border: `1px solid ${isEditing ? 'rgba(245,166,35,0.4)' : 'rgba(255,255,255,0.07)'}`,
               borderRadius: 10, overflow: 'hidden'
             }}>
-              {/* Row */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', flexWrap: 'wrap' }}>
                 <span style={{
                   background: done ? 'rgba(46,204,113,0.15)' : 'rgba(245,166,35,0.15)',
@@ -820,13 +1027,11 @@ function FantasyTipsAdmin({ matches, fantasyData, onFantasyDataSave }) {
                   border: `1px solid ${done ? 'rgba(46,204,113,0.3)' : 'rgba(245,166,35,0.3)'}`,
                   borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700
                 }}>#{mn}</span>
-
                 <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{m.teams || '—'}</span>
                 <span style={{ fontSize: 11, color: '#8899bb' }}>
                   {formatDate(m.date)}{m.matchTime ? ' · ' + formatMatchTimeLabel(m.matchTime) : ''}
                 </span>
                 {done && <span style={{ fontSize: 10, color: '#2ecc71', background: 'rgba(46,204,113,0.1)', borderRadius: 4, padding: '2px 6px' }}>✅ Completed</span>}
-
                 <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
                   {hasUrl && !isEditing && (
                     <button onClick={() => setPreviewMatchNo(previewMatchNo === mn ? null : mn)} style={btnStyle('#3498db')}>
@@ -834,9 +1039,7 @@ function FantasyTipsAdmin({ matches, fantasyData, onFantasyDataSave }) {
                     </button>
                   )}
                   {!isEditing && (
-                    <button onClick={() => openEdit(mn)} style={btnStyle('#f5a623')}>
-                      ✏️ {hasUrl ? 'Edit' : 'Add'} Fantasy
-                    </button>
+                    <button onClick={() => openEdit(mn)} style={btnStyle('#f5a623')}>✏️ {hasUrl ? 'Edit' : 'Add'} Fantasy</button>
                   )}
                   {hasUrl && !isEditing && (
                     <button onClick={() => handleDelete(mn)} style={btnStyle('#e74c3c')}>🗑</button>
@@ -844,120 +1047,53 @@ function FantasyTipsAdmin({ matches, fantasyData, onFantasyDataSave }) {
                 </div>
               </div>
 
-              {/* Status chips */}
               {(hasUrl || hasNotes) && !isEditing && (
                 <div style={{ padding: '0 14px 10px', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {hasUrl && <span style={chipStyle('#3498db')}>📺 YouTube linked</span>}
                   {hasNotes && <span style={chipStyle('#2ecc71')}>📋 Notes added</span>}
-                  {!hasNotes && hasUrl && <span style={chipStyle('#e74c3c')}>⚠️ No notes yet</span>}
                 </div>
               )}
 
-              {/* Edit form */}
               {isEditing && (
                 <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <div>
                     <label style={labelStyle}>📺 YouTube Video URL</label>
-                    <input
-                      value={editUrl}
-                      onChange={e => setEditUrl(e.target.value)}
-                      placeholder="https://youtu.be/XXXXXXXXXXX or https://youtube.com/watch?v=..."
-                      style={inputStyle}
-                    />
-                    {editUrl && getYouTubeEmbedId(editUrl) && (
-                      <div style={{ fontSize: 10, color: '#2ecc71', marginTop: 4 }}>✅ Valid YouTube URL — ID: {getYouTubeEmbedId(editUrl)}</div>
-                    )}
-                    {editUrl && !getYouTubeEmbedId(editUrl) && (
-                      <div style={{ fontSize: 10, color: '#e74c3c', marginTop: 4 }}>⚠️ Could not parse YouTube video ID — check URL format</div>
-                    )}
+                    <input value={editUrl} onChange={e => setEditUrl(e.target.value)}
+                      placeholder="https://youtu.be/XXXXXXXXXXX" style={inputStyle} />
+                    {editUrl && getYouTubeEmbedId(editUrl) && <div style={{ fontSize: 10, color: '#2ecc71', marginTop: 4 }}>✅ Valid YouTube URL</div>}
                   </div>
-
                   <div>
-                    <label style={labelStyle}>
-                      📋 Fantasy Notes
-                      <span style={{ fontSize: 10, fontWeight: 400, color: '#8899bb', marginLeft: 8 }}>
-                        paste your generated summary here
-                      </span>
-                    </label>
-                    <textarea
-                      value={editNotes}
-                      onChange={e => setEditNotes(e.target.value)}
-                      placeholder={`🏟️ PITCH & CONDITIONS\nEkana Stadium, Lucknow. Batting-friendly pitch...\n\n🔥 KEY PLAYERS TO PICK\n• Jos Buttler (GT) — ...\n\n👑 CAPTAIN & VICE-CAPTAIN\nCaptain: Buttler | VC: Sudarshan`}
-                      rows={14}
-                      style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
-                    />
-                    <div style={{ fontSize: 10, color: '#8899bb', marginTop: 4 }}>
-                      {editNotes.length} characters · {editNotes.split('\n').length} lines
-                    </div>
+                    <label style={labelStyle}>📋 Fantasy Notes</label>
+                    <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)}
+                      rows={10} style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11, resize: 'vertical' }}
+                      placeholder="Paste your fantasy notes here..." />
                   </div>
-
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={handleSave}
-                      disabled={saving || (!editUrl.trim() && !editNotes.trim())}
-                      style={{
-                        ...btnStyle('#2ecc71'), fontSize: 13, padding: '9px 20px',
-                        opacity: (saving || (!editUrl.trim() && !editNotes.trim())) ? 0.5 : 1
-                      }}
-                    >
-                      {saving ? '⏳ Saving to Cloud...' : '💾 Save to Cloud'}
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button onClick={handleSave} disabled={saving || (!editUrl.trim() && !editNotes.trim())}
+                      style={{ ...btnStyle('#2ecc71'), fontSize: 13, padding: '9px 20px' }}>
+                      {saving ? '⏳ Saving...' : '💾 Save to Cloud'}
                     </button>
-                    <button onClick={cancelEdit} style={{ ...btnStyle('#8899bb'), fontSize: 13, padding: '9px 16px' }}>
-                      ✕ Cancel
-                    </button>
-                    {saveMsg && (
-                      <span style={{ fontSize: 11, color: saveMsg.startsWith('✅') ? '#2ecc71' : '#e74c3c' }}>
-                        {saveMsg}
-                      </span>
-                    )}
+                    <button onClick={cancelEdit} style={{ ...btnStyle('#8899bb'), fontSize: 13, padding: '9px 16px' }}>✕ Cancel</button>
+                    {saveMsg && <span style={{ fontSize: 11, color: saveMsg.startsWith('✅') ? '#2ecc71' : '#e74c3c' }}>{saveMsg}</span>}
                   </div>
                 </div>
               )}
 
-              {/* Video preview inline */}
               {previewMatchNo === mn && embedId && !isEditing && (
                 <div style={{ padding: '0 14px 14px' }}>
-                  <div style={{
-                    position: isFullscreen ? 'fixed' : 'relative',
-                    inset: isFullscreen ? 0 : 'auto',
-                    zIndex: isFullscreen ? 9999 : 'auto',
-                    width: '100%',
-                    paddingBottom: isFullscreen ? 0 : '56.25%',
-                    height: isFullscreen ? '100vh' : 0,
-                    background: '#000',
-                    borderRadius: isFullscreen ? 0 : 10,
-                    overflow: 'hidden',
-                    border: '1px solid rgba(231,76,60,0.3)'
-                  }}>
-                    {isFullscreen && (
-                      <button
-                        onClick={() => setIsFullscreen(false)}
-                        style={{ position: 'absolute', top: 12, right: 12, zIndex: 10001, background: 'rgba(0,0,0,0.8)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontFamily: "'Rajdhani',sans-serif", fontWeight: 700 }}
-                      >✕ Exit</button>
-                    )}
+                  <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%', height: 0, borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(231,76,60,0.3)' }}>
                     <iframe
                       src={`https://www.youtube.com/embed/${embedId}?rel=0&modestbranding=1`}
-                      style={{ position: isFullscreen ? 'static' : 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                      style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen title="Preview"
                     />
                   </div>
-                  {!isFullscreen && (
-                    <button onClick={() => setIsFullscreen(true)} style={{ ...btnStyle('#e74c3c'), marginTop: 8 }}>⛶ Fullscreen Preview</button>
-                  )}
                 </div>
               )}
             </div>
           )
         })}
-      </div>
-
-      <div style={{ background: 'rgba(52,152,219,0.06)', border: '1px dashed rgba(52,152,219,0.25)', borderRadius: 10, padding: '12px 16px', fontSize: 11, color: '#8899bb', lineHeight: 1.8 }}>
-        <div style={{ color: '#3498db', fontWeight: 700, marginBottom: 4, fontSize: 12 }}>💡 Workflow</div>
-        <div>1. Before a match: paste the YouTube video link + paste notes generated from Claude chat</div>
-        <div>2. Click <b style={{ color: '#2ecc71' }}>Save to Cloud</b> — stored in JSONBin with all match data</div>
-        <div>3. Public page auto-shows tips for <b style={{ color: '#f5a623' }}>upcoming matches only</b> — hides once match starts/completes</div>
-        <div>4. To generate notes: paste the YouTube transcript in Claude chat → get summary → paste here</div>
       </div>
     </div>
   )
@@ -990,15 +1126,14 @@ function getYtId(url) {
   return null
 }
 
-// Per-match row component — has its own isolated form state
 function MatchHighlightRow({ m, clips, saving, onAdd, onEdit, onRemove }) {
   const mn = parseInt(m.matchno)
   const done = m.teamwon && m.teamwon.trim() !== '' && m.teamwon !== '—'
-  const [isOpen, setIsOpen]       = useState(false)
-  const [addUrl, setAddUrl]       = useState('')
-  const [addLabel, setAddLabel]   = useState('')
-  const [editIdx, setEditIdx]     = useState(null)
-  const [editUrl, setEditUrl]     = useState('')
+  const [isOpen, setIsOpen]     = useState(false)
+  const [addUrl, setAddUrl]     = useState('')
+  const [addLabel, setAddLabel] = useState('')
+  const [editIdx, setEditIdx]   = useState(null)
+  const [editUrl, setEditUrl]   = useState('')
   const [editLabel, setEditLabel] = useState('')
   const [previewIdx, setPreviewIdx] = useState(null)
 
@@ -1007,10 +1142,7 @@ function MatchHighlightRow({ m, clips, saving, onAdd, onEdit, onRemove }) {
     onAdd(mn, { type: detectType(addUrl.trim()), url: addUrl.trim(), label: addLabel.trim() || 'Highlight' })
     setAddUrl(''); setAddLabel('')
   }
-
-  const startEdit = (i) => {
-    setEditIdx(i); setEditUrl(clips[i].url); setEditLabel(clips[i].label || '')
-  }
+  const startEdit = (i) => { setEditIdx(i); setEditUrl(clips[i].url); setEditLabel(clips[i].label || '') }
   const cancelEdit = () => { setEditIdx(null); setEditUrl(''); setEditLabel('') }
   const saveEdit = () => {
     if (!editUrl.trim()) return
@@ -1019,137 +1151,48 @@ function MatchHighlightRow({ m, clips, saving, onAdd, onEdit, onRemove }) {
   }
 
   return (
-    <div style={{
-      background: isOpen ? 'rgba(245,166,35,0.05)' : 'rgba(255,255,255,0.02)',
-      border: `1px solid ${isOpen ? 'rgba(245,166,35,0.3)' : 'rgba(255,255,255,0.07)'}`,
-      borderRadius: 10, overflow: 'hidden',
-    }}>
-      {/* Header row */}
+    <div style={{ background: isOpen ? 'rgba(245,166,35,0.05)' : 'rgba(255,255,255,0.02)', border: `1px solid ${isOpen ? 'rgba(245,166,35,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 10, overflow: 'hidden' }}>
       <div onClick={() => setIsOpen(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', cursor: 'pointer', flexWrap: 'wrap' }}>
-        <span style={{
-          background: done ? 'rgba(46,204,113,0.15)' : 'rgba(245,166,35,0.15)',
-          color: done ? '#2ecc71' : '#f5a623',
-          border: `1px solid ${done ? 'rgba(46,204,113,0.3)' : 'rgba(245,166,35,0.3)'}`,
-          borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700, flexShrink: 0,
-        }}>#{mn}</span>
+        <span style={{ background: done ? 'rgba(46,204,113,0.15)' : 'rgba(245,166,35,0.15)', color: done ? '#2ecc71' : '#f5a623', border: `1px solid ${done ? 'rgba(46,204,113,0.3)' : 'rgba(245,166,35,0.3)'}`, borderRadius: 6, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>#{mn}</span>
         <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{m.teams || '—'}</span>
-        <span style={{ fontSize: 11, color: '#8899bb' }}>
-          {m.date ? new Date(m.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}
-        </span>
-        {clips.length > 0 && (
-          <span style={{ fontSize: 10, background: 'rgba(245,166,35,0.15)', color: '#f5a623', borderRadius: 10, padding: '2px 8px', fontWeight: 700 }}>
-            {clips.length} clip{clips.length !== 1 ? 's' : ''}
-          </span>
-        )}
+        <span style={{ fontSize: 11, color: '#8899bb' }}>{m.date ? new Date(m.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) : ''}</span>
+        {clips.length > 0 && <span style={{ fontSize: 10, background: 'rgba(245,166,35,0.15)', color: '#f5a623', borderRadius: 10, padding: '2px 8px', fontWeight: 700 }}>{clips.length} clip{clips.length !== 1 ? 's' : ''}</span>}
         <span style={{ fontSize: 12, color: '#8899bb' }}>{isOpen ? '▲' : '▼'}</span>
       </div>
 
       {isOpen && (
         <div style={{ padding: '0 14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-          {/* ── Existing clips list ── */}
           {clips.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ fontSize: 11, color: '#8899bb', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
-                Saved Clips ({clips.length})
-              </div>
               {clips.map((c, i) => {
                 const t = c.type || detectType(c.url)
                 const isIg = t === 'instagram'
                 const isEditing = editIdx === i
                 const isPreviewing = previewIdx === i
-
                 return (
                   <div key={i} style={{ background: 'rgba(0,0,0,0.35)', border: `1px solid ${isEditing ? 'rgba(245,166,35,0.4)' : 'rgba(255,255,255,0.06)'}`, borderRadius: 9, overflow: 'hidden' }}>
-
-                    {/* Clip row */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', flexWrap: 'wrap' }}>
-                      <span style={{
-                        fontSize: 9, padding: '2px 7px', borderRadius: 4, fontWeight: 900, letterSpacing: 1, flexShrink: 0,
-                        background: isIg ? 'linear-gradient(45deg,#f09433,#dc2743,#bc1888)' : '#e74c3c',
-                        color: '#fff',
-                      }}>{isIg ? '📸 IG' : t === 'youtube_shorts' ? '▶ YT SHORT' : '▶ YT'}</span>
-
-                      <span style={{ fontWeight: 700, fontSize: 12, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {c.label || `Clip ${i + 1}`}
+                      <span style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, fontWeight: 900, background: isIg ? 'linear-gradient(45deg,#f09433,#dc2743,#bc1888)' : '#e74c3c', color: '#fff' }}>
+                        {isIg ? '📸 IG' : t === 'youtube_shorts' ? '▶ YT SHORT' : '▶ YT'}
                       </span>
-
-                      <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: '#8899bb', textDecoration: 'none', flexShrink: 0 }}>↗</a>
-
+                      <span style={{ fontWeight: 700, fontSize: 12, flex: 1 }}>{c.label || `Clip ${i + 1}`}</span>
+                      <a href={c.url} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: '#8899bb', textDecoration: 'none' }}>↗</a>
                       {!isEditing && (
                         <>
-                          <button onClick={() => setPreviewIdx(isPreviewing ? null : i)} style={btnStyle('#3498db')}>
-                            {isPreviewing ? '✕ Hide' : '👁 Preview'}
-                          </button>
-                          <button onClick={() => { startEdit(i); setPreviewIdx(null) }} style={btnStyle('#f5a623')}>✏️ Edit</button>
-                          <button onClick={() => onRemove(mn, i)} style={btnStyle('#e74c3c')}>🗑 Delete</button>
+                          <button onClick={() => setPreviewIdx(isPreviewing ? null : i)} style={btnStyle('#3498db')}>{isPreviewing ? '✕' : '👁'}</button>
+                          <button onClick={() => { startEdit(i); setPreviewIdx(null) }} style={btnStyle('#f5a623')}>✏️</button>
+                          <button onClick={() => onRemove(mn, i)} style={btnStyle('#e74c3c')}>🗑</button>
                         </>
                       )}
                     </div>
-
-                    {/* Edit form inline */}
                     {isEditing && (
                       <div style={{ padding: '8px 10px 10px', display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid rgba(245,166,35,0.2)' }}>
-                        <div>
-                          <label style={labelStyle}>Label</label>
-                          <input value={editLabel} onChange={e => setEditLabel(e.target.value)} style={inputStyle} placeholder="Clip title..." />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>URL</label>
-                          <input value={editUrl} onChange={e => setEditUrl(e.target.value)} style={inputStyle} placeholder="Instagram or YouTube URL" />
-                          {editUrl && (
-                            <div style={{ fontSize: 10, marginTop: 3, color: detectType(editUrl) !== 'unknown' ? '#2ecc71' : '#e74c3c' }}>
-                              {detectType(editUrl) === 'instagram' && '✅ Instagram Reel'}
-                              {detectType(editUrl) === 'youtube_shorts' && '✅ YouTube Short'}
-                              {detectType(editUrl) === 'youtube' && '✅ YouTube Video'}
-                              {detectType(editUrl) === 'unknown' && '⚠️ Unknown format'}
-                            </div>
-                          )}
-                        </div>
+                        <input value={editLabel} onChange={e => setEditLabel(e.target.value)} style={inputStyle} placeholder="Clip title..." />
+                        <input value={editUrl} onChange={e => setEditUrl(e.target.value)} style={inputStyle} placeholder="URL" />
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={saveEdit} disabled={saving || !editUrl.trim()} style={{ ...btnStyle('#2ecc71'), opacity: !editUrl.trim() ? 0.5 : 1 }}>
-                            {saving ? '⏳ Saving...' : '💾 Save Edit'}
-                          </button>
-                          <button onClick={cancelEdit} style={btnStyle('#8899bb')}>✕ Cancel</button>
+                          <button onClick={saveEdit} disabled={!editUrl.trim()} style={btnStyle('#2ecc71')}>💾 Save</button>
+                          <button onClick={cancelEdit} style={btnStyle('#8899bb')}>✕</button>
                         </div>
-                      </div>
-                    )}
-
-                    {/* Preview panel */}
-                    {isPreviewing && !isEditing && (
-                      <div style={{ padding: '0 10px 10px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-                        {isIg ? (
-                          <div style={{ marginTop: 10 }}>
-                            <div style={{ fontSize: 11, color: '#f09433', marginBottom: 6, fontWeight: 700 }}>
-                              ⚠️ Instagram reels cannot autoplay in embedded iframes due to Instagram's restrictions.
-                            </div>
-                            <div style={{ fontSize: 11, color: '#8899bb', marginBottom: 8 }}>
-                              Shortcode: <b style={{ color: '#e8eaf6' }}>{getIgShortcode(c.url) || 'could not parse'}</b>
-                              &nbsp;·&nbsp; The public page shows an "Open on Instagram" button for reels.
-                            </div>
-                            <a href={c.url} target="_blank" rel="noreferrer" style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 6,
-                              padding: '8px 16px', borderRadius: 8, textDecoration: 'none',
-                              background: 'linear-gradient(45deg,rgba(240,148,51,0.2),rgba(188,24,136,0.2))',
-                              border: '1px solid rgba(240,148,51,0.4)', color: '#f09433',
-                              fontFamily: "'Rajdhani',sans-serif", fontWeight: 700, fontSize: 12,
-                            }}>↗ Open Reel on Instagram</a>
-                          </div>
-                        ) : (
-                          (() => {
-                            const ytId = getYtId(c.url)
-                            return ytId ? (
-                              <div style={{ marginTop: 10, position: 'relative', width: '100%', paddingBottom: t === 'youtube_shorts' ? '177.78%' : '56.25%', height: 0, borderRadius: 8, overflow: 'hidden', background: '#000' }}>
-                                <iframe
-                                  src={`https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1`}
-                                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                  allowFullScreen title={c.label || 'Preview'}
-                                />
-                              </div>
-                            ) : <div style={{ color: '#e74c3c', fontSize: 11, padding: 8 }}>⚠️ Could not parse YouTube ID</div>
-                          })()
-                        )}
                       </div>
                     )}
                   </div>
@@ -1158,33 +1201,12 @@ function MatchHighlightRow({ m, clips, saving, onAdd, onEdit, onRemove }) {
             </div>
           )}
 
-          {/* ── Add new clip form ── */}
           <div style={{ background: 'rgba(46,204,113,0.04)', border: '1px solid rgba(46,204,113,0.2)', borderRadius: 8, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 11, color: '#2ecc71', fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase' }}>
-              ➕ Add New Clip to Match #{mn}
-            </div>
-            <div>
-              <label style={labelStyle}>Label / Title</label>
-              <input value={addLabel} onChange={e => setAddLabel(e.target.value)} placeholder="e.g. Kohli's 6 sixes, Bumrah hat-trick..." style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>URL (Instagram Reel or YouTube Short)</label>
-              <input value={addUrl} onChange={e => setAddUrl(e.target.value)} placeholder="https://www.instagram.com/reel/... or https://youtube.com/shorts/..." style={inputStyle} />
-              {addUrl && (
-                <div style={{ fontSize: 10, marginTop: 4, color: detectType(addUrl) !== 'unknown' ? '#2ecc71' : '#e74c3c' }}>
-                  {detectType(addUrl) === 'instagram' && '✅ Instagram Reel detected'}
-                  {detectType(addUrl) === 'youtube_shorts' && '✅ YouTube Short detected'}
-                  {detectType(addUrl) === 'youtube' && '✅ YouTube Video detected'}
-                  {detectType(addUrl) === 'unknown' && '⚠️ Unknown format — paste an Instagram or YouTube link'}
-                </div>
-              )}
-            </div>
-            <button
-              onClick={handleAdd}
-              disabled={saving || !addUrl.trim()}
-              style={{ ...btnStyle('#2ecc71'), fontSize: 13, padding: '9px 20px', width: 'fit-content', opacity: (!addUrl.trim() || saving) ? 0.5 : 1 }}
-            >
-              {saving ? '⏳ Saving to Cloud...' : '➕ Add Clip'}
+            <div style={{ fontSize: 11, color: '#2ecc71', fontWeight: 700 }}>➕ Add Clip to Match #{mn}</div>
+            <input value={addLabel} onChange={e => setAddLabel(e.target.value)} placeholder="Label..." style={inputStyle} />
+            <input value={addUrl} onChange={e => setAddUrl(e.target.value)} placeholder="Instagram or YouTube URL..." style={inputStyle} />
+            <button onClick={handleAdd} disabled={saving || !addUrl.trim()} style={{ ...btnStyle('#2ecc71'), opacity: !addUrl.trim() ? 0.5 : 1 }}>
+              {saving ? '⏳...' : '➕ Add Clip'}
             </button>
           </div>
         </div>
@@ -1225,28 +1247,20 @@ function HighlightsAdmin({ matches, highlightsData, onHighlightsDataSave }) {
   }
 
   const handleAdd = async (mn, clip) => {
-    const existing = localData[mn] || []
-    const newData = { ...localData, [mn]: [...existing, clip] }
-    setLocalData(newData)
-    await saveToCloud(newData)
+    const newData = { ...localData, [mn]: [...(localData[mn] || []), clip] }
+    setLocalData(newData); await saveToCloud(newData)
   }
-
   const handleEdit = async (mn, idx, clip) => {
-    const existing = [...(localData[mn] || [])]
-    existing[idx] = clip
+    const existing = [...(localData[mn] || [])]; existing[idx] = clip
     const newData = { ...localData, [mn]: existing }
-    setLocalData(newData)
-    await saveToCloud(newData)
+    setLocalData(newData); await saveToCloud(newData)
   }
-
   const handleRemove = async (mn, idx) => {
     if (!window.confirm('Delete this clip?')) return
-    const existing = [...(localData[mn] || [])]
-    existing.splice(idx, 1)
+    const existing = [...(localData[mn] || [])]; existing.splice(idx, 1)
     const newData = { ...localData, [mn]: existing }
     if (existing.length === 0) delete newData[mn]
-    setLocalData(newData)
-    await saveToCloud(newData)
+    setLocalData(newData); await saveToCloud(newData)
   }
 
   return (
@@ -1254,41 +1268,20 @@ function HighlightsAdmin({ matches, highlightsData, onHighlightsDataSave }) {
       <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, letterSpacing: 3, color: '#f5a623', marginBottom: 4 }}>
         🎬 HIGHLIGHTS MANAGER
       </div>
-      <div style={{ fontSize: 12, color: '#8899bb', marginBottom: 12 }}>
-        Add Instagram Reels &amp; YouTube Shorts per match. Each match can have unlimited clips. Click a match to expand and manage its clips.
-      </div>
-
-      {saveMsg && (
-        <div style={{ fontSize: 12, marginBottom: 12, padding: '8px 12px', borderRadius: 8, color: saveMsg.startsWith('✅') ? '#2ecc71' : '#e74c3c', background: saveMsg.startsWith('✅') ? 'rgba(46,204,113,0.08)' : 'rgba(231,76,60,0.08)', border: `1px solid ${saveMsg.startsWith('✅') ? 'rgba(46,204,113,0.3)' : 'rgba(231,76,60,0.3)'}` }}>
-          {saveMsg}
-        </div>
-      )}
-
-      {matches.length === 0 ? (
-        <div style={{ fontSize: 12, color: '#8899bb', padding: 24, textAlign: 'center', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: 10 }}>No matches loaded.</div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {[...matches].sort((a, b) => parseInt(b.matchno) - parseInt(a.matchno)).map(m => (
-            <MatchHighlightRow
-              key={m.matchno}
-              m={m}
-              clips={localData[parseInt(m.matchno)] || []}
-              saving={saving}
-              onAdd={handleAdd}
-              onEdit={handleEdit}
-              onRemove={handleRemove}
-            />
-          ))}
-        </div>
-      )}
-
-      <div style={{ marginTop: 16, background: 'rgba(52,152,219,0.06)', border: '1px dashed rgba(52,152,219,0.25)', borderRadius: 10, padding: '12px 16px', fontSize: 11, color: '#8899bb', lineHeight: 1.9 }}>
-        <div style={{ color: '#3498db', fontWeight: 700, marginBottom: 4, fontSize: 12 }}>💡 Notes</div>
-        <div>• Click any match row to expand → add, edit or delete clips</div>
-        <div>• <b style={{ color: '#f09433' }}>Instagram reels</b> cannot autoplay inside other websites (Instagram's restriction) — users will see an "Open on Instagram" button to watch in the app</div>
-        <div>• <b style={{ color: '#e74c3c' }}>YouTube Shorts/Videos</b> embed and play directly in-app ✅</div>
-        <div>• Highlights tab only shows on public page when at least 1 clip exists</div>
-      </div>
+      {saveMsg && <div style={{ fontSize: 12, marginBottom: 12, padding: '8px 12px', borderRadius: 8, color: saveMsg.startsWith('✅') ? '#2ecc71' : '#e74c3c' }}>{saveMsg}</div>}
+      {matches.length === 0
+        ? <div style={{ fontSize: 12, color: '#8899bb', padding: 24, textAlign: 'center' }}>No matches loaded.</div>
+        : <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {[...matches].sort((a,b) => parseInt(b.matchno) - parseInt(a.matchno)).map(m => (
+              <MatchHighlightRow
+                key={m.matchno} m={m}
+                clips={localData[parseInt(m.matchno)] || []}
+                saving={saving}
+                onAdd={handleAdd} onEdit={handleEdit} onRemove={handleRemove}
+              />
+            ))}
+          </div>
+      }
     </div>
   )
 }
@@ -1318,12 +1311,12 @@ export default function AdminPage({ onLogout, matches = [], fantasyData = {}, on
           <span style={styles.sessionInfo}>Session active · auto-expires in 2h</span>
         </div>
 
-        {/* Tab switcher */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {[
-            { id: 'matchlog',   label: '📋 Match Log' },
-            { id: 'fantasy',    label: '🎯 Fantasy Tips' },
-            { id: 'highlights', label: '🎬 Highlights' },
+            { id: 'matchlog',    label: '📋 Match Log' },
+            { id: 'predictions', label: '🔮 Predictions' },   // ← NEW TAB
+            { id: 'fantasy',     label: '🎯 Fantasy Tips' },
+            { id: 'highlights',  label: '🎬 Highlights' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -1346,23 +1339,17 @@ export default function AdminPage({ onLogout, matches = [], fantasyData = {}, on
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', background: '#0a0f1e', display: 'flex', flexDirection: 'column' }}>
-        {activeTab === 'matchlog' ? (
-          <MatchLogAdmin
-            matches={matches}
-            onMatchesSave={onMatchesSave}
-          />
-        ) : activeTab === 'fantasy' ? (
-          <FantasyTipsAdmin
-            matches={matches}
-            fantasyData={fantasyData}
-            onFantasyDataSave={onFantasyDataSave || (() => {})}
-          />
-        ) : (
-          <HighlightsAdmin
-            matches={matches}
-            highlightsData={highlightsData}
-            onHighlightsDataSave={onHighlightsDataSave || (() => {})}
-          />
+        {activeTab === 'matchlog' && (
+          <MatchLogAdmin matches={matches} onMatchesSave={onMatchesSave} />
+        )}
+        {activeTab === 'predictions' && (
+          <PredictionAdmin matches={matches} />
+        )}
+        {activeTab === 'fantasy' && (
+          <FantasyTipsAdmin matches={matches} fantasyData={fantasyData} onFantasyDataSave={onFantasyDataSave || (() => {})} />
+        )}
+        {activeTab === 'highlights' && (
+          <HighlightsAdmin matches={matches} highlightsData={highlightsData} onHighlightsDataSave={onHighlightsDataSave || (() => {})} />
         )}
       </div>
     </div>
@@ -1388,9 +1375,7 @@ const styles = {
     background: 'rgba(231,76,60,0.12)', border: '1px solid rgba(231,76,60,0.35)',
     borderRadius: 6, padding: '3px 10px',
   },
-  sessionInfo: {
-    fontFamily: "'Rajdhani', sans-serif", fontSize: 11, color: '#8899bb', letterSpacing: 1,
-  },
+  sessionInfo: { fontFamily: "'Rajdhani', sans-serif", fontSize: 11, color: '#8899bb', letterSpacing: 1 },
   topRight: {},
   logoutBtn: {
     fontFamily: "'Rajdhani', sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: 1,
