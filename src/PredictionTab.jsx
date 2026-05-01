@@ -1,16 +1,15 @@
 // ─── PredictionTab.jsx ──────────────────────────────────────────────────────
 // Drop-in component for VOIS Panthers IPL 2026 – Match Prediction Fantasy Game
-// Usage in App.jsx:
-//   import PredictionTab from './PredictionTab'
-//   ...add { id:'prediction', label:'🔮 Prediction' } to navItems (ipl2026 only)
-//   ...add <div style={activeSection==='prediction'?{}:{display:'none'}}><PredictionTab matches={matches} /></div>
 //
-// Storage: all prediction data lives in a SEPARATE JSONBin.
-//   ► Create a new PUBLIC bin on jsonbin.io and paste its ID into PRED_BIN_ID below.
-//   ► Shape: { predictions: { [matchno]: { sessions: {...}, playerPredictions: {...}, editHistory: {...} } } }
+// CHANGES vs previous version:
+//  1. REMOVED auto-poll setInterval(loadPred, 30000) — was burning JSONBin quota
+//  2. Results (actuals + winners) only shown when admin has saved them via AdminPage
+//  3. Fixed myPlayer not being passed into SessionCard (winners highlight was broken)
+//  4. Manual ⟳ Refresh button is the ONLY way to re-fetch prediction data
 //
-// Authentication: ONE-TIME name selection stored in localStorage under 'vois_pred_identity'.
-//   Players pick their own name; they cannot see others' predictions before match starts.
+// Storage: predictions live in a SEPARATE PUBLIC JSONBin (PRED_BIN_ID).
+//   Shape: { predictions: { [matchno]: { playerPredictions, editHistory, actuals, results } } }
+//   Admin writes actuals + results via PredictionAdmin component in AdminPage.jsx.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
@@ -21,7 +20,7 @@ const PLAYER_COLORS = {
   Ashish:'#f5a623', Kalpesh:'#3498db', Nilesh:'#2ecc71',
   Prabhat:'#e74c3c', Pritam:'#e056fd', Sudhir:'#00cec9', Swapnil:'#fd9644'
 }
-const PRED_BIN_ID   = '69f4599e856a6821899363fd'  // ← create a fresh PUBLIC bin
+const PRED_BIN_ID   = '69f4599e856a6821899363fd'  // ← your public prediction bin
 const JSONBIN_BASE  = 'https://api.jsonbin.io/v3/b'
 const BASE_BET      = 10   // ₹ per session per player
 const SESSION_COUNT = 5
@@ -53,20 +52,9 @@ function getTeams(m) {
   const parts = m.teams.split(' vs ').map(s => s.trim())
   return parts.length === 2 ? parts : [parts[0] || 'Team 1', parts[1] || 'Team 2']
 }
-// Deep clone safe for plain objects
 const clone = v => JSON.parse(JSON.stringify(v))
 
 // ── WINNING CALC ─────────────────────────────────────────────────────────────
-/**
- * Calculate session winners and distribute money.
- * @param {string[]} joined       - players who joined the match
- * @param {object}   predictions  - { [player]: prediction }
- * @param {string}   sessionKey   - 's1'...'s5'
- * @param {object}   actual       - { team, runs, wkts } depending on session
- * @param {number}   betPerPerson - ₹ this session
- * @returns { winners: string[], losers: string[], each: number, refund: boolean,
- *            carryForwardAmount: number, noWinner: boolean }
- */
 function calcSessionResult(joined, predictions, sessionKey, actual, betPerPerson) {
   const participants = joined.filter(p => predictions[p]?.[sessionKey] !== undefined)
   if (participants.length === 0) return { winners:[], losers:[], each:0, noWinner:true, refund:false, carryForwardAmount: betPerPerson * joined.length }
@@ -75,24 +63,17 @@ function calcSessionResult(joined, predictions, sessionKey, actual, betPerPerson
   let winners = []
 
   if (sessionKey === 's1' || sessionKey === 's5') {
-    // Team pick sessions
     const correctTeam = actual.team
     const correct = participants.filter(p => predictions[p][sessionKey]?.team === correctTeam)
     const all = participants.length
     const allSame = new Set(participants.map(p => predictions[p][sessionKey]?.team)).size === 1
     if (allSame) {
-      // All same choice → check if they're all right or all wrong
       if (correct.length === all) {
-        // All correct & all same → no winner (edge: everyone wins = no loser to fund)
-        // Per rules: if all predicted same team that lost = no winner
-        // Also if all predicted same team that won = no winner (all right but no losers)
         return { winners:[], losers:[], each:0, noWinner:true,
-                 refund: sessionKey === 's5', // Session 5 special: refund
+                 refund: sessionKey === 's5',
                  carryForwardAmount: pool }
       } else {
-        // All wrong
         if (sessionKey === 's5') {
-          // Refund
           return { winners:[], losers:[], each:0, noWinner:true, refund:true, carryForwardAmount:0, pool }
         }
         return { winners:[], losers:[], each:0, noWinner:true, refund:false, carryForwardAmount: pool }
@@ -104,10 +85,8 @@ function calcSessionResult(joined, predictions, sessionKey, actual, betPerPerson
       return { winners:[], losers:[], each:0, noWinner:true, refund:false, carryForwardAmount: pool }
     }
   } else {
-    // Runs + Wickets sessions (s2, s3, s4)
     const actualRuns = actual.runs
     const actualWkts = actual.wkts
-    // Find closest run prediction
     const diffs = participants.map(p => ({
       p,
       runDiff: Math.abs((predictions[p][sessionKey]?.runs || 0) - actualRuns),
@@ -115,8 +94,6 @@ function calcSessionResult(joined, predictions, sessionKey, actual, betPerPerson
     }))
     const minDiff = Math.min(...diffs.map(d => d.runDiff))
     let closest = diffs.filter(d => d.runDiff === minDiff)
-    // Tiebreak: fewer wickets predicted (closer to actual if equal diff)
-    // Rule: whoever gave LESS wkts among tie wins
     const minWktAmongClosest = Math.min(...closest.map(d => d.predWkts))
     const finalWinners = closest.filter(d => d.predWkts === minWktAmongClosest)
     winners = finalWinners.map(d => d.p)
@@ -159,7 +136,6 @@ async function savePredData(predictions) {
 // ── IDENTITY GATE ────────────────────────────────────────────────────────────
 function IdentityGate({ onIdentified }) {
   const [chosen, setChosen] = useState(null)
-  const [confirmed, setConfirmed] = useState(false)
 
   const handleConfirm = () => {
     if (!chosen) return
@@ -222,7 +198,7 @@ const gateBox  = {
 // ── EDIT HISTORY PANEL ───────────────────────────────────────────────────────
 function EditHistoryPanel({ history }) {
   if (!history || history.length === 0) return null
-  const sorted = [...history].reverse() // latest on top
+  const sorted = [...history].reverse()
   return (
     <div style={{marginTop:12, borderTop:'1px solid rgba(255,255,255,0.08)', paddingTop:10}}>
       <div style={{fontSize:11, color:'#8899bb', marginBottom:6, letterSpacing:1, textTransform:'uppercase', fontFamily:"'Rajdhani',sans-serif"}}>
@@ -244,18 +220,18 @@ function EditHistoryPanel({ history }) {
 }
 
 // ── SESSION CARD ─────────────────────────────────────────────────────────────
+// FIX: myPlayer is now passed in so winner highlight works correctly
 function SessionCard({
-  sessionNum, sessionKey, label, match, myPrediction, myHistory,
+  sessionNum, sessionKey, label, match, myPlayer, myPrediction, myHistory,
   locked, allPredictions, actual, betAmount, result,
   onSave, saving
 }) {
   const teams = getTeams(match)
   const [t1, t2] = teams
-  const started  = isMatchStarted(match)
+  const started   = isMatchStarted(match)
   const completed = isMatchCompleted(match)
-  const hasPred  = myPrediction?.[sessionKey] !== undefined
+  const hasPred   = myPrediction?.[sessionKey] !== undefined
 
-  // Local form state
   const [teamPick, setTeamPick] = useState(myPrediction?.[sessionKey]?.team || '')
   const [runs,     setRuns]     = useState(myPrediction?.[sessionKey]?.runs ?? '')
   const [wkts,     setWkts]     = useState(myPrediction?.[sessionKey]?.wkts ?? '')
@@ -264,10 +240,15 @@ function SessionCard({
   const isScoreSession = !isTeamSession
 
   const canEdit = !locked && !started
-  const hasResult = !!actual && completed
 
-  // How many participants
+  // Show actuals + results ONLY when admin has entered them (actual is non-null)
+  const hasActual = !!actual && completed
+  const hasResult = !!result && completed
+
   const participants = PLAYERS.filter(p => allPredictions[p]?.[sessionKey] !== undefined)
+
+  // FIX: use passed myPlayer instead of undefined
+  const amIWinner = result?.winners?.includes(myPlayer)
 
   function buildSummary() {
     if (isTeamSession) return `Picked: ${teamPick}`
@@ -287,24 +268,21 @@ function SessionCard({
     onSave(sessionKey, pred, buildSummary())
   }
 
-  const winnerList = result?.winners || []
-  const amIWinner = winnerList.includes(/* injected from parent */undefined)
-
   return (
     <div style={{
       marginBottom:16, borderRadius:14,
-      border:`1px solid ${hasResult ? 'rgba(46,204,113,0.3)' : locked ? 'rgba(231,76,60,0.2)' : 'rgba(255,255,255,0.1)'}`,
-      background:'rgba(255,255,255,0.02)', overflow:'hidden'
+      border:`1px solid ${hasActual ? 'rgba(46,204,113,0.3)' : started ? 'rgba(224,86,253,0.2)' : 'rgba(255,255,255,0.1)'}`,
+      background: amIWinner ? 'rgba(46,204,113,0.04)' : 'rgba(255,255,255,0.02)', overflow:'hidden'
     }}>
       {/* Header */}
       <div style={{
         display:'flex', alignItems:'center', justifyContent:'space-between',
         padding:'10px 14px',
-        background: hasResult ? 'rgba(46,204,113,0.06)' : 'rgba(255,255,255,0.03)',
+        background: hasActual ? 'rgba(46,204,113,0.06)' : 'rgba(255,255,255,0.03)',
         borderBottom:'1px solid rgba(255,255,255,0.06)'
       }}>
-        <div style={{fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:14, color:'#f5a623'}}>
-          Session {sessionNum}: {label}
+        <div style={{fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:14, color: amIWinner ? '#2ecc71' : '#f5a623'}}>
+          Session {sessionNum}: {label} {amIWinner ? '🏆' : ''}
         </div>
         <div style={{display:'flex', gap:6, alignItems:'center'}}>
           <span style={{
@@ -314,7 +292,8 @@ function SessionCard({
             border: hasPred ? '1px solid rgba(46,204,113,0.3)' : '1px solid rgba(255,255,255,0.1)'
           }}>{hasPred ? '✅ Predicted' : '⏳ Pending'}</span>
           {locked && !started && <span style={{fontSize:11,color:'#e74c3c',padding:'3px 8px',border:'1px solid rgba(231,76,60,0.3)',borderRadius:20}}>🔒 Saved</span>}
-          {started && <span style={{fontSize:11,color:'#e056fd',padding:'3px 8px',border:'1px solid rgba(224,86,253,0.3)',borderRadius:20}}>🔐 Locked</span>}
+          {started && !hasActual && <span style={{fontSize:11,color:'#e056fd',padding:'3px 8px',border:'1px solid rgba(224,86,253,0.3)',borderRadius:20}}>🔐 Locked — Awaiting results</span>}
+          {hasActual && <span style={{fontSize:11,color:'#2ecc71',padding:'3px 8px',border:'1px solid rgba(46,204,113,0.3)',borderRadius:20}}>✅ Results In</span>}
         </div>
       </div>
 
@@ -383,7 +362,7 @@ function SessionCard({
           </div>
         )}
 
-        {/* MY CURRENT PREDICTION (when started — hidden till then for others) */}
+        {/* MY CURRENT PREDICTION */}
         {hasPred && (
           <div style={{padding:'8px 12px', background:'rgba(245,166,35,0.06)', borderRadius:8, border:'1px solid rgba(245,166,35,0.2)', marginBottom:10}}>
             <div style={{fontSize:11, color:'#8899bb', marginBottom:3}}>Your Prediction:</div>
@@ -396,18 +375,23 @@ function SessionCard({
           </div>
         )}
 
-        {/* ACTUAL RESULT + ALL PREDICTIONS — only after match starts */}
-        {started && (
+        {/* LOCKED — waiting for admin to enter results */}
+        {started && !hasActual && (
+          <div style={{padding:'10px 14px', background:'rgba(224,86,253,0.06)', borderRadius:8, border:'1px solid rgba(224,86,253,0.2)', fontSize:12, color:'#c39bd3', marginBottom:10}}>
+            🔒 Match in progress — predictions locked. Results will appear here once the admin enters actual scores.
+          </div>
+        )}
+
+        {/* ACTUAL RESULT + ALL PREDICTIONS — only shown when admin has set actuals */}
+        {started && hasActual && (
           <div style={{marginTop:8}}>
-            {actual && (
-              <div style={{padding:'8px 12px', background:'rgba(46,204,113,0.08)', borderRadius:8, border:'1px solid rgba(46,204,113,0.25)', marginBottom:10, fontSize:13}}>
-                <b style={{color:'#2ecc71'}}>✅ Actual Result: </b>
-                {isTeamSession
-                  ? <span style={{color:'#fff', fontWeight:700}}>{actual.team}</span>
-                  : <span style={{color:'#fff', fontWeight:700}}>Runs: {actual.runs} / Wkts: {actual.wkts}</span>
-                }
-              </div>
-            )}
+            <div style={{padding:'8px 12px', background:'rgba(46,204,113,0.08)', borderRadius:8, border:'1px solid rgba(46,204,113,0.25)', marginBottom:10, fontSize:13}}>
+              <b style={{color:'#2ecc71'}}>✅ Actual Result: </b>
+              {isTeamSession
+                ? <span style={{color:'#fff', fontWeight:700}}>{actual.team}</span>
+                : <span style={{color:'#fff', fontWeight:700}}>Runs: {actual.runs} / Wkts: {actual.wkts}</span>
+              }
+            </div>
 
             {/* All predictions revealed */}
             <div style={{fontSize:11, color:'#8899bb', marginBottom:6, letterSpacing:1}}>ALL PREDICTIONS:</div>
@@ -434,7 +418,7 @@ function SessionCard({
             </div>
 
             {/* Result summary */}
-            {result && (
+            {hasResult && (
               <div style={{
                 marginTop:10, padding:'8px 12px', borderRadius:8,
                 background: result.noWinner ? 'rgba(231,76,60,0.07)' : 'rgba(46,204,113,0.07)',
@@ -444,7 +428,7 @@ function SessionCard({
                 {result.refund
                   ? `🔄 No winner — ₹${result.pool?.toFixed(2)} refunded to all players.`
                   : result.noWinner
-                  ? `📤 No winner — ₹${(result.carryForwardAmount || 0).toFixed(2)} carried forward (÷4 extra per session).`
+                  ? `📤 No winner — ₹${(result.carryForwardAmount || 0).toFixed(2)} carried forward (÷${SESSION_COUNT - parseInt(sessionKey.slice(1))} remaining sessions).`
                   : `🏆 Winners: ${result.winners.join(', ')} — each receives ₹${result.each?.toFixed(2)}`
                 }
               </div>
@@ -471,13 +455,12 @@ const inputStyle = {
 // ── MATCH PREDICTION CARD ────────────────────────────────────────────────────
 function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
   const [t1, t2] = getTeams(match)
-  const started  = isMatchStarted(match)
+  const started   = isMatchStarted(match)
   const completed = isMatchCompleted(match)
 
   const matchno = String(match.matchno)
   const mpData  = allMatchPred[matchno] || {}
 
-  // sessions config
   const sessionsConfig = [
     { key:'s1', label:`Toss Winner (${t1} vs ${t2})`, num:1 },
     { key:'s2', label:'PP1 Score — 1st Innings (6 Overs)', num:2 },
@@ -486,27 +469,21 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
     { key:'s5', label:`Match Winner (${t1} vs ${t2})`, num:5 },
   ]
 
-  // Build per-player predictions (map: player → { s1, s2, ... })
   const allPlayerPreds = {}
   PLAYERS.forEach(p => { allPlayerPreds[p] = mpData.playerPredictions?.[p] || {} })
 
-  // My predictions & history
   const myPreds   = allPlayerPreds[myPlayer] || {}
   const myHistory = mpData.editHistory?.[myPlayer] || {}
 
-  // Bet amounts per session (carried forward if no winner in prev session)
   const sessionBets = useMemo(() => {
     const base = Array(SESSION_COUNT).fill(BASE_BET)
     const joined = PLAYERS.filter(p => allPlayerPreds[p] && Object.keys(allPlayerPreds[p]).length > 0)
-
-    // We can only compute actual carry if actuals are stored
-    const actuals = mpData.actuals || {}
     const results = mpData.results || {}
 
     let carry = 0
     for (let i = 0; i < SESSION_COUNT; i++) {
       const sk = `s${i+1}`
-      base[i] = BASE_BET + carry / (joined.length || 1) // distribute carry per head
+      base[i] = BASE_BET + (joined.length > 0 ? carry / joined.length : carry)
       const r = results[sk]
       if (r?.noWinner && !r?.refund && r?.carryForwardAmount > 0) {
         const remaining = SESSION_COUNT - i - 1
@@ -517,7 +494,14 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
       }
     }
     return base
-  }, [mpData])
+  }, [mpData, allPlayerPreds])
+
+  // Count how many of my sessions won
+  const myWins = useMemo(() => {
+    if (!completed) return 0
+    const results = mpData.results || {}
+    return Object.values(results).filter(r => r?.winners?.includes(myPlayer)).length
+  }, [mpData, myPlayer, completed])
 
   return (
     <div style={{
@@ -538,7 +522,8 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
             {match.date ? new Date(match.date).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'}
             {match.matchTime ? ` · ${match.matchTime === '15:30' ? '3:30 PM' : '7:30 PM'} IST` : ''}
             {started && !completed && <span style={{marginLeft:8,color:'#e056fd',fontWeight:700}}>🔴 LIVE / LOCKED</span>}
-            {completed && <span style={{marginLeft:8,color:'#2ecc71',fontWeight:700}}>✅ Completed</span>}
+            {completed && !mpData.actuals && <span style={{marginLeft:8,color:'#e074c3',fontWeight:700}}>⏳ Awaiting Admin Results</span>}
+            {completed && mpData.actuals && myWins > 0 && <span style={{marginLeft:8,color:'#2ecc71',fontWeight:700}}>🏆 You won {myWins} session(s)!</span>}
             {!started && <span style={{marginLeft:8,color:'#2ecc71',fontWeight:700}}>🟢 Open for Predictions</span>}
           </div>
         </div>
@@ -561,9 +546,10 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
             sessionKey={sc.key}
             label={sc.label}
             match={match}
+            myPlayer={myPlayer}
             myPrediction={myPreds}
             myHistory={myHistory}
-            locked={!!(myPreds[sc.key])}   // locked once saved (can edit till match start)
+            locked={!!(myPreds[sc.key])}
             allPredictions={allPlayerPreds}
             actual={mpData.actuals?.[sc.key]}
             betAmount={sessionBets[i]}
@@ -584,16 +570,17 @@ function PredLeaderboard({ allPredData }) {
     PLAYERS.forEach(p => { acc[p] = { wins:0, earnings:0, sessions:0 } })
     Object.values(allPredData).forEach(mpData => {
       const results = mpData.results || {}
+      const pp = mpData.playerPredictions || {}
+      // Count sessions participated
+      PLAYERS.forEach(p => {
+        if (pp[p] && Object.keys(pp[p]).length > 0) acc[p].sessions++
+      })
       Object.values(results).forEach(r => {
         if (!r || !r.winners) return
         r.winners.forEach(p => {
           if (!acc[p]) return
           acc[p].wins++
           acc[p].earnings += r.each || 0
-        })
-        const pp = mpData.playerPredictions || {}
-        PLAYERS.forEach(p => {
-          if (pp[p] && Object.keys(pp[p]).length > 0) acc[p].sessions++
         })
       })
     })
@@ -610,7 +597,7 @@ function PredLeaderboard({ allPredData }) {
         <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
           <thead>
             <tr style={{background:'rgba(255,255,255,0.03)'}}>
-              {['Rank','Player','Session Wins','Total Earned (₹)'].map(h => (
+              {['Rank','Player','Match Participations','Session Wins','Total Earned (₹)'].map(h => (
                 <th key={h} style={{padding:'8px 12px',textAlign:'left',color:'#8899bb',fontWeight:700,fontFamily:"'Rajdhani',sans-serif",borderBottom:'1px solid rgba(255,255,255,0.08)'}}>{h}</th>
               ))}
             </tr>
@@ -622,6 +609,7 @@ function PredLeaderboard({ allPredData }) {
                 <td style={{padding:'8px 12px'}}>
                   <span style={{color: PLAYER_COLORS[s.name], fontWeight:700, fontFamily:"'Rajdhani',sans-serif"}}>{s.name}</span>
                 </td>
+                <td style={{padding:'8px 12px',color:'#fff'}}>{s.sessions}</td>
                 <td style={{padding:'8px 12px',color:'#fff'}}>{s.wins}</td>
                 <td style={{padding:'8px 12px',color: s.earnings>0 ? '#2ecc71' : '#aaa', fontWeight:700}}>
                   {s.earnings > 0 ? `+₹${s.earnings.toFixed(2)}` : '₹0'}
@@ -638,14 +626,15 @@ function PredLeaderboard({ allPredData }) {
 // ── MAIN EXPORT ──────────────────────────────────────────────────────────────
 export default function PredictionTab({ matches }) {
   const [myPlayer,    setMyPlayer]    = useState(() => localStorage.getItem('vois_pred_identity') || null)
-  const [allPredData, setAllPredData] = useState({}) // { [matchno]: mpData }
+  const [allPredData, setAllPredData] = useState({})
   const [loadingPred, setLoadingPred] = useState(false)
   const [saving,      setSaving]      = useState(false)
   const [activeMatch, setActiveMatch] = useState(null)
   const [view,        setView]        = useState('active') // 'active' | 'past' | 'leaderboard'
   const lastSaveRef = useRef(0)
 
-  // Load prediction data
+  // ─── Load prediction data — ONLY on mount + manual refresh ───────────────
+  // !! NO setInterval auto-polling — that was burning JSONBin quota !!
   const loadPred = useCallback(async () => {
     if (PRED_BIN_ID === 'PASTE_YOUR_NEW_JSONBIN_ID_HERE') return
     setLoadingPred(true)
@@ -655,12 +644,7 @@ export default function PredictionTab({ matches }) {
   }, [])
 
   useEffect(() => { loadPred() }, [loadPred])
-
-  // Auto-reload every 30s
-  useEffect(() => {
-    const id = setInterval(loadPred, 3000000)
-    return () => clearInterval(id)
-  }, [loadPred])
+  // ── Removed: setInterval(loadPred, 30000) — was burning quota ──
 
   // Save a session prediction
   const handleSave = useCallback(async (matchno, sessionKey, pred, summary) => {
@@ -678,9 +662,7 @@ export default function PredictionTab({ matches }) {
     if (!updated[matchno].editHistory[myPlayer]) updated[matchno].editHistory[myPlayer] = {}
     if (!updated[matchno].editHistory[myPlayer][sessionKey]) updated[matchno].editHistory[myPlayer][sessionKey] = []
 
-    // Log edit
     updated[matchno].editHistory[myPlayer][sessionKey].push({ ts: new Date().toISOString(), summary })
-    // Save prediction
     updated[matchno].playerPredictions[myPlayer][sessionKey] = pred
 
     const ok = await savePredData(updated)
@@ -693,7 +675,6 @@ export default function PredictionTab({ matches }) {
     }
   }, [myPlayer])
 
-  // Upcoming & past matches (with contest or at least teams set)
   const upcomingMatches = useMemo(() =>
     matches.filter(m => m.teams && !isMatchCompleted(m))
       .sort((a,b) => (getMatchDateTime(a)||0) - (getMatchDateTime(b)||0)),
@@ -731,7 +712,7 @@ export default function PredictionTab({ matches }) {
             >Change</button>
           </div>
         </div>
-        <div style={{display:'flex', gap:8}}>
+        <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
           {['active','past','leaderboard'].map(v => (
             <button key={v} onClick={() => setView(v)} style={{
               padding:'7px 14px', borderRadius:10, cursor:'pointer', fontSize:13,
@@ -742,11 +723,13 @@ export default function PredictionTab({ matches }) {
               {v==='active' ? '🟢 Upcoming' : v==='past' ? '📜 Past' : '🏆 Leaderboard'}
             </button>
           ))}
-          <button onClick={loadPred} style={{
+          {/* Manual refresh only — no auto-polling to save quota */}
+          <button onClick={loadPred} disabled={loadingPred} style={{
             padding:'7px 12px', borderRadius:10, cursor:'pointer', fontSize:13,
             fontFamily:"'Rajdhani',sans-serif", fontWeight:700, border:'1px solid rgba(255,255,255,0.1)',
-            background:'rgba(255,255,255,0.05)', color:'#8899bb'
-          }}>⟳</button>
+            background:'rgba(255,255,255,0.05)', color: loadingPred ? '#555' : '#8899bb',
+            opacity: loadingPred ? 0.6 : 1
+          }}>{loadingPred ? '⏳' : '⟳'} Refresh</button>
         </div>
       </div>
 
@@ -782,9 +765,10 @@ export default function PredictionTab({ matches }) {
           <b style={{color:'#fff'}}>Sessions 2 & 4:</b> Predict PP1 runs & wickets (1st / 2nd innings). Closest runs wins; tie broken by fewer wkts predicted.<br/>
           <b style={{color:'#fff'}}>Session 3:</b> Full 1st innings score. Same runs/wkts logic.<br/>
           <b style={{color:'#fff'}}>Session 5:</b> Match winner — pick Team 1 or Team 2.<br/>
-          <b style={{color:'#fff'}}>No Winner:</b> If all predict same team & wrong, or if there's no divergence → session amount carried to remaining sessions (÷ remaining sessions).<br/>
+          <b style={{color:'#fff'}}>No Winner:</b> If all predict same team & wrong, or no divergence → session amount carried to remaining sessions.<br/>
           <b style={{color:'#fff'}}>Session 5 Special:</b> If no winner in S5 → full refund. No carry-forward.<br/>
-          <b style={{color:'#fff'}}>Lock:</b> Predictions lock at match start time. Edit history is saved with timestamps.
+          <b style={{color:'#fff'}}>Lock:</b> Predictions lock at match start time. Edit history saved with timestamps.<br/>
+          <b style={{color:'#fff'}}>Results:</b> Winners are shown only after the admin enters actual session scores.
         </div>
       </details>
     </div>
