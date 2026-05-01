@@ -1044,8 +1044,13 @@ function computeLeaderboardStats(allPredData, matchesMap) {
     const matchAcc = {}
     joinedPlayers.forEach(p => {
       matchAcc[p] = { wins:0, earnings:0, refunds:0, investment:0, sessionWins:0, sessionsParticipated:0 }
-      acc[p].matchParticipations++
     })
+
+    // Only count this as a "match participation" if at least one session result exists
+    const hasAnyResult = Object.keys(results).length > 0
+    if (hasAnyResult) {
+      joinedPlayers.forEach(p => { acc[p].matchParticipations++ })
+    }
 
     // s1 carry-forward logic (same as sessionBets in MatchPredCard)
     let s1Carry = 0
@@ -1058,31 +1063,39 @@ function computeLeaderboardStats(allPredData, matchesMap) {
 
     const SESSION_KEYS = ['s1','s2','s3','s4','s5']
     SESSION_KEYS.forEach(sk => {
-      const betPerPlayer = sk === 's1' ? BASE_BET : BASE_BET + s1Carry
       const r = results[sk]
 
       // Players who actually predicted in this specific session
       const sessionPlayers = PLAYERS.filter(p => pp[p]?.[sk] !== undefined && matchAcc[p])
-      const computedPool   = betPerPlayer * sessionPlayers.length
 
-      // Investment: every player who predicted in a session has invested betPerPlayer
-      sessionPlayers.forEach(p => {
-        if (!matchAcc[p]) return
-        matchAcc[p].investment += betPerPlayer
-        matchAcc[p].sessionsParticipated++
-      })
-
-      if (!r) return
-
-      // Refunds (disabled or s5-all-wrong)
-      if (r.refund) {
+      // Investment = flat BASE_BET per session (₹10 always).
+      // Carry-forward is an internal pool redistribution — it does NOT increase
+      // what each player actually paid into the game.
+      // Only count investment for sessions that have a result (admin has entered
+      // actuals). Sessions predicted but not yet resolved are excluded.
+      if (r) {
         sessionPlayers.forEach(p => {
           if (!matchAcc[p]) return
-          matchAcc[p].refunds += betPerPlayer
+          matchAcc[p].investment += BASE_BET
+          matchAcc[p].sessionsParticipated++
         })
       }
 
-      // Winnings
+      if (!r) return
+
+      // Prize pool uses carry-forward-adjusted bet for correct payout calculation
+      const betPerPlayer = sk === 's1' ? BASE_BET : BASE_BET + s1Carry
+      const computedPool = betPerPlayer * sessionPlayers.length
+
+      // Refunds (disabled session or s5-all-wrong) — always refund flat BASE_BET
+      if (r.refund) {
+        sessionPlayers.forEach(p => {
+          if (!matchAcc[p]) return
+          matchAcc[p].refunds += BASE_BET
+        })
+      }
+
+      // Winnings — pool is carry-forward-aware so winners can receive > BASE_BET
       if (r.winners && r.winners.length > 0) {
         const computedEach = computedPool / r.winners.length
         r.winners.forEach(p => {
