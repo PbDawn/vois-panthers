@@ -1132,6 +1132,7 @@ function computeLeaderboardStats(allPredData, matchesMap) {
       perMatch:            d.perMatch,
     }
   }).sort((a, b) => b.pnl - a.pnl || b.sessionWins - a.sessionWins)
+}
 
 // ── PER-MATCH DRILL-DOWN ROW ─────────────────────────────────────────────────
 function MatchBreakdownRows({ perMatch, colSpan }) {
