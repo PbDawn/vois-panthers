@@ -148,7 +148,9 @@ function calcSessionResult(joined, predictions, sessionKey, actual, betPerPerson
 // ── FETCH / SAVE helpers ─────────────────────────────────────────────────────
 async function fetchPredData() {
   try {
-    const r = await fetch(`${JSONBIN_BASE}/${PRED_BIN_ID}/latest`, { headers:{ 'X-Bin-Meta':'false' } })
+    const r = await fetch(`${JSONBIN_BASE}/${PRED_BIN_ID}/latest`, {
+      headers: { 'X-Bin-Meta': 'false' }
+    })
     if (!r.ok) throw new Error(`HTTP ${r.status}`)
     const d = await r.json()
     return d.predictions || {}
@@ -158,11 +160,12 @@ async function fetchPredData() {
   }
 }
 
+// Single PUT to JSONBin — used for all saves (individual or batch)
 async function savePredData(predictions) {
   try {
     const r = await fetch(`${JSONBIN_BASE}/${PRED_BIN_ID}`, {
       method: 'PUT',
-      headers: { 'Content-Type':'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ predictions })
     })
     if (!r.ok) throw new Error(`HTTP ${r.status}`)
@@ -389,7 +392,10 @@ const SessionCard = forwardRef(function SessionCard({
     isLocked: editingLocked || started,
   }))
 
-  function handleSave() {
+  const [localSaving, setLocalSaving] = useState(false)
+  const [savedOk,     setSavedOk]     = useState(false)
+
+  async function handleSave() {
     let pred = {}
     if (isTeamSession) {
       if (!teamPick) return alert('⚠️ Please select a team for this session!')
@@ -400,9 +406,18 @@ const SessionCard = forwardRef(function SessionCard({
       if (isNaN(r) || isNaN(w) || r < 0 || w < 0 || w > 10) return alert('Enter valid whole numbers (Runs ≥ 0, Wickets 0–10)')
       pred = { runs: r, wkts: w }
     }
-    onSave(sessionKey, pred, buildSummary())
-    setEditing(false)
+    setLocalSaving(true)
+    const ok = await onSave(sessionKey, pred, buildSummary())
+    setLocalSaving(false)
+    if (ok) {
+      setSavedOk(true)
+      setEditing(false)
+      setTimeout(() => setSavedOk(false), 2500)
+    }
   }
+
+  // Unified "busy" flag: local per-session save OR parent-level saving (Save All / Delete)
+  const isBusy = localSaving || saving
 
   // Disabled session (admin turned off for short match)
   if (sessionDisabled) {
@@ -473,13 +488,16 @@ const SessionCard = forwardRef(function SessionCard({
                     {[t1, t2].map(team => (
                       <button
                         key={team}
-                        onClick={() => setTeamPick(team)}
+                        onClick={() => { if (!isBusy) setTeamPick(team) }}
+                        disabled={isBusy}
                         style={{
-                          flex:1, padding:'10px 6px', borderRadius:10, cursor:'pointer',
+                          flex:1, padding:'10px 6px', borderRadius:10,
+                          cursor: isBusy ? 'not-allowed' : 'pointer',
                           border: teamPick===team ? '2px solid #f5a623' : '2px solid rgba(255,255,255,0.1)',
                           background: teamPick===team ? 'rgba(245,166,35,0.15)' : 'rgba(255,255,255,0.04)',
                           color: teamPick===team ? '#f5a623' : '#aaa',
-                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13, transition:'all 0.2s'
+                          fontFamily:"'Rajdhani',sans-serif", fontWeight:700, fontSize:13,
+                          transition:'all 0.2s', opacity: isBusy ? 0.5 : 1
                         }}
                       >{team}</button>
                     ))}
@@ -490,8 +508,9 @@ const SessionCard = forwardRef(function SessionCard({
                       <label style={{fontSize:11,color:'#8899bb',display:'block',marginBottom:4}}>Runs <span style={{color:'#e74c3c'}}>*</span></label>
                       <input
                         type="number" min="0" step="1"
-                        value={runs} onChange={e => setRuns(e.target.value.replace(/\D/,''))}
-                        style={inputStyle}
+                        value={runs} onChange={e => { if (!isBusy) setRuns(e.target.value.replace(/\D/,'')) }}
+                        disabled={isBusy}
+                        style={{...inputStyle, opacity: isBusy ? 0.5 : 1, cursor: isBusy ? 'not-allowed' : 'text'}}
                         placeholder="e.g. 56"
                       />
                     </div>
@@ -499,8 +518,9 @@ const SessionCard = forwardRef(function SessionCard({
                       <label style={{fontSize:11,color:'#8899bb',display:'block',marginBottom:4}}>Wickets (0–10) <span style={{color:'#e74c3c'}}>*</span></label>
                       <input
                         type="number" min="0" max="10" step="1"
-                        value={wkts} onChange={e => setWkts(e.target.value.replace(/\D/,''))}
-                        style={inputStyle}
+                        value={wkts} onChange={e => { if (!isBusy) setWkts(e.target.value.replace(/\D/,'')) }}
+                        disabled={isBusy}
+                        style={{...inputStyle, opacity: isBusy ? 0.5 : 1, cursor: isBusy ? 'not-allowed' : 'text'}}
                         placeholder="e.g. 2"
                       />
                     </div>
@@ -509,17 +529,21 @@ const SessionCard = forwardRef(function SessionCard({
                 <div style={{display:'flex', gap:8}}>
                   <button
                     onClick={handleSave}
-                    disabled={saving}
+                    disabled={isBusy}
                     style={{
-                      flex:1, padding:'10px', borderRadius:10, cursor:'pointer',
-                      background:'#f5a623', color:'#000', fontFamily:"'Rajdhani',sans-serif",
-                      fontWeight:900, fontSize:14, border:'none', letterSpacing:0.5
+                      flex:1, padding:'10px', borderRadius:10,
+                      cursor: isBusy ? 'not-allowed' : 'pointer',
+                      background: savedOk ? '#2ecc71' : '#f5a623',
+                      color:'#000', fontFamily:"'Rajdhani',sans-serif",
+                      fontWeight:900, fontSize:14, border:'none', letterSpacing:0.5,
+                      opacity: isBusy ? 0.7 : 1, transition:'background 0.3s'
                     }}
-                  >{saving ? '⏳ Saving...' : hasPred ? '💾 Update Prediction' : '✅ Save Prediction'}</button>
+                  >{localSaving ? '⏳ Saving...' : saving ? '⏳ Busy...' : savedOk ? '✅ Saved!' : hasPred ? '💾 Update Prediction' : '✅ Save Prediction'}</button>
                   {hasPred && editing && (
                     <button
-                      onClick={() => setEditing(false)}
-                      style={{padding:'10px 14px', borderRadius:10, cursor:'pointer', background:'rgba(255,255,255,0.06)', color:'#8899bb', border:'1px solid rgba(255,255,255,0.1)', fontSize:13}}
+                      onClick={() => { if (!isBusy) setEditing(false) }}
+                      disabled={isBusy}
+                      style={{padding:'10px 14px', borderRadius:10, cursor: isBusy ? 'not-allowed' : 'pointer', background:'rgba(255,255,255,0.06)', color:'#8899bb', border:'1px solid rgba(255,255,255,0.1)', fontSize:13, opacity: isBusy ? 0.5 : 1}}
                     >✕ Cancel</button>
                   )}
                 </div>
@@ -540,17 +564,20 @@ const SessionCard = forwardRef(function SessionCard({
                   </div>
                   <div style={{display:'flex', gap:6}}>
                   <button
-                    onClick={() => setEditing(true)}
+                    onClick={() => { if (!isBusy) setEditing(true) }}
+                    disabled={isBusy}
                     style={{
-                      padding:'7px 14px', borderRadius:8, cursor:'pointer',
+                      padding:'7px 14px', borderRadius:8, cursor: isBusy ? 'not-allowed' : 'pointer',
                       background:'rgba(245,166,35,0.15)', color:'#f5a623',
                       border:'1px solid rgba(245,166,35,0.4)', fontSize:12,
-                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, letterSpacing:0.5
+                      fontFamily:"'Rajdhani',sans-serif", fontWeight:700, letterSpacing:0.5,
+                      opacity: isBusy ? 0.5 : 1
                     }}
                   >✏️ Edit</button>
                   {onDelete && (
                     <button
                       onClick={() => {
+                        if (isBusy) return
                         if (window.confirm(`Delete your prediction for Session ${sessionNum}?`)) {
                           onDelete(sessionKey)
                           setTeamPick('')
@@ -559,11 +586,13 @@ const SessionCard = forwardRef(function SessionCard({
                           setEditing(true)
                         }
                       }}
+                      disabled={isBusy}
                       style={{
-                        padding:'7px 12px', borderRadius:8, cursor:'pointer',
+                        padding:'7px 12px', borderRadius:8, cursor: isBusy ? 'not-allowed' : 'pointer',
                         background:'rgba(231,76,60,0.12)', color:'#e74c3c',
                         border:'1px solid rgba(231,76,60,0.3)', fontSize:12,
-                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700
+                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700,
+                        opacity: isBusy ? 0.5 : 1
                       }}
                     >🗑️</button>
                   )}
@@ -769,7 +798,7 @@ const inputStyle = {
 }
 
 // ── MATCH PREDICTION CARD ────────────────────────────────────────────────────
-function MatchPredCard({ match, myPlayer, allMatchPred, onSave, onDelete, saving }) {
+function MatchPredCard({ match, myPlayer, allMatchPred, onSave, onSaveAll, onDelete, saving }) {
   const [t1, t2] = getTeams(match)
   const editingLocked = isEditingLocked(match)
   const started   = isMatchStarted(match)
@@ -844,7 +873,7 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, onDelete, saving
   const [saveAllStatus, setSaveAllStatus] = useState(null)
 
   async function handleSaveAll() {
-    // Collect all active, unlocked sessions
+    // Validate all active, unlocked sessions first
     const toSave = []
     for (const sc of sessionsConfig) {
       if (disabledSessions[sc.key]) continue
@@ -858,15 +887,18 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, onDelete, saving
       toSave.push({ sessionKey: sc.key, ...ref.getPred() })
     }
     if (toSave.length === 0) {
-      alert('Nothing to save — all sessions are either locked or already saved.')
+      alert('Nothing to save — all sessions are either locked or already predicted.')
       return
     }
     setSaveAllStatus('saving')
-    for (const item of toSave) {
-      await onSave(matchno, item.sessionKey, item.pred, item.summary)
+    // ONE single API call for all sessions
+    const ok = await onSaveAll(matchno, toSave)
+    if (ok) {
+      setSaveAllStatus('done')
+      setTimeout(() => setSaveAllStatus(null), 3000)
+    } else {
+      setSaveAllStatus(null)
     }
-    setSaveAllStatus('done')
-    setTimeout(() => setSaveAllStatus(null), 3000)
   }
 
   return (
@@ -946,21 +978,34 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, onDelete, saving
         {/* Save All button — only shown when editing is open */}
         {!started && !editingLocked && (
           <div style={{marginTop:8, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.07)'}}>
+            {saving && (
+              <div style={{
+                marginBottom:10, padding:'10px 14px', borderRadius:10,
+                background:'rgba(245,166,35,0.1)', border:'1px solid rgba(245,166,35,0.3)',
+                display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#f5a623',
+                fontFamily:"'Rajdhani',sans-serif", fontWeight:700
+              }}>
+                <span style={{fontSize:18, animation:'spin 1s linear infinite'}}>⏳</span>
+                Saving to cloud — please wait, do not close this page…
+              </div>
+            )}
             <button
               onClick={handleSaveAll}
-              disabled={saving || saveAllStatus === 'saving'}
+              disabled={saving}
               style={{
-                width:'100%', padding:'13px', borderRadius:12, cursor: saving ? 'not-allowed' : 'pointer',
-                background: saveAllStatus === 'done' ? '#2ecc71' : 'linear-gradient(135deg,#f5a623,#e67e22)',
-                color:'#000', fontFamily:"'Rajdhani',sans-serif", fontWeight:900, fontSize:15,
+                width:'100%', padding:'13px', borderRadius:12,
+                cursor: saving ? 'not-allowed' : 'pointer',
+                background: saveAllStatus === 'done' ? '#2ecc71' : saving ? 'rgba(245,166,35,0.4)' : 'linear-gradient(135deg,#f5a623,#e67e22)',
+                color: saving ? '#888' : '#000',
+                fontFamily:"'Rajdhani',sans-serif", fontWeight:900, fontSize:15,
                 letterSpacing:1, border:'none', opacity: saving ? 0.7 : 1,
-                transition:'all 0.2s', boxShadow:'0 4px 16px rgba(245,166,35,0.25)'
+                transition:'all 0.3s', boxShadow: saving ? 'none' : '0 4px 16px rgba(245,166,35,0.25)'
               }}
             >
-              {saveAllStatus === 'saving' ? '⏳ Saving All...' : saveAllStatus === 'done' ? '✅ All Predictions Saved!' : '💾 Save All Predictions'}
+              {saving ? '⏳ Saving to Cloud…' : saveAllStatus === 'done' ? '✅ All Predictions Saved!' : '💾 Save All Predictions'}
             </button>
             <div style={{fontSize:11, color:'#8899bb', textAlign:'center', marginTop:6}}>
-              Saves all sessions at once • Individual session save buttons still work
+              Saves all sessions in one click • Individual save buttons still work
             </div>
           </div>
         )}
@@ -1079,7 +1124,6 @@ export default function PredictionTab({ matches }) {
   const [saving,      setSaving]      = useState(false)
   const [activeMatch, setActiveMatch] = useState(null)
   const [view,        setView]        = useState('active')
-  const lastSaveRef = useRef(0)
 
   const loadPred = useCallback(async () => {
     if (PRED_BIN_ID === 'PASTE_YOUR_NEW_JSONBIN_ID_HERE') return
@@ -1091,52 +1135,87 @@ export default function PredictionTab({ matches }) {
 
   useEffect(() => { loadPred() }, [loadPred])
 
+  // Single-session save — uses current allPredData state, NO extra GET call
   const handleSave = useCallback(async (matchno, sessionKey, pred, summary) => {
     if (!myPlayer) return
-    const now = Date.now()
-    if (now - lastSaveRef.current < 3000) { alert('Please wait a moment before saving again.'); return }
-    lastSaveRef.current = now
-
     setSaving(true)
-    const fresh = await fetchPredData()
-    const updated = clone(fresh)
-    if (!updated[matchno]) updated[matchno] = { playerPredictions:{}, editHistory:{} }
-    if (!updated[matchno].playerPredictions[myPlayer]) updated[matchno].playerPredictions[myPlayer] = {}
-    if (!updated[matchno].editHistory) updated[matchno].editHistory = {}
-    if (!updated[matchno].editHistory[myPlayer]) updated[matchno].editHistory[myPlayer] = {}
-    if (!updated[matchno].editHistory[myPlayer][sessionKey]) updated[matchno].editHistory[myPlayer][sessionKey] = []
+    try {
+      const updated = clone(allPredData)
+      if (!updated[matchno]) updated[matchno] = { playerPredictions:{}, editHistory:{} }
+      if (!updated[matchno].playerPredictions) updated[matchno].playerPredictions = {}
+      if (!updated[matchno].playerPredictions[myPlayer]) updated[matchno].playerPredictions[myPlayer] = {}
+      if (!updated[matchno].editHistory) updated[matchno].editHistory = {}
+      if (!updated[matchno].editHistory[myPlayer]) updated[matchno].editHistory[myPlayer] = {}
+      if (!updated[matchno].editHistory[myPlayer][sessionKey]) updated[matchno].editHistory[myPlayer][sessionKey] = []
 
-    updated[matchno].editHistory[myPlayer][sessionKey].push({ ts: new Date().toISOString(), summary })
-    updated[matchno].playerPredictions[myPlayer][sessionKey] = pred
+      updated[matchno].editHistory[myPlayer][sessionKey].push({ ts: new Date().toISOString(), summary })
+      updated[matchno].playerPredictions[myPlayer][sessionKey] = pred
 
-    const ok = await savePredData(updated)
-    setSaving(false)
-    if (ok) {
-      setAllPredData(updated)
-      alert('✅ Prediction saved!')
-    } else {
-      alert('❌ Save failed. Check your JSONBin config or network.')
+      const ok = await savePredData(updated)
+      if (ok) {
+        setAllPredData(updated)
+        return true
+      } else {
+        alert('❌ Save failed. Check your network connection.')
+        return false
+      }
+    } finally {
+      setSaving(false)
     }
-  }, [myPlayer])
+  }, [myPlayer, allPredData])
+
+  // Batch save — writes ALL sessions in ONE single API call
+  const handleSaveAll = useCallback(async (matchno, sessions) => {
+    // sessions = [{ sessionKey, pred, summary }, ...]
+    if (!myPlayer || sessions.length === 0) return
+    setSaving(true)
+    try {
+      const updated = clone(allPredData)
+      if (!updated[matchno]) updated[matchno] = { playerPredictions:{}, editHistory:{} }
+      if (!updated[matchno].playerPredictions) updated[matchno].playerPredictions = {}
+      if (!updated[matchno].playerPredictions[myPlayer]) updated[matchno].playerPredictions[myPlayer] = {}
+      if (!updated[matchno].editHistory) updated[matchno].editHistory = {}
+      if (!updated[matchno].editHistory[myPlayer]) updated[matchno].editHistory[myPlayer] = {}
+
+      for (const { sessionKey, pred, summary } of sessions) {
+        if (!updated[matchno].editHistory[myPlayer][sessionKey]) updated[matchno].editHistory[myPlayer][sessionKey] = []
+        updated[matchno].editHistory[myPlayer][sessionKey].push({ ts: new Date().toISOString(), summary })
+        updated[matchno].playerPredictions[myPlayer][sessionKey] = pred
+      }
+
+      const ok = await savePredData(updated)
+      if (ok) {
+        setAllPredData(updated)
+        return true
+      } else {
+        alert('❌ Save failed. Check your network connection.')
+        return false
+      }
+    } finally {
+      setSaving(false)
+    }
+  }, [myPlayer, allPredData])
 
   const handleDelete = useCallback(async (matchno, sessionKey) => {
     if (!myPlayer) return
-    if (!window.confirm(`Delete your prediction for this session? This cannot be undone.`)) return
+    if (!window.confirm('Delete your prediction for this session? This cannot be undone.')) return
     setSaving(true)
-    const fresh = await fetchPredData()
-    const updated = clone(fresh)
-    if (updated[matchno]?.playerPredictions?.[myPlayer]?.[sessionKey] !== undefined) {
-      delete updated[matchno].playerPredictions[myPlayer][sessionKey]
+    try {
+      const updated = clone(allPredData)
+      if (updated[matchno]?.playerPredictions?.[myPlayer]?.[sessionKey] !== undefined) {
+        delete updated[matchno].playerPredictions[myPlayer][sessionKey]
+      }
+      const ok = await savePredData(updated)
+      if (ok) {
+        setAllPredData(updated)
+        alert('🗑️ Prediction deleted.')
+      } else {
+        alert('❌ Delete failed.')
+      }
+    } finally {
+      setSaving(false)
     }
-    const ok = await savePredData(updated)
-    setSaving(false)
-    if (ok) {
-      setAllPredData(updated)
-      alert('🗑️ Prediction deleted.')
-    } else {
-      alert('❌ Delete failed.')
-    }
-  }, [myPlayer])
+  }, [myPlayer, allPredData])
 
   // Upcoming = not completed (includes locked/in-progress)
   // Past = completed
@@ -1209,6 +1288,7 @@ export default function PredictionTab({ matches }) {
                 myPlayer={myPlayer}
                 allMatchPred={allPredData}
                 onSave={handleSave}
+                onSaveAll={handleSaveAll}
                 onDelete={handleDelete}
                 saving={saving}
               />
