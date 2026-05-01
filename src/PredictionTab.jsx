@@ -654,49 +654,64 @@ const SessionCard = forwardRef(function SessionCard({
             </div>
 
             {/* All predictions revealed */}
-            <div style={{fontSize:11, color:'#8899bb', marginBottom:6, letterSpacing:1}}>ALL PREDICTIONS:</div>
-            <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
-              {PLAYERS.map(p => {
-                const pred = allPredictions[p]?.[sessionKey]
-                if (!pred) return null
-                const isWinner = result?.winners?.includes(p)
-                return (
-                  <div key={p} style={{
-                    padding:'5px 10px', borderRadius:8,
-                    background: isWinner ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.04)',
-                    border: isWinner ? '1px solid rgba(46,204,113,0.4)' : `1px solid ${PLAYER_COLORS[p]}33`,
-                    fontSize:12
-                  }}>
-                    <span style={{color: PLAYER_COLORS[p], fontWeight:700, fontFamily:"'Rajdhani',sans-serif"}}>{p}</span>
-                    <span style={{color:'#ccc', marginLeft:5}}>
-                      {isTeamSession ? pred.team : `${pred.runs}R/${pred.wkts}W`}
-                    </span>
-                    {isWinner && <span style={{color:'#2ecc71', marginLeft:4}}>🏆 +₹{result.each?.toFixed(2)}</span>}
-                  </div>
-                )
-              })}
-            </div>
+            {(() => {
+              // ── Recompute prize amounts from betAmount (correct carry-forward included)
+              // instead of trusting result.each / result.pool which were stored by admin
+              // using the old base bet and may be stale/wrong.
+              const computedPool   = betAmount * participants.length
+              const winnerCount    = result?.winners?.length || 0
+              const computedEach   = winnerCount > 0 ? computedPool / winnerCount : 0
+              // For refund: each participant gets their betAmount back
+              const computedRefund = betAmount
 
-            {/* Result summary */}
-            {hasResult && (
-              <div style={{
-                marginTop:10, padding:'8px 12px', borderRadius:8,
-                background: result.noWinner ? 'rgba(231,76,60,0.07)' : 'rgba(46,204,113,0.07)',
-                border: result.noWinner ? '1px solid rgba(231,76,60,0.25)' : '1px solid rgba(46,204,113,0.3)',
-                fontSize:12, color:'#aaa'
-              }}>
-                {result.refund
-                  ? `🔄 No winner — ₹${result.pool?.toFixed(2)} refunded to all players.`
-                  : result.s5SplitAll
-                  ? `🏆 All players picked correctly — pool split equally! Each gets ₹${result.each?.toFixed(2)}`
-                  : result.noWinner
-                  ? `📤 No winner — ₹${(result.carryForwardAmount || 0).toFixed(2)} carried forward equally to next sessions.`
-                  : result.winners?.length === 1
-                  ? `🏆 Winner: ${result.winners[0]} — receives ₹${result.each?.toFixed(2)}`
-                  : `🏆 Winners: ${result.winners?.join(', ')} — each receives ₹${result.each?.toFixed(2)}`
-                }
-              </div>
-            )}
+              return (
+                <>
+                  <div style={{fontSize:11, color:'#8899bb', marginBottom:6, letterSpacing:1}}>ALL PREDICTIONS:</div>
+                  <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
+                    {PLAYERS.map(p => {
+                      const pred = allPredictions[p]?.[sessionKey]
+                      if (!pred) return null
+                      const isWinner = result?.winners?.includes(p)
+                      return (
+                        <div key={p} style={{
+                          padding:'5px 10px', borderRadius:8,
+                          background: isWinner ? 'rgba(46,204,113,0.15)' : 'rgba(255,255,255,0.04)',
+                          border: isWinner ? '1px solid rgba(46,204,113,0.4)' : `1px solid ${PLAYER_COLORS[p]}33`,
+                          fontSize:12
+                        }}>
+                          <span style={{color: PLAYER_COLORS[p], fontWeight:700, fontFamily:"'Rajdhani',sans-serif"}}>{p}</span>
+                          <span style={{color:'#ccc', marginLeft:5}}>
+                            {isTeamSession ? pred.team : `${pred.runs}R/${pred.wkts}W`}
+                          </span>
+                          {isWinner && <span style={{color:'#2ecc71', marginLeft:4}}>🏆 +₹{computedEach.toFixed(2)}</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Result summary */}
+                  {hasResult && (
+                    <div style={{
+                      marginTop:10, padding:'8px 12px', borderRadius:8,
+                      background: result.noWinner ? 'rgba(231,76,60,0.07)' : 'rgba(46,204,113,0.07)',
+                      border: result.noWinner ? '1px solid rgba(231,76,60,0.25)' : '1px solid rgba(46,204,113,0.3)',
+                      fontSize:12, color:'#aaa'
+                    }}>
+                      {result.refund
+                        ? `🔄 No winner — ₹${computedRefund.toFixed(2)} refunded to each player.`
+                        : result.s5SplitAll
+                        ? `🏆 All players picked correctly — pool split equally! Each gets ₹${computedEach.toFixed(2)}`
+                        : result.noWinner
+                        ? `📤 No winner — ₹${computedPool.toFixed(2)} carried forward equally to next sessions.`
+                        : winnerCount === 1
+                        ? `🏆 Winner: ${result.winners[0]} — receives ₹${computedEach.toFixed(2)}`
+                        : `🏆 Winners: ${result.winners?.join(', ')} — each receives ₹${computedEach.toFixed(2)}`
+                      }
+                    </div>
+                  )}
+                </>
+              )
+            })()}
           </div>
         )}
 
@@ -959,32 +974,55 @@ function PredLeaderboard({ allPredData }) {
   const scores = useMemo(() => {
     const acc = {}
     PLAYERS.forEach(p => { acc[p] = { wins:0, earnings:0, sessions:0, refunds:0 } })
+
     Object.values(allPredData).forEach(mpData => {
       const results = mpData.results || {}
       const pp = mpData.playerPredictions || {}
-      PLAYERS.forEach(p => {
-        if (pp[p] && Object.keys(pp[p]).length > 0) acc[p].sessions++
-      })
-      Object.values(results).forEach(r => {
+
+      // Players who participated in this match (have at least one session prediction)
+      const joinedPlayers = PLAYERS.filter(p => pp[p] && Object.keys(pp[p]).length > 0)
+      joinedPlayers.forEach(p => { acc[p].sessions++ })
+
+      // Recompute carry-forward from s1 to get correct betAmount per session
+      let s1Carry = 0
+      const s1Result = results['s1']
+      if (s1Result?.noWinner && !s1Result?.refund && s1Result?.carryForwardAmount > 0) {
+        s1Carry = joinedPlayers.length > 0
+          ? (s1Result.carryForwardAmount / 4) / joinedPlayers.length
+          : 0
+      }
+
+      const SESSION_KEYS = ['s1','s2','s3','s4','s5']
+      SESSION_KEYS.forEach((sk, i) => {
+        const r = results[sk]
         if (!r) return
-        // Refund: pool is split equally among all participants who predicted in that session
-        if (r.refund && r.pool) {
-          // Distribute refund equally among all players who participated in this match
-          const joinedPlayers = PLAYERS.filter(p => pp[p] && Object.keys(pp[p]).length > 0)
-          const perPlayer = joinedPlayers.length > 0 ? r.pool / joinedPlayers.length : 0
-          joinedPlayers.forEach(p => {
-            if (acc[p]) acc[p].refunds += perPlayer
+
+        // Correct betAmount for this session (same formula as sessionBets in MatchPredCard)
+        const betPerPlayer = sk === 's1' ? BASE_BET : BASE_BET + s1Carry
+
+        // Players who predicted in THIS specific session
+        const sessionPlayers = PLAYERS.filter(p => pp[p]?.[sk] !== undefined)
+        const computedPool = betPerPlayer * sessionPlayers.length
+
+        if (r.refund) {
+          // Each participating player gets their betAmount back
+          sessionPlayers.forEach(p => {
+            if (acc[p]) acc[p].refunds += betPerPlayer
           })
         }
-        if (r.winners) {
+
+        if (r.winners && r.winners.length > 0) {
+          // Prize = full pool divided among winners
+          const computedEach = computedPool / r.winners.length
           r.winners.forEach(p => {
             if (!acc[p]) return
             acc[p].wins++
-            acc[p].earnings += r.each || 0
+            acc[p].earnings += computedEach
           })
         }
       })
     })
+
     return PLAYERS.map(p => ({ name:p, ...acc[p] }))
       .sort((a,b) => (b.earnings + b.refunds) - (a.earnings + a.refunds) || b.wins - a.wins)
   }, [allPredData])
