@@ -1065,14 +1065,20 @@ function computeLeaderboardStats(allPredData, matchesMap) {
     SESSION_KEYS.forEach(sk => {
       const r = results[sk]
 
+      // Prize pool and refund use carry-forward-adjusted bet.
+      // Carry-forward redistributes the unclaimed S1 pool into S2-S5,
+      // so each player's effective stake for S2-S5 is BASE_BET + s1Carry.
+      // Investment for the leaderboard shows only flat BASE_BET (what each
+      // player actually paid per session), but refunds and winnings reflect
+      // the real pool value (which can be > BASE_BET due to carry-forward).
+      const betPerPlayer = sk === 's1' ? BASE_BET : BASE_BET + s1Carry
+
       // Players who actually predicted in this specific session
       const sessionPlayers = PLAYERS.filter(p => pp[p]?.[sk] !== undefined && matchAcc[p])
+      const computedPool   = betPerPlayer * sessionPlayers.length
 
-      // Investment = flat BASE_BET per session (₹10 always).
-      // Carry-forward is an internal pool redistribution — it does NOT increase
-      // what each player actually paid into the game.
-      // Only count investment for sessions that have a result (admin has entered
-      // actuals). Sessions predicted but not yet resolved are excluded.
+      // Investment = flat BASE_BET per session only for sessions that have a result.
+      // Sessions predicted but not yet resolved (no result entry) are excluded.
       if (r) {
         sessionPlayers.forEach(p => {
           if (!matchAcc[p]) return
@@ -1083,15 +1089,12 @@ function computeLeaderboardStats(allPredData, matchesMap) {
 
       if (!r) return
 
-      // Prize pool uses carry-forward-adjusted bet for correct payout calculation
-      const betPerPlayer = sk === 's1' ? BASE_BET : BASE_BET + s1Carry
-      const computedPool = betPerPlayer * sessionPlayers.length
-
-      // Refunds (disabled session or s5-all-wrong) — always refund flat BASE_BET
+      // Refunds (disabled session or s5-all-wrong).
+      // Refund = betPerPlayer because that is the actual stake collected for that session.
       if (r.refund) {
         sessionPlayers.forEach(p => {
           if (!matchAcc[p]) return
-          matchAcc[p].refunds += BASE_BET
+          matchAcc[p].refunds += betPerPlayer
         })
       }
 
