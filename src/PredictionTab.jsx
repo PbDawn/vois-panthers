@@ -658,7 +658,7 @@ export default function PredictionTab({ matches }) {
 
   // Auto-reload every 30s
   useEffect(() => {
-    const id = setInterval(loadPred, 30000)
+    const id = setInterval(loadPred, 300000)
     return () => clearInterval(id)
   }, [loadPred])
 
