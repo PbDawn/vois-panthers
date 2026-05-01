@@ -337,11 +337,14 @@ function SessionCard({
   const [wkts,     setWkts]     = useState(myPrediction?.[sessionKey]?.wkts ?? '')
 
   useEffect(() => {
+    // Only sync from props when NOT actively editing (i.e. a saved prediction was loaded/updated externally).
+    // Without this guard, every parent re-render passes a new object reference for myPrediction,
+    // which fires this effect and wipes whatever the user just typed or clicked.
+    if (editing) return
     setTeamPick(myPrediction?.[sessionKey]?.team || '')
     setRuns(myPrediction?.[sessionKey]?.runs ?? '')
     setWkts(myPrediction?.[sessionKey]?.wkts ?? '')
-    setEditing(!myPrediction?.[sessionKey])
-  }, [myPrediction, sessionKey])
+  }, [myPrediction, sessionKey, editing])
 
   const isTeamSession  = sessionKey === 's1' || sessionKey === 's5'
 
@@ -724,11 +727,14 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
     { key:'s5', label:`Match Winner (${t1} vs ${t2})`, num:5 },
   ]
 
-  const allPlayerPreds = {}
-  PLAYERS.forEach(p => { allPlayerPreds[p] = mpData.playerPredictions?.[p] || {} })
+  const allPlayerPreds = useMemo(() => {
+    const result = {}
+    PLAYERS.forEach(p => { result[p] = mpData.playerPredictions?.[p] || {} })
+    return result
+  }, [mpData.playerPredictions])
 
-  const myPreds   = allPlayerPreds[myPlayer] || {}
-  const myHistory = mpData.editHistory?.[myPlayer] || {}
+  const myPreds   = useMemo(() => allPlayerPreds[myPlayer] || {}, [allPlayerPreds, myPlayer])
+  const myHistory = useMemo(() => mpData.editHistory?.[myPlayer] || {}, [mpData.editHistory, myPlayer])
 
   const sessionBets = useMemo(() => {
     const base = Array(SESSION_COUNT).fill(BASE_BET)
