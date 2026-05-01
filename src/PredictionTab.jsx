@@ -13,7 +13,7 @@
 //  9. Points can be added for running matches (not just completed)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef, useImperativeHandle, forwardRef } from 'react'
 
 // ── CONFIG ──────────────────────────────────────────────────────────────────
 const PLAYERS       = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
@@ -319,11 +319,13 @@ function PredDeadlineTimer({ match }) {
 }
 
 // ── SESSION CARD ─────────────────────────────────────────────────────────────
-function SessionCard({
+const SessionCard = forwardRef(function SessionCard({
   sessionNum, sessionKey, label, match, myPlayer, myPrediction, myHistory,
   allPredictions, actual, betAmount, result, disabled: sessionDisabled,
-  onSave, saving
-}) {
+  onSave, onDelete, saving, cardRef
+}, ref) {
+  // merge both ref patterns: forwardRef ref and explicit cardRef callback
+  const combinedRef = cardRef || ref
   const teams = getTeams(match)
   const [t1, t2] = teams
   const editingLocked = isEditingLocked(match)
@@ -365,6 +367,27 @@ function SessionCard({
     if (isTeamSession) return `Picked: ${teamPick}`
     return `Runs: ${runs}, Wkts: ${wkts}`
   }
+
+  // Expose validate + getPred for "Save All" in parent
+  useImperativeHandle(combinedRef, () => ({
+    validate() {
+      if (isTeamSession) {
+        if (!teamPick) return { ok: false, msg: `Session ${sessionNum}: Please select a team.` }
+      } else {
+        const r = parseInt(runs), w = parseInt(wkts)
+        if (runs === '' || wkts === '') return { ok: false, msg: `Session ${sessionNum}: Both Runs and Wickets are required.` }
+        if (isNaN(r) || isNaN(w) || r < 0 || w < 0 || w > 10) return { ok: false, msg: `Session ${sessionNum}: Enter valid numbers (Runs ≥ 0, Wickets 0–10).` }
+      }
+      return { ok: true }
+    },
+    getPred() {
+      if (isTeamSession) return { pred: { team: teamPick }, summary: buildSummary() }
+      return { pred: { runs: parseInt(runs), wkts: parseInt(wkts) }, summary: buildSummary() }
+    },
+    sessionKey,
+    isDisabled: !!sessionDisabled,
+    isLocked: editingLocked || started,
+  }))
 
   function handleSave() {
     let pred = {}
@@ -515,6 +538,7 @@ function SessionCard({
                         </span>
                     }
                   </div>
+                  <div style={{display:'flex', gap:6}}>
                   <button
                     onClick={() => setEditing(true)}
                     style={{
@@ -524,6 +548,26 @@ function SessionCard({
                       fontFamily:"'Rajdhani',sans-serif", fontWeight:700, letterSpacing:0.5
                     }}
                   >✏️ Edit</button>
+                  {onDelete && (
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Delete your prediction for Session ${sessionNum}?`)) {
+                          onDelete(sessionKey)
+                          setTeamPick('')
+                          setRuns('')
+                          setWkts('')
+                          setEditing(true)
+                        }
+                      }}
+                      style={{
+                        padding:'7px 12px', borderRadius:8, cursor:'pointer',
+                        background:'rgba(231,76,60,0.12)', color:'#e74c3c',
+                        border:'1px solid rgba(231,76,60,0.3)', fontSize:12,
+                        fontFamily:"'Rajdhani',sans-serif", fontWeight:700
+                      }}
+                    >🗑️</button>
+                  )}
+                  </div>
                 </div>
               </div>
             )}
@@ -647,7 +691,9 @@ function SessionCard({
                   ? `🏆 All players picked correctly — pool split equally! Each gets ₹${result.each?.toFixed(2)}`
                   : result.noWinner
                   ? `📤 No winner — ₹${(result.carryForwardAmount || 0).toFixed(2)} carried forward equally to next sessions.`
-                  : `🏆 Winners: ${result.winners.join(', ')} — each receives ₹${result.each?.toFixed(2)}`
+                  : result.winners?.length === 1
+                  ? `🏆 Winner: ${result.winners[0]} — receives ₹${result.each?.toFixed(2)}`
+                  : `🏆 Winners: ${result.winners?.join(', ')} — each receives ₹${result.each?.toFixed(2)}`
                 }
               </div>
             )}
@@ -698,7 +744,7 @@ function SessionCard({
       </div>
     </div>
   )
-}
+})
 
 const inputStyle = {
   width:'100%', padding:'9px 12px', borderRadius:8,
@@ -708,7 +754,7 @@ const inputStyle = {
 }
 
 // ── MATCH PREDICTION CARD ────────────────────────────────────────────────────
-function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
+function MatchPredCard({ match, myPlayer, allMatchPred, onSave, onDelete, saving }) {
   const [t1, t2] = getTeams(match)
   const editingLocked = isEditingLocked(match)
   const started   = isMatchStarted(match)
@@ -716,6 +762,9 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
 
   const matchno = String(match.matchno)
   const mpData  = allMatchPred[matchno] || {}
+
+  // Refs for Save All — one per session
+  const sessionCardRefs = useRef({})
 
   const disabledSessions = mpData.disabledSessions || {}
 
@@ -744,8 +793,11 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
     let s1Carry = 0
     const s1Result = results['s1']
     if (s1Result?.noWinner && !s1Result?.refund && s1Result?.carryForwardAmount > 0) {
+      // carryForwardAmount = total pool (e.g. ₹20 for 2 players × ₹10).
+      // Split equally across 4 remaining sessions → per-session total = carryForwardAmount / 4.
+      // Per-player addition = that divided by number of joined players.
       const perPlayerAdd = joined.length > 0
-        ? (s1Result.carryForwardAmount / joined.length) / 4
+        ? (s1Result.carryForwardAmount / 4) / joined.length
         : 0
       s1Carry = perPlayerAdd
     }
@@ -773,6 +825,34 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
   }, [mpData, myPlayer, started])
 
   const matchTimeLabel = match.matchTime === '15:30' ? '3:30 PM IST' : match.matchTime === '19:30' ? '7:30 PM IST' : match.matchTime || ''
+
+  const [saveAllStatus, setSaveAllStatus] = useState(null)
+
+  async function handleSaveAll() {
+    // Collect all active, unlocked sessions
+    const toSave = []
+    for (const sc of sessionsConfig) {
+      if (disabledSessions[sc.key]) continue
+      const ref = sessionCardRefs.current[sc.key]
+      if (!ref || ref.isLocked) continue
+      const validation = ref.validate()
+      if (!validation.ok) {
+        alert(`⚠️ ${validation.msg}`)
+        return
+      }
+      toSave.push({ sessionKey: sc.key, ...ref.getPred() })
+    }
+    if (toSave.length === 0) {
+      alert('Nothing to save — all sessions are either locked or already saved.')
+      return
+    }
+    setSaveAllStatus('saving')
+    for (const item of toSave) {
+      await onSave(matchno, item.sessionKey, item.pred, item.summary)
+    }
+    setSaveAllStatus('done')
+    setTimeout(() => setSaveAllStatus(null), 3000)
+  }
 
   return (
     <div style={{
@@ -842,9 +922,33 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, saving }) {
             result={mpData.results?.[sc.key]}
             disabled={!!disabledSessions[sc.key]}
             onSave={(sessionKey, pred, summary) => onSave(matchno, sessionKey, pred, summary)}
+            onDelete={!editingLocked && !started ? (sessionKey) => onDelete(matchno, sessionKey) : undefined}
             saving={saving}
+            cardRef={el => { sessionCardRefs.current[sc.key] = el }}
           />
         ))}
+
+        {/* Save All button — only shown when editing is open */}
+        {!started && !editingLocked && (
+          <div style={{marginTop:8, paddingTop:12, borderTop:'1px solid rgba(255,255,255,0.07)'}}>
+            <button
+              onClick={handleSaveAll}
+              disabled={saving || saveAllStatus === 'saving'}
+              style={{
+                width:'100%', padding:'13px', borderRadius:12, cursor: saving ? 'not-allowed' : 'pointer',
+                background: saveAllStatus === 'done' ? '#2ecc71' : 'linear-gradient(135deg,#f5a623,#e67e22)',
+                color:'#000', fontFamily:"'Rajdhani',sans-serif", fontWeight:900, fontSize:15,
+                letterSpacing:1, border:'none', opacity: saving ? 0.7 : 1,
+                transition:'all 0.2s', boxShadow:'0 4px 16px rgba(245,166,35,0.25)'
+              }}
+            >
+              {saveAllStatus === 'saving' ? '⏳ Saving All...' : saveAllStatus === 'done' ? '✅ All Predictions Saved!' : '💾 Save All Predictions'}
+            </button>
+            <div style={{fontSize:11, color:'#8899bb', textAlign:'center', marginTop:6}}>
+              Saves all sessions at once • Individual session save buttons still work
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -863,9 +967,14 @@ function PredLeaderboard({ allPredData }) {
       })
       Object.values(results).forEach(r => {
         if (!r) return
+        // Refund: pool is split equally among all participants who predicted in that session
         if (r.refund && r.pool) {
-          const perPlayer = r.pool / (Object.keys(pp).length || 1)
-          PLAYERS.forEach(p => { if (pp[p]) acc[p].refunds += perPlayer })
+          // Distribute refund equally among all players who participated in this match
+          const joinedPlayers = PLAYERS.filter(p => pp[p] && Object.keys(pp[p]).length > 0)
+          const perPlayer = joinedPlayers.length > 0 ? r.pool / joinedPlayers.length : 0
+          joinedPlayers.forEach(p => {
+            if (acc[p]) acc[p].refunds += perPlayer
+          })
         }
         if (r.winners) {
           r.winners.forEach(p => {
@@ -877,7 +986,7 @@ function PredLeaderboard({ allPredData }) {
       })
     })
     return PLAYERS.map(p => ({ name:p, ...acc[p] }))
-      .sort((a,b) => b.earnings - a.earnings || b.wins - a.wins)
+      .sort((a,b) => (b.earnings + b.refunds) - (a.earnings + a.refunds) || b.wins - a.wins)
   }, [allPredData])
 
   return (
@@ -889,25 +998,34 @@ function PredLeaderboard({ allPredData }) {
         <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
           <thead>
             <tr style={{background:'rgba(255,255,255,0.03)'}}>
-              {['Rank','Player','Match Participations','Session Wins','Total Earned (₹)'].map(h => (
+              {['Rank','Player','Match Participations','Session Wins','Winnings (₹)','Refunds (₹)','Total (₹)'].map(h => (
                 <th key={h} style={{padding:'8px 12px',textAlign:'left',color:'#8899bb',fontWeight:700,fontFamily:"'Rajdhani',sans-serif",borderBottom:'1px solid rgba(255,255,255,0.08)'}}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {scores.map((s,i) => (
-              <tr key={s.name} style={{borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
-                <td style={{padding:'8px 12px',color:'#f5a623',fontWeight:700,fontFamily:"'Rajdhani',sans-serif"}}>#{i+1}</td>
-                <td style={{padding:'8px 12px'}}>
-                  <span style={{color: PLAYER_COLORS[s.name], fontWeight:700, fontFamily:"'Rajdhani',sans-serif"}}>{s.name}</span>
-                </td>
-                <td style={{padding:'8px 12px',color:'#fff'}}>{s.sessions}</td>
-                <td style={{padding:'8px 12px',color:'#fff'}}>{s.wins}</td>
-                <td style={{padding:'8px 12px',color: s.earnings>0 ? '#2ecc71' : '#aaa', fontWeight:700}}>
-                  {s.earnings > 0 ? `+₹${s.earnings.toFixed(2)}` : '₹0'}
-                </td>
-              </tr>
-            ))}
+            {scores.map((s,i) => {
+              const total = s.earnings + s.refunds
+              return (
+                <tr key={s.name} style={{borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
+                  <td style={{padding:'8px 12px',color:'#f5a623',fontWeight:700,fontFamily:"'Rajdhani',sans-serif"}}>#{i+1}</td>
+                  <td style={{padding:'8px 12px'}}>
+                    <span style={{color: PLAYER_COLORS[s.name], fontWeight:700, fontFamily:"'Rajdhani',sans-serif"}}>{s.name}</span>
+                  </td>
+                  <td style={{padding:'8px 12px',color:'#fff'}}>{s.sessions}</td>
+                  <td style={{padding:'8px 12px',color:'#fff'}}>{s.wins}</td>
+                  <td style={{padding:'8px 12px',color: s.earnings>0 ? '#2ecc71' : '#aaa', fontWeight:700}}>
+                    {s.earnings > 0 ? `+₹${s.earnings.toFixed(2)}` : '₹0'}
+                  </td>
+                  <td style={{padding:'8px 12px',color: s.refunds>0 ? '#3498db' : '#aaa', fontWeight:700}}>
+                    {s.refunds > 0 ? `↩₹${s.refunds.toFixed(2)}` : '₹0'}
+                  </td>
+                  <td style={{padding:'8px 12px',color: total>0 ? '#f5a623' : '#aaa', fontWeight:700}}>
+                    {total > 0 ? `₹${total.toFixed(2)}` : '₹0'}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -963,7 +1081,25 @@ export default function PredictionTab({ matches }) {
     }
   }, [myPlayer])
 
-  // CHANGE: Show both upcoming and running (locked) matches in "active" view
+  const handleDelete = useCallback(async (matchno, sessionKey) => {
+    if (!myPlayer) return
+    if (!window.confirm(`Delete your prediction for this session? This cannot be undone.`)) return
+    setSaving(true)
+    const fresh = await fetchPredData()
+    const updated = clone(fresh)
+    if (updated[matchno]?.playerPredictions?.[myPlayer]?.[sessionKey] !== undefined) {
+      delete updated[matchno].playerPredictions[myPlayer][sessionKey]
+    }
+    const ok = await savePredData(updated)
+    setSaving(false)
+    if (ok) {
+      setAllPredData(updated)
+      alert('🗑️ Prediction deleted.')
+    } else {
+      alert('❌ Delete failed.')
+    }
+  }, [myPlayer])
+
   // Upcoming = not completed (includes locked/in-progress)
   // Past = completed
   const upcomingMatches = useMemo(() =>
@@ -1035,6 +1171,7 @@ export default function PredictionTab({ matches }) {
                 myPlayer={myPlayer}
                 allMatchPred={allPredData}
                 onSave={handleSave}
+                onDelete={handleDelete}
                 saving={saving}
               />
             ))
