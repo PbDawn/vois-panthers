@@ -11,9 +11,12 @@
 //  7. Session 5 tie (all same answer) → split prize equally; all wrong → full refund
 //  8. Admin can disable sessions (for short matches) → refund those session amounts
 //  9. Points can be added for running matches (not just completed)
+// 10. Leaderboard: added Sessions Participated, Investment (₹), and P&L (₹) columns
+// 11. Leaderboard: per-match drill-down via ▶ expand arrow (sessions, wins, investment, P&L per match)
+// 12. Leaderboard: ranked by P&L (correct — Total Back − Investment)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback, useMemo, useRef, useImperativeHandle, forwardRef } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef, useImperativeHandle, forwardRef } from 'react'
 
 // ── CONFIG ──────────────────────────────────────────────────────────────────
 const PLAYERS       = ['Ashish','Kalpesh','Nilesh','Prabhat','Pritam','Sudhir','Swapnil']
@@ -1014,103 +1017,308 @@ function MatchPredCard({ match, myPlayer, allMatchPred, onSave, onSaveAll, onDel
   )
 }
 
-// ── LEADERBOARD PANEL ────────────────────────────────────────────────────────
-function PredLeaderboard({ allPredData }) {
-  const scores = useMemo(() => {
-    const acc = {}
-    PLAYERS.forEach(p => { acc[p] = { wins:0, earnings:0, sessions:0, refunds:0 } })
+// ── LEADERBOARD HELPERS ──────────────────────────────────────────────────────
+// Computes per-match stats for a single player across all matches in allPredData.
+// Returns sorted array of player stats with { totals, perMatch[] }
+function computeLeaderboardStats(allPredData, matchesMap) {
+  // acc[player] = { wins, earnings, refunds, investment, sessionWins, matchParticipations, perMatch[] }
+  const acc = {}
+  PLAYERS.forEach(p => {
+    acc[p] = { wins:0, earnings:0, refunds:0, investment:0, sessionWins:0, matchParticipations:0, perMatch:[] }
+  })
 
-    Object.values(allPredData).forEach(mpData => {
-      const results = mpData.results || {}
-      const pp = mpData.playerPredictions || {}
+  Object.entries(allPredData).forEach(([matchno, mpData]) => {
+    const results = mpData.results || {}
+    const pp      = mpData.playerPredictions || {}
 
-      // Players who participated in this match (have at least one session prediction)
-      const joinedPlayers = PLAYERS.filter(p => pp[p] && Object.keys(pp[p]).length > 0)
-      joinedPlayers.forEach(p => { acc[p].sessions++ })
+    // Resolve human-readable match label from matches prop
+    const matchInfo  = matchesMap?.[matchno]
+    const matchLabel = matchInfo
+      ? `M${matchno}: ${matchInfo.teams || ''}`
+      : `Match ${matchno}`
 
-      // Recompute carry-forward from s1 to get correct betAmount per session
-      let s1Carry = 0
-      const s1Result = results['s1']
-      if (s1Result?.noWinner && !s1Result?.refund && s1Result?.carryForwardAmount > 0) {
-        s1Carry = joinedPlayers.length > 0
-          ? (s1Result.carryForwardAmount / 4) / joinedPlayers.length
-          : 0
-      }
+    // Players who joined this match (≥1 session predicted)
+    const joinedPlayers = PLAYERS.filter(p => pp[p] && Object.keys(pp[p]).length > 0)
 
-      const SESSION_KEYS = ['s1','s2','s3','s4','s5']
-      SESSION_KEYS.forEach((sk, i) => {
-        const r = results[sk]
-        if (!r) return
-
-        // Correct betAmount for this session (same formula as sessionBets in MatchPredCard)
-        const betPerPlayer = sk === 's1' ? BASE_BET : BASE_BET + s1Carry
-
-        // Players who predicted in THIS specific session
-        const sessionPlayers = PLAYERS.filter(p => pp[p]?.[sk] !== undefined)
-        const computedPool = betPerPlayer * sessionPlayers.length
-
-        if (r.refund) {
-          // Each participating player gets their betAmount back
-          sessionPlayers.forEach(p => {
-            if (acc[p]) acc[p].refunds += betPerPlayer
-          })
-        }
-
-        if (r.winners && r.winners.length > 0) {
-          // Prize = full pool divided among winners
-          const computedEach = computedPool / r.winners.length
-          r.winners.forEach(p => {
-            if (!acc[p]) return
-            acc[p].wins++
-            acc[p].earnings += computedEach
-          })
-        }
-      })
+    // Per-match accumulator for each joined player
+    const matchAcc = {}
+    joinedPlayers.forEach(p => {
+      matchAcc[p] = { wins:0, earnings:0, refunds:0, investment:0, sessionWins:0, sessionsParticipated:0 }
+      acc[p].matchParticipations++
     })
 
-    return PLAYERS.map(p => ({ name:p, ...acc[p] }))
-      .sort((a,b) => (b.earnings + b.refunds) - (a.earnings + a.refunds) || b.wins - a.wins)
-  }, [allPredData])
+    // s1 carry-forward logic (same as sessionBets in MatchPredCard)
+    let s1Carry = 0
+    const s1Result = results['s1']
+    if (s1Result?.noWinner && !s1Result?.refund && s1Result?.carryForwardAmount > 0) {
+      s1Carry = joinedPlayers.length > 0
+        ? (s1Result.carryForwardAmount / 4) / joinedPlayers.length
+        : 0
+    }
+
+    const SESSION_KEYS = ['s1','s2','s3','s4','s5']
+    SESSION_KEYS.forEach(sk => {
+      const betPerPlayer = sk === 's1' ? BASE_BET : BASE_BET + s1Carry
+      const r = results[sk]
+
+      // Players who actually predicted in this specific session
+      const sessionPlayers = PLAYERS.filter(p => pp[p]?.[sk] !== undefined && matchAcc[p])
+      const computedPool   = betPerPlayer * sessionPlayers.length
+
+      // Investment: every player who predicted in a session has invested betPerPlayer
+      sessionPlayers.forEach(p => {
+        if (!matchAcc[p]) return
+        matchAcc[p].investment += betPerPlayer
+        matchAcc[p].sessionsParticipated++
+      })
+
+      if (!r) return
+
+      // Refunds (disabled or s5-all-wrong)
+      if (r.refund) {
+        sessionPlayers.forEach(p => {
+          if (!matchAcc[p]) return
+          matchAcc[p].refunds += betPerPlayer
+        })
+      }
+
+      // Winnings
+      if (r.winners && r.winners.length > 0) {
+        const computedEach = computedPool / r.winners.length
+        r.winners.forEach(p => {
+          if (!matchAcc[p]) return
+          matchAcc[p].wins++
+          matchAcc[p].sessionWins++
+          matchAcc[p].earnings += computedEach
+        })
+      }
+    })
+
+    // Fold per-match data back into global acc and record per-match breakdown
+    joinedPlayers.forEach(p => {
+      const m = matchAcc[p]
+      acc[p].wins        += m.wins
+      acc[p].earnings    += m.earnings
+      acc[p].refunds     += m.refunds
+      acc[p].investment  += m.investment
+      acc[p].sessionWins += m.sessionWins
+      acc[p].perMatch.push({
+        matchno,
+        matchLabel,
+        sessionsParticipated: m.sessionsParticipated,
+        sessionWins:  m.sessionWins,
+        investment:   m.investment,
+        earnings:     m.earnings,
+        refunds:      m.refunds,
+        // P&L = money received back (earnings + refunds) - money invested
+        pnl: parseFloat(((m.earnings + m.refunds) - m.investment).toFixed(2)),
+      })
+    })
+  })
+
+  return PLAYERS.map(p => {
+    const d = acc[p]
+    const total = d.earnings + d.refunds
+    const pnl   = parseFloat((total - d.investment).toFixed(2))
+    return {
+      name:                p,
+      matchParticipations: d.matchParticipations,
+      sessionWins:         d.sessionWins,
+      investment:          parseFloat(d.investment.toFixed(2)),
+      earnings:            parseFloat(d.earnings.toFixed(2)),
+      refunds:             parseFloat(d.refunds.toFixed(2)),
+      total:               parseFloat(total.toFixed(2)),
+      pnl,
+      perMatch:            d.perMatch,
+    }
+  }).sort((a, b) => b.pnl - a.pnl || b.sessionWins - a.sessionWins)
+
+// ── PER-MATCH DRILL-DOWN ROW ─────────────────────────────────────────────────
+function MatchBreakdownRows({ perMatch, colSpan }) {
+  if (!perMatch || perMatch.length === 0) {
+    return (
+      <tr>
+        <td colSpan={colSpan} style={{padding:'10px 20px 10px 52px', fontSize:12, color:'#666', fontStyle:'italic', background:'rgba(0,0,0,0.25)'}}>
+          No match data yet
+        </td>
+      </tr>
+    )
+  }
+  return (
+    <>
+      {/* Sub-header */}
+      <tr style={{background:'rgba(0,0,0,0.3)'}}>
+        <td colSpan={colSpan} style={{padding:'0'}}>
+          <div style={{display:'grid', gridTemplateColumns:'36px 130px 90px 80px 100px 90px 90px 110px 100px', gap:0, padding:'6px 8px 6px 48px', borderTop:'1px solid rgba(255,255,255,0.06)', borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+            {['','Match','Sessions','S.Wins','Invested (₹)','Won (₹)','Refund (₹)','Total Back (₹)','P&L (₹)'].map((h,i) => (
+              <div key={i} style={{fontSize:10, color:'#556', fontWeight:700, fontFamily:"'Rajdhani',sans-serif", letterSpacing:0.5, textTransform:'uppercase', paddingRight:8}}>{h}</div>
+            ))}
+          </div>
+        </td>
+      </tr>
+      {perMatch.map((m, idx) => {
+        const totalBack = m.earnings + m.refunds
+        const pnlColor  = m.pnl > 0 ? '#2ecc71' : m.pnl < 0 ? '#e74c3c' : '#8899bb'
+        const pnlPrefix = m.pnl > 0 ? '+' : ''
+        return (
+          <tr key={m.matchno} style={{background: idx % 2 === 0 ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.15)', borderBottom:'1px solid rgba(255,255,255,0.03)'}}>
+            <td colSpan={colSpan} style={{padding:0}}>
+              <div style={{display:'grid', gridTemplateColumns:'36px 130px 90px 80px 100px 90px 90px 110px 100px', gap:0, padding:'7px 8px 7px 48px', alignItems:'center'}}>
+                <div style={{fontSize:11, color:'#556'}}>↳</div>
+                <div style={{fontSize:12, color:'#aabbcc', fontFamily:"'Rajdhani',sans-serif", fontWeight:700}}>{m.matchLabel}</div>
+                <div style={{fontSize:12, color:'#fff'}}>{m.sessionsParticipated}</div>
+                <div style={{fontSize:12, color:'#fff'}}>{m.sessionWins}</div>
+                <div style={{fontSize:12, color:'#e056fd', fontWeight:700}}>₹{m.investment.toFixed(2)}</div>
+                <div style={{fontSize:12, color: m.earnings > 0 ? '#2ecc71' : '#666', fontWeight:700}}>
+                  {m.earnings > 0 ? `+₹${m.earnings.toFixed(2)}` : '₹0'}
+                </div>
+                <div style={{fontSize:12, color: m.refunds > 0 ? '#3498db' : '#666', fontWeight:700}}>
+                  {m.refunds > 0 ? `↩₹${m.refunds.toFixed(2)}` : '₹0'}
+                </div>
+                <div style={{fontSize:12, color: totalBack > 0 ? '#f5a623' : '#666', fontWeight:700}}>
+                  {totalBack > 0 ? `₹${totalBack.toFixed(2)}` : '₹0'}
+                </div>
+                <div style={{fontSize:12, color: pnlColor, fontWeight:800, fontFamily:"'Rajdhani',sans-serif"}}>
+                  {pnlPrefix}₹{m.pnl.toFixed(2)}
+                </div>
+              </div>
+            </td>
+          </tr>
+        )
+      })}
+    </>
+  )
+}
+
+// ── LEADERBOARD PANEL ────────────────────────────────────────────────────────
+function PredLeaderboard({ allPredData, matches }) {
+  const [expandedPlayer, setExpandedPlayer] = useState(null)
+
+  // Build a map from matchno → match object for label resolution
+  const matchesMap = useMemo(() => {
+    const map = {}
+    if (Array.isArray(matches)) {
+      matches.forEach(m => { if (m.matchno) map[String(m.matchno)] = m })
+    }
+    return map
+  }, [matches])
+
+  const scores = useMemo(() => computeLeaderboardStats(allPredData, matchesMap), [allPredData, matchesMap])
+
+  const COLS = ['', 'Rank', 'Player', 'Matches', 'Sessions', 'S.Wins', 'Invested (₹)', 'Won (₹)', 'Refunds (₹)', 'Total Back (₹)', 'P&L (₹)']
+  const COL_SPAN = COLS.length
 
   return (
     <div style={{marginTop:24, borderRadius:14, overflow:'hidden', border:'1px solid rgba(255,255,255,0.1)'}}>
-      <div style={{padding:'12px 16px', background:'rgba(245,166,35,0.07)', borderBottom:'1px solid rgba(245,166,35,0.15)', fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:15, color:'#f5a623'}}>
+      <div style={{padding:'12px 16px', background:'rgba(245,166,35,0.07)', borderBottom:'1px solid rgba(245,166,35,0.15)', fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:15, color:'#f5a623', display:'flex', alignItems:'center', gap:10}}>
         🏆 Prediction Leaderboard
+        <span style={{fontSize:11, color:'#8899bb', fontWeight:400}}>Click ▶ to see per-match breakdown</span>
       </div>
       <div style={{overflowX:'auto'}}>
-        <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
+        <table style={{width:'100%', borderCollapse:'collapse', fontSize:13, minWidth:860}}>
           <thead>
             <tr style={{background:'rgba(255,255,255,0.03)'}}>
-              {['Rank','Player','Match Participations','Session Wins','Winnings (₹)','Refunds (₹)','Total (₹)'].map(h => (
-                <th key={h} style={{padding:'8px 12px',textAlign:'left',color:'#8899bb',fontWeight:700,fontFamily:"'Rajdhani',sans-serif",borderBottom:'1px solid rgba(255,255,255,0.08)'}}>{h}</th>
+              {COLS.map((h, i) => (
+                <th key={i} style={{
+                  padding: i === 0 ? '8px 4px 8px 10px' : '8px 10px',
+                  textAlign: i <= 2 ? 'left' : 'right',
+                  color:'#8899bb', fontWeight:700, fontFamily:"'Rajdhani',sans-serif",
+                  borderBottom:'1px solid rgba(255,255,255,0.08)', whiteSpace:'nowrap', fontSize:11
+                }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {scores.map((s,i) => {
-              const total = s.earnings + s.refunds
+            {scores.map((s, i) => {
+              const isExpanded = expandedPlayer === s.name
+              const pnlColor   = s.pnl > 0 ? '#2ecc71' : s.pnl < 0 ? '#e74c3c' : '#8899bb'
+              const pnlPrefix  = s.pnl > 0 ? '+' : ''
+              const rankColors = ['#f5a623','#c0c0c0','#cd7f32']
+              const rankColor  = rankColors[i] || '#8899bb'
+
               return (
-                <tr key={s.name} style={{borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
-                  <td style={{padding:'8px 12px',color:'#f5a623',fontWeight:700,fontFamily:"'Rajdhani',sans-serif"}}>#{i+1}</td>
-                  <td style={{padding:'8px 12px'}}>
-                    <span style={{color: PLAYER_COLORS[s.name], fontWeight:700, fontFamily:"'Rajdhani',sans-serif"}}>{s.name}</span>
-                  </td>
-                  <td style={{padding:'8px 12px',color:'#fff'}}>{s.sessions}</td>
-                  <td style={{padding:'8px 12px',color:'#fff'}}>{s.wins}</td>
-                  <td style={{padding:'8px 12px',color: s.earnings>0 ? '#2ecc71' : '#aaa', fontWeight:700}}>
-                    {s.earnings > 0 ? `+₹${s.earnings.toFixed(2)}` : '₹0'}
-                  </td>
-                  <td style={{padding:'8px 12px',color: s.refunds>0 ? '#3498db' : '#aaa', fontWeight:700}}>
-                    {s.refunds > 0 ? `↩₹${s.refunds.toFixed(2)}` : '₹0'}
-                  </td>
-                  <td style={{padding:'8px 12px',color: total>0 ? '#f5a623' : '#aaa', fontWeight:700}}>
-                    {total > 0 ? `₹${total.toFixed(2)}` : '₹0'}
-                  </td>
-                </tr>
+                <React.Fragment key={s.name}>
+                  <tr
+                    style={{
+                      borderBottom: isExpanded ? 'none' : '1px solid rgba(255,255,255,0.05)',
+                      background: isExpanded ? 'rgba(245,166,35,0.05)' : 'transparent',
+                      cursor:'pointer', transition:'background 0.15s'
+                    }}
+                    onClick={() => setExpandedPlayer(isExpanded ? null : s.name)}
+                    onMouseEnter={e => { if (!isExpanded) e.currentTarget.style.background = 'rgba(255,255,255,0.025)' }}
+                    onMouseLeave={e => { if (!isExpanded) e.currentTarget.style.background = 'transparent' }}
+                  >
+                    {/* Expand toggle */}
+                    <td style={{padding:'8px 4px 8px 10px', textAlign:'center'}}>
+                      <span style={{
+                        display:'inline-block', fontSize:11, color: isExpanded ? '#f5a623' : '#556',
+                        transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                        transition:'transform 0.2s', userSelect:'none', fontWeight:900
+                      }}>▶</span>
+                    </td>
+                    {/* Rank */}
+                    <td style={{padding:'8px 10px', fontFamily:"'Rajdhani',sans-serif", fontWeight:800, fontSize:14, color: rankColor, whiteSpace:'nowrap'}}>
+                      {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i+1}`}
+                    </td>
+                    {/* Player */}
+                    <td style={{padding:'8px 10px'}}>
+                      <span style={{color: PLAYER_COLORS[s.name], fontWeight:700, fontFamily:"'Rajdhani',sans-serif", fontSize:14}}>{s.name}</span>
+                    </td>
+                    {/* Matches */}
+                    <td style={{padding:'8px 10px', color:'#fff', textAlign:'right'}}>{s.matchParticipations}</td>
+                    {/* Sessions (total across all matches) */}
+                    <td style={{padding:'8px 10px', color:'#fff', textAlign:'right'}}>
+                      {s.perMatch.reduce((sum, m) => sum + m.sessionsParticipated, 0)}
+                    </td>
+                    {/* Session Wins */}
+                    <td style={{padding:'8px 10px', color:'#fff', textAlign:'right'}}>{s.sessionWins}</td>
+                    {/* Invested */}
+                    <td style={{padding:'8px 10px', color:'#e056fd', fontWeight:700, textAlign:'right'}}>
+                      {s.investment > 0 ? `₹${s.investment.toFixed(2)}` : '₹0'}
+                    </td>
+                    {/* Won */}
+                    <td style={{padding:'8px 10px', color: s.earnings > 0 ? '#2ecc71' : '#555', fontWeight:700, textAlign:'right'}}>
+                      {s.earnings > 0 ? `+₹${s.earnings.toFixed(2)}` : '₹0'}
+                    </td>
+                    {/* Refunds */}
+                    <td style={{padding:'8px 10px', color: s.refunds > 0 ? '#3498db' : '#555', fontWeight:700, textAlign:'right'}}>
+                      {s.refunds > 0 ? `↩₹${s.refunds.toFixed(2)}` : '₹0'}
+                    </td>
+                    {/* Total Back */}
+                    <td style={{padding:'8px 10px', color: s.total > 0 ? '#f5a623' : '#555', fontWeight:700, textAlign:'right'}}>
+                      {s.total > 0 ? `₹${s.total.toFixed(2)}` : '₹0'}
+                    </td>
+                    {/* P&L */}
+                    <td style={{padding:'8px 10px', fontWeight:800, fontFamily:"'Rajdhani',sans-serif", fontSize:14, color: pnlColor, textAlign:'right', whiteSpace:'nowrap'}}>
+                      {pnlPrefix}₹{s.pnl.toFixed(2)}
+                    </td>
+                  </tr>
+
+                  {/* Expanded per-match breakdown */}
+                  {isExpanded && (
+                    <MatchBreakdownRows perMatch={s.perMatch} colSpan={COL_SPAN} />
+                  )}
+
+                  {/* Bottom border when expanded */}
+                  {isExpanded && (
+                    <tr>
+                      <td colSpan={COL_SPAN} style={{padding:0, borderBottom:'1px solid rgba(245,166,35,0.2)', background:'rgba(245,166,35,0.03)'}}></td>
+                    </tr>
+                  )}
+                </React.Fragment>
               )
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Legend */}
+      <div style={{padding:'10px 14px', background:'rgba(0,0,0,0.2)', borderTop:'1px solid rgba(255,255,255,0.06)', display:'flex', flexWrap:'wrap', gap:16, fontSize:11, color:'#8899bb'}}>
+        <span><span style={{color:'#e056fd', fontWeight:700}}>Invested</span> = total ₹ put in across sessions</span>
+        <span><span style={{color:'#2ecc71', fontWeight:700}}>Won</span> = prize winnings only</span>
+        <span><span style={{color:'#3498db', fontWeight:700}}>Refunds</span> = returned for disabled / all-wrong sessions</span>
+        <span><span style={{color:'#f5a623', fontWeight:700}}>Total Back</span> = Won + Refunds</span>
+        <span><span style={{color:'#2ecc71', fontWeight:700}}>P&L</span> = Total Back − Invested</span>
       </div>
     </div>
   )
@@ -1276,7 +1484,7 @@ export default function PredictionTab({ matches }) {
         <div style={{textAlign:'center', padding:20, color:'#8899bb', fontSize:13}}>⏳ Loading predictions...</div>
       )}
 
-      {view === 'leaderboard' && <PredLeaderboard allPredData={allPredData} />}
+      {view === 'leaderboard' && <PredLeaderboard allPredData={allPredData} matches={matches} />}
 
       {view !== 'leaderboard' && (
         displayMatches.length === 0
