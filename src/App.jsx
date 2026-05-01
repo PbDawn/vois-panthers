@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import AdminLogin from './AdminLogin'
 import AdminPage  from './AdminPage'
+import PredictionTab from './PredictionTab'
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, RadialLinearScale, Title, Tooltip, Legend, Filler } from 'chart.js'
 import { Line, Bar, Doughnut, PolarArea } from 'react-chartjs-2'
 
@@ -5210,6 +5211,7 @@ export default function App() {
 
   const navItems = activeSeason === 'ipl2026' ? [
     { id:'matchlog',    label:'📋 Match Log' },
+    { id:'prediction',  label:'🔮 Prediction' },
     { id:'playerstats', label:'👤 Player Stats' },
     { id:'leaderboard', label:'🏆 Leaderboard' },
     { id:'graphs',      label:'📊 Graphs' },
@@ -5304,6 +5306,7 @@ export default function App() {
         {activeSeason === 'ipl2026' ? (
           <>
             <div style={activeSection==='matchlog'    ? {} : {display:'none'}}><MatchLog    matches={matches} /></div>
+            <div style={activeSection==='prediction'  ? {} : {display:'none'}}><PredictionTab matches={matches} /></div>
             <div style={activeSection==='playerstats' ? {} : {display:'none'}}><PlayerStats matches={matches} h2hPlayers={h2hPlayers} setH2hPlayers={setH2hPlayers} /></div>
             <div style={activeSection==='leaderboard' ? {} : {display:'none'}}><Leaderboard matches={matches} /></div>
             <div style={activeSection==='graphs'      ? {} : {display:'none'}}><Graphs      matches={matches} /></div>
