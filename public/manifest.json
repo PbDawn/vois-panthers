@@ -1,0 +1,12 @@
+{
+  "name": "VOIS Panthers IPL 2026",
+  "short_name": "VOIS Panthers",
+  "start_url": "/vois-panthers/",
+  "display": "standalone",
+  "background_color": "#0d1b2e",
+  "theme_color": "#f5a623",
+  "icons": [
+    { "src": "/vois-panthers/ashish.jpg", "sizes": "192x192", "type": "image/jpeg" },
+    { "src": "/vois-panthers/ashish.jpg", "sizes": "512x512", "type": "image/jpeg" }
+  ]
+}
